@@ -935,8 +935,19 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
             and chave_produto(o["titulo"]) not in recentes]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
-    filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL]}
     out, ultimo = [], []
+    # 30/09: 1 oferta de GRIFE abre cada rodada (o vídeo de divulgação promete "itens de marca por preço de verdade" no
+    # grupo — tem que ser verdade quando a pessoa entra): a de maior desconto em reais, 'de' ≥ R$ 200, ≥ 25% off
+    fresco = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
+    grife = [o for o in cand if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 200
+             and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
+             and (o.get("atualizado_em") or "") >= fresco]  # preço visto há pouco (grife muda rápido)
+    if grife and n >= 3:
+        top = max(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"])
+        cand.remove(top)
+        out.append(top)
+        ultimo.append(top["grupo"])
+    filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL]}
     for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 2)):
         if len(out) >= n or not (filas["B"] or filas["O"]):
             break
