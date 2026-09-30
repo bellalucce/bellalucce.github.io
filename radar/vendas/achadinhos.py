@@ -702,19 +702,32 @@ BENEFICIOS = [
     (r"organizador|caixa organizadora|cesto|porta(?! beb[êe])|expositor|sacos? (?:de )?armazenamento|saco a v[áa]cuo",
      "ORGANIZE SUA BAGUNÇA 🧺"),
     (r"toalha|toalh[ãa]o", "TOALHA FOFINHA DE HOTEL 🛁"),
-    (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira", "COZINHA LINDA GASTANDO POUCO 🍳"),
+    (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira|mixer|processador de alimentos|liquidificador|cafeteira|"
+     r"sanduicheira|batedeira|potes? herm[ée]ticos?|formas? de silicone|travessas?", "COZINHA LINDA GASTANDO POUCO 🍳"),
     (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby|canguru|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),
     (r"bolsa(?:s)?(?! (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade|marmita|lancheira))",
      "A BOLSA QUE COMBINA COM TUDO 👜"),
     (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira", "PÉ LINDO E CONFORTÁVEL 👟"),
     (r"vivara|pandora|life by vivara", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
     (r"brinco|colar|colares|anel|an[ée]is|pulseira|rel[óo]gio|semijoia|conjunto de joias", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
-    (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha", "LOOK NOVO GASTANDO POUCO 👗"),
+    (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha|camiseta|camisa|blazer|moletom|jaqueta|"
+     r"casaco|regata|shorts?|bermuda|conjunto feminino|body(?! splash)|cardig[ãa]", "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
-    (r"balan[çc]a|depilador[a]?|cera quente|termocera|aquecedor de cera|smartwatch|rel[óo]gio inteligente|ferramentas?|"
-     r"massageador|garrafa|copo|trampolim|bolsa (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade)|mochila|"
-     r"processador|mixer|liquidificador|aspirador|ventilador|brinquedo|carrinho|boneca|marmita|lancheira|m[áa]scara (?:de )?led|"
-     r"led facial|maquiagem (?:infantil|crian[çc]a)|kit infantil", None),
+    # 30/09 (dona: "além de correto, tem que ser humano"): tipos que ficavam com frase genérica agora têm a sua
+    (r"mai[ôo]|biqu[íi]ni|sa[íi]da de praia|canga", "PRONTA PRO VERÃO 👙"),
+    (r"brinquedo|boneca|pel[úu]cia|carrinho de controle|caminh[ãa]o (?:de )?controle|patinete|lego|blocos de montar|"
+     r"quebra-?cabe[çc]a|massinha|maquiagem (?:infantil|crian[çc]a)|reborn|hama beads", "PRESENTE PROS PEQUENOS 🧸"),
+    (r"roupa infantil|conjunto infantil|menin[oa]", "ROUPINHA FOFA PROS PEQUENOS 🧸"),
+    (r"garrafa t[ée]rmica|copo t[ée]rmico|caneca t[ée]rmica|squeeze|tumbler|stanley", "GELADINHO O DIA TODO 🧊"),
+    (r"massageador", "ALÍVIO PRO CORPO CANSADO 💆‍♀️"),
+    (r"depilador[a]?|cera quente|termocera|aquecedor de cera|depila[çc][ãa]o", "DEPILAÇÃO EM CASA, SEM SOFRER ✨"),
+    (r"smart ?watch|rel[óo]gio inteligente|fones? de ouvido|fone bluetooth|caixa de som|caixinha de som|"
+     r"carregador port[áa]til|power ?bank", "TECNOLOGIA NO PRECINHO 📱"),
+    (r"[óo]culos de sol|[óo]culos", "PROTEÇÃO COM ESTILO 😎"),
+    # tipo conhecido SEM frase própria → frase de reserva da categoria (nunca um termo de depois no título)
+    (r"balan[çc]a|ferramentas?|trampolim|bolsa (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade)|mochila|"
+     r"aspirador|ventilador|carrinho|marmita|lancheira|m[áa]scara (?:de )?led|led facial|garrafa|copo|umidificador|"
+     r"projetor|controle|barraca|mesa", None),
 ]
 _BENEF = [(re.compile(rf"(?<!\w)(?:{pad})(?:s|es)?(?!\w)", re.I), frase) for pad, frase in BENEFICIOS]
 CONECTORES = {"com", "c/", "para", "p/", "pra", "+", "|", "-"}
