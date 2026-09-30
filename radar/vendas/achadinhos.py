@@ -412,7 +412,8 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
     # tira parâmetros de rastreio/afiliado de terceiros montando a query de novo (o regex antigo perdia o "?" quando
     # 2+ parâmetros removidos vinham antes de um mantido)
     partes = urlsplit(url)
-    query = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True) if not RASTREIO.fullmatch(k)]
+    query = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True) if not RASTREIO.fullmatch(k)
+             and not (k == "q" and "belezanaweb" in partes.netloc)]  # ?q= da Beleza na Web = rastreio de busca
     url = urlunsplit(partes._replace(query=urlencode(query)))
     url = re.sub(r"/divulgador/oferta/(\w+)/", r"/p/\1/", url)  # Magalu divulgador → página normal do produto
     m = re.search(r"shopee\.com\.br/(?:opaanlp|product)/(\d+)/(\d+)", url)
@@ -462,6 +463,7 @@ def coletar(log=print) -> dict:
             o["score"], ok = pontuar(o), aprovada(o)
             ant = antes.get(o["id"])
             link, tentado = (ant["link_loja"] if ant else None) or o.get("link_loja"), (ant or {}).get("link_tentado_em")
+            link = limpar_link(link) if link else None  # link guardado (cache da nuvem) passa pela limpeza atual
             if ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem):
                 try:
                     link = _link_loja(o["link_fonte"], cli)
