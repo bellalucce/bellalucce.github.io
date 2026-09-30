@@ -81,6 +81,9 @@ FORA = re.compile(  # fora da linha do grupo (pedido do usuário): automotivo, r
     # suplemento em cápsula parece remédio (usuário: nada de remédio); colágeno/whey em pó continuam
     r"\d+ ?c[áa]psulas|coenzima|c[úu]rcuma|metilcobalamina|vitamina b ?\d|melatonina|"
     r"\d+ ?(c[áa]ps|tabs?|tabletes)\b|seringa|insulina|agulha|compress[ãa]o \d|raspador (de )?l[íi]ngua|"
+    # Lei 11.265/2006 (NBCAL): proibido PROMOVER mamadeira, bico, chupeta, fórmula infantil e afins
+    r"mamadeira|chupeta|bicos? (de mamadeira|ortod|de silicone)|protetor de mamilo|f[óo]rmula infantil|leite infantil|"
+    r"composto l[áa]cteo|\bnan (supreme|comfor|pro)|aptamil|nestog[êe]no|milnutri|papinha|"
     r"simparic|bravecto|nexgard|credeli|verm[íi]fugo|antipulgas|medicamento|rem[ée]dio|comprimidos? de|"
     r"ra[çc][ãa]o .*(renal|urin|gastro|hipoalerg|obes|hep[áa]t|terap|veterin|diet)|"
     r"placa de v[íi]deo|processador (intel|amd|ryzen|core)|placa-?m[ãa]e|mem[óo]ria ram|fonte atx|gabinete gamer|"
