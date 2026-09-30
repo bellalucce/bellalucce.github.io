@@ -571,7 +571,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
-<footer>Preços e cupons podem mudar a qualquer momento. Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você.</footer>
+<footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
 const card=o=>`<a class="card" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="lazy" src="${{E(o.f)}}" alt="">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a>`;
@@ -663,7 +663,11 @@ def legenda_post(o: dict, n: int = 0) -> str:
     linhas = [f"*{gancho}*", "", o["titulo"][:100], f"🏬 {o.get('loja') or ''}", preco]
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
-    linhas += ["", f"👉 {link_afiliado(o['link_loja'])}", "", "_Preço e cupom podem mudar a qualquer momento._"]
+    # Amazon exige data/hora junto do preço; CONAR (guia de 01/06/2026) exige identificar publicidade → "#publi"
+    visto = str(o.get("atualizado_em") or "")
+    quando = f"Preço de {visto[8:10]}/{visto[5:7]} às {visto[11:16]}, pode mudar." if (
+        o.get("loja") == "Amazon" and len(visto) >= 16) else "Preço e cupom podem mudar a qualquer momento."
+    linhas += ["", f"👉 {link_afiliado(o['link_loja'])}", "", f"_{quando} #publi · link de afiliado_"]
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     return "\n".join(linhas)
@@ -759,11 +763,16 @@ def publicar_site() -> str:
     af = config.segredos().get("afiliados") or {}
     publicos = {k: af[k] for k in ("amazon_tag", "magalu_loja", "ml_tool", "ml_etiqueta") if k in af}
     (radar / "config" / "afiliados.json").write_text(json.dumps(publicos, indent=1), encoding="utf-8")
-    ml = db.consultar("SELECT * FROM ofertas WHERE fonte = 'ml_afiliados' "
-                      "AND atualizado_em >= datetime('now', 'localtime', '-36 hours') ORDER BY id")
-    for r in ml:
-        r["publicado_em"] = None
-    (radar / "dados" / "ml.json").write_text(json.dumps(ml, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # vai para a nuvem: TUDO do ML da última coleta + as aprovadas das outras lojas (a nuvem começa o banco do zero a cada
+    # execução e só veria a Promobit daquele instante — 30/09: 12 Amazon no site × 88 no PC). No máx. 1×/hora: cada
+    # troca vira um commit de ~2 MB no repositório público.
+    arq = radar / "dados" / "ml.json"
+    if not arq.exists() or time.time() - arq.stat().st_mtime > 55 * 60:
+        ofs = db.consultar("SELECT * FROM ofertas WHERE atualizado_em >= datetime('now', 'localtime', '-36 hours') "
+                           "AND (fonte = 'ml_afiliados' OR (aprovada = 1 AND link_loja IS NOT NULL)) ORDER BY id")
+        for r in ofs:
+            r["publicado_em"] = None
+        arq.write_text(json.dumps(ofs, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):  # logo da marca (dados/marca)
         if (config.DADOS / "marca" / origem).exists():
             shutil.copyfile(config.DADOS / "marca" / origem, pasta / destino)
