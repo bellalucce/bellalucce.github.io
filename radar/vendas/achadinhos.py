@@ -539,6 +539,17 @@ def vitrine(horas: int = 36) -> str:
     cards = []  # a página desenha os cards a partir de ofertas.json (60 por vez)
     abas = "".join(f'<button data-g="{g}">{NOMES[g]}</button>' for g in grupos)
     agora = datetime.now().strftime("%d/%m %H:%M")
+    # faixa "Da nossa loja": produtos da Bella Lucce com estoque (config/loja.json — o PC gera e manda para a nuvem)
+    arq_loja = config.CONFIG / "loja.json"
+    loja = json.loads(arq_loja.read_text(encoding="utf-8")) if arq_loja.exists() else []
+    faixa = ""
+    if loja:
+        itens_loja = "".join(
+            f'<a class="card" href="{e(next(iter(p["links"].values())))}" target="_blank" rel="noopener">'
+            f'<div class="img"><img loading="lazy" src="{e(p["foto"])}" alt=""></div><div class="loja">Bella Lucce</div>'
+            f'<div class="tit">{e(p["nome"])}</div><div class="preco"><b>{e(p["preco"])}</b></div>'
+            f'<div class="btn">Ver na loja</div></a>' for p in loja)
+        faixa = f'<section class="nossa"><h2>💖 Da nossa loja</h2><div class="trilho">{itens_loja}</div></section>'
     grupo = canais().get("grupo_whatsapp")
     entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">💬 Entrar no grupo de achadinhos do WhatsApp</a>'
               if grupo else "")
@@ -564,8 +575,11 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 .busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid #f1c6d6;border-radius:20px;padding:9px 14px;font-size:14px}}.busca span{{font-size:12px;color:#888;white-space:nowrap}}
 #mais{{display:block;margin:0 auto 24px;border:0;background:var(--rosa);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
 .entrar{{display:block;margin:12px auto 0;max-width:420px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;border-radius:24px;padding:11px 16px}}
+.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:17px;margin:4px 0 10px;color:var(--rosa)}}
+.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
 <header><img class="logo" src="logo.png" alt="bella lucce"><h1>Achadinhos Bella Lucce ✨</h1><p>As melhores promoções do dia, conferidas a cada 20 minutos · atualizado {agora}</p>{entrar}</header>
+{faixa}
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
@@ -670,6 +684,27 @@ def legenda_post(o: dict, n: int = 0) -> str:
 
 
 SITE_URL = "https://bellalucce.github.io"
+HORAS_LOJA = (10, 13, 16, 19)  # 4 posts/dia de produto NOSSO no grupo (exposição grátis; 30/09: 1 visita/semana no ML)
+
+
+def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
+    """(legenda, foto local) de um produto da PRÓPRIA loja com estoque, em rodízio, nas HORAS_LOJA (1ª rodada da hora).
+    Produtos/links/legendas vêm de config/midia.json (os mesmos dos vídeos). None fora do horário ou sem estoque."""
+    from vendas import midia
+    agora = agora or datetime.now()
+    if agora.hour not in HORAS_LOJA or agora.minute >= 15:
+        return None
+    prods = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))["produtos"]
+    ok = [(k, p) for k, p in prods.items() if p.get("links") and midia.tem_estoque(k) and (config.RAIZ / p["foto"]).exists()]
+    if not ok:
+        return None
+    vez = agora.timetuple().tm_yday * len(HORAS_LOJA) + HORAS_LOJA.index(agora.hour)
+    sku, p = ok[vez % len(ok)]
+    legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
+    linhas = ["*DA NOSSA LOJINHA 💖*", "", legenda, "", f"💰 {p.get('preco', '')}"]
+    linhas += [f"👉 {canal}: {url}" for canal, url in p["links"].items()]
+    linhas += ["", "_Produto da loja Bella Lucce, notificado na ANVISA._"]
+    return "\n".join(linhas), str(config.RAIZ / p["foto"])
 
 
 def canais() -> dict:
@@ -742,6 +777,28 @@ def auditar() -> list[str]:
     return problemas
 
 
+def _publicar_loja(pasta, radar) -> None:
+    """Faixa "Da nossa loja" do site: produtos da Bella Lucce COM estoque (config/midia.json + estoque do Hermes) →
+    radar/config/loja.json + fotos reduzidas em loja/<sku>.jpg no repositório do site."""
+    from PIL import Image
+
+    from vendas import midia
+    prods = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))["produtos"]
+    (pasta / "loja").mkdir(exist_ok=True)
+    lista = []
+    for sku, p in prods.items():
+        foto = config.RAIZ / p.get("foto", "")
+        if not (p.get("links") and foto.is_file() and midia.tem_estoque(sku)):
+            continue
+        destino = pasta / "loja" / f"{sku}.jpg"
+        if not destino.exists() or destino.stat().st_mtime < foto.stat().st_mtime:
+            im = Image.open(foto).convert("RGB")
+            im.thumbnail((500, 500))
+            im.save(destino, quality=85)
+        lista.append({"nome": p["nome"], "preco": p.get("preco", ""), "links": p["links"], "foto": f"loja/{sku}.jpg"})
+    (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def publicar_site() -> str:
     """Alimenta o RADAR NA NUVEM (repo bellalucce/bellalucce.github.io, GitHub Actions a cada 20 min — quem monta e
     publica o site é a nuvem, mesmo com o PC desligado). O PC só envia, quando mudam: o código deste módulo, a config,
@@ -770,6 +827,7 @@ def publicar_site() -> str:
         for r in ofs:
             r["publicado_em"] = None
         arq.write_text(json.dumps(ofs, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    _publicar_loja(pasta, radar)
     for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):  # logo da marca (dados/marca)
         if (config.DADOS / "marca" / origem).exists():
             shutil.copyfile(config.DADOS / "marca" / origem, pasta / destino)
