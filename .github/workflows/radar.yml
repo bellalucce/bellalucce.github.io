@@ -1,0 +1,45 @@
+name: radar
+# Radar de achadinhos na nuvem: a cada 20 min monta e publica o site (grátis em repositório público).
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["radar/**", ".github/workflows/radar.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: America/Sao_Paulo
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install httpx
+      - uses: actions/cache@v4
+        with:
+          path: radar/dados/cache_links.json
+          key: links-${{ github.run_id }}
+          restore-keys: links-
+      - run: python radar/rodar.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
