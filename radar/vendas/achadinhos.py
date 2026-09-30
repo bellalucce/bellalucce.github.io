@@ -79,8 +79,9 @@ FORA = re.compile(  # fora da linha do grupo (pedido do usuário): automotivo, r
     r"vonixx|lava[- ]?autos?|(?<!infantil )(?<!cadeirinha )para carros?\b|veicular|bike el[ée]trica|"
     r"patinete el[ée]tric|carregador (de )?bike|soprador|\bgamer\b|drone|"
     # suplemento em cápsula parece remédio (usuário: nada de remédio); colágeno/whey em pó continuam
-    r"\d+ ?c[áa]psulas|coenzima|c[úu]rcuma|metilcobalamina|vitamina b ?\d|melatonina|"
-    r"\d+ ?(c[áa]ps|tabs?|tabletes)\b|seringa|insulina|agulha|compress[ãa]o \d|raspador (de )?l[íi]ngua|"
+    # (cápsula de café — Dolce Gusto/Nespresso — é achadinho de cozinha, não remédio)
+    r"^(?!.*(caf[ée]\b|dolce gusto|nespresso|tr[êe]s cora))(.*?)(\d+ ?c[áa]psulas|\bem c[áa]psulas?\b|\d+ ?(c[áa]ps|tabs?|tabletes)\b)|"
+    r"coenzima|c[úu]rcuma|metilcobalamina|vitamina b ?\d|melatonina|seringa|insulina|agulha|compress[ãa]o \d|raspador (de )?l[íi]ngua|"
     # Lei 11.265/2006 (NBCAL): proibido PROMOVER mamadeira, bico, chupeta, fórmula infantil e afins
     r"mamadeira|chupeta|bicos? (de mamadeira|ortod|de silicone)|protetor de mamilo|f[óo]rmula infantil|leite infantil|"
     r"composto l[áa]cteo|\bnan (supreme|comfor|pro)|aptamil|nestog[êe]no|milnutri|papinha|"
@@ -130,6 +131,35 @@ def _tabela() -> None:
         if "link_tentado_em" not in {r[1] for r in con.execute("PRAGMA table_info(ofertas)")}:
             # link da loja que não deu para resolver (ex.: meli.la de terceiros): não tenta de novo por 24 h
             con.execute("ALTER TABLE ofertas ADD COLUMN link_tentado_em TEXT")
+        # histórico próprio (30/09, estudo de achadinhos): menor preço visto por dia → "desconto de verdade?" e selo
+        # "menor preço em N dias", como Promobit/Keepa mostram
+        con.execute("CREATE TABLE IF NOT EXISTS ofertas_precos (id TEXT, dia TEXT, preco REAL, PRIMARY KEY (id, dia))")
+
+
+def _guardar_precos(con, pares) -> None:
+    """pares = [(id_oferta, preco)]; fica o MENOR preço do dia."""
+    con.executemany("""INSERT INTO ofertas_precos (id, dia, preco) VALUES (?, date('now','localtime'), ?)
+                       ON CONFLICT(id, dia) DO UPDATE SET preco = MIN(preco, excluded.preco)""",
+                    [(i, p) for i, p in pares if p])
+
+
+HIST_MIN_DIAS = 7  # abaixo disso "menor preço" não quer dizer nada
+
+
+def historico(id_oferta: str, dias: int = 30) -> dict | None:
+    """Preços dos dias ANTERIORES a hoje (até `dias`): {'dias', 'minimo', 'maximo'}; None sem histórico."""
+    r = db.consultar("""SELECT COUNT(*) dias, MIN(preco) minimo, MAX(preco) maximo FROM ofertas_precos
+                        WHERE id = ? AND dia < date('now','localtime') AND dia >= date('now','localtime', ?)""",
+                     (id_oferta, f"-{dias} days"))[0]
+    return r if r["dias"] else None
+
+
+def selo_preco(o: dict) -> str:
+    """'📉 Menor preço em N dias' só com HIST_MIN_DIAS+ de histórico e preço ABAIXO do menor anterior; senão ''."""
+    h = historico(o["id"]) if o.get("id") and o.get("preco") else None
+    if not h or h["dias"] < HIST_MIN_DIAS or o["preco"] >= h["minimo"]:
+        return ""
+    return f"📉 Menor preço em {h['dias']} dias no nosso radar"
 
 
 def _grupo(slug_ou_titulo: str) -> str:
@@ -458,6 +488,7 @@ def coletar(log=print) -> dict:
                              nota=excluded.nota, vendidos=excluded.vendidos, sinais=excluded.sinais, score=excluded.score,
                              aprovada=excluded.aprovada, link_loja=COALESCE(excluded.link_loja, link_loja),
                              atualizado_em=excluded.atualizado_em, link_tentado_em=excluded.link_tentado_em""", linhas)
+        _guardar_precos(con, [(x[0], x[5]) for x in linhas])
     reavaliar()
     problemas = auditar()
     res = {"vistas": len(vistos), "novas": novos, "aprovadas": aprov, "auditoria": len(problemas), "erros": erros}
@@ -505,6 +536,7 @@ def salvar_ml_afiliados(itens: list[dict]) -> dict:
                         (o["id"], o["fonte"], o["loja"], titulo, grupo, o["preco"], o["preco_antigo"], o["desconto"], None,
                          o["foto"], None, o["link_loja"], o["nota"], o["vendidos"], json.dumps(sinais, ensure_ascii=False),
                          o["score"], int(ok), agora, agora))
+            _guardar_precos(con, [(o["id"], o["preco"])])
             novos += ant is None
             aprov += ok
     problemas = auditar()
@@ -545,8 +577,8 @@ def vitrine(horas: int = 36) -> str:
               "c": o.get("cupom") or "", "f": o.get("foto") or "", "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
     (SITE).mkdir(parents=True, exist_ok=True)
     (SITE / "ofertas.json").write_text(json.dumps(dados, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    cards = []  # a página desenha os cards a partir de ofertas.json (60 por vez)
-    abas = "".join(f'<button data-g="{g}">{NOMES[g]}</button>' for g in grupos)
+    # a página desenha os cards a partir de ofertas.json (60 por vez)
+    abas ="".join(f'<button data-g="{g}">{NOMES[g]}</button>' for g in grupos)
     agora = datetime.now().strftime("%d/%m %H:%M")
     # faixa "Da nossa loja": produtos da Bella Lucce com estoque (config/loja.json — o PC gera e manda para a nuvem)
     arq_loja = config.CONFIG / "loja.json"
@@ -686,6 +718,8 @@ def legenda_post(o: dict, n: int = 0) -> str:
     preco = (f"De {_brl(o['preco_antigo'])} por *{_brl(o['preco'])}*" if o.get("preco_antigo")
              else f"Por *{_brl(o['preco'])}*")
     linhas = [f"*{gancho}*", "", o["titulo"][:100], f"🏬 {o.get('loja') or ''}", preco]
+    if selo := selo_preco(o):
+        linhas.append(selo)
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
     # Amazon exige data/hora junto do preço; CONAR (guia de 01/06/2026) exige identificar publicidade → "#publi"
