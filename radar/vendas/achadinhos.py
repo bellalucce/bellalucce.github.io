@@ -695,6 +695,7 @@ BENEFICIOS = [
     (r"fralda|len[çc]o umedecido", "MAMÃE, CORRE QUE TÁ BARATO 👶"),
     (r"bolsa", "A BOLSA QUE COMBINA COM TUDO 👜"),
     (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira", "PÉ LINDO E CONFORTÁVEL 👟"),
+    (r"vivara|pandora|life by", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
     (r"brinco|colar|anel|pulseira|rel[óo]gio|semijoia", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha", "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
@@ -710,6 +711,7 @@ MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = c
     r"dark lab|growth|max titanium|integral ?m[ée]dica|dux|soldiers|probi[óo]tica|puma|adidas|nike|olympikus|"
     r"lupo|insider|alto giro|mizuno|fila|tramontina|electrolux|mondial|brit[âa]nia|philco|oster|wap\b|brinox|"
     r"oxford|lattafa|armaf|al wataniah|maison alhambra|carolina herrera|paco rabanne|jean paul|lanc[ôo]me|"
+    r"vivara|pandora|"
     r"pampers|huggies|johnson|whiskas|pedigree|golden|premier|samsung|jbl|xiaomi|apple|stanley", re.I)
 
 
@@ -749,7 +751,9 @@ def legenda_post(o: dict, n: int = 0) -> str:
     visto = str(o.get("atualizado_em") or "")
     quando = f"Preço de {visto[8:10]}/{visto[5:7]} às {visto[11:16]}, pode mudar." if (
         o.get("loja") == "Amazon" and len(visto) >= 16) else "Preço e cupom podem mudar a qualquer momento."
-    linhas += ["", f"👉 {link_afiliado(o['link_loja'])}", "", f"_{quando} #publi · link de afiliado_"]
+    link = link_afiliado(o["link_loja"])
+    aviso = "#publi · link de afiliado" if link != o["link_loja"] else "#publi"  # Sephora/Beleza na Web etc.: sem programa
+    linhas += ["", f"👉 {link}", "", f"_{quando} {aviso}_"]
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     return "\n".join(linhas)
