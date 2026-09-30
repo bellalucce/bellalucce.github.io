@@ -29,7 +29,10 @@ PAGINAS_PROMOBIT = ["/promocoes/em-alta/", "/promocoes/recentes/", "/promocoes/p
                     "/promocoes/utensilios-domesticos/", "/promocoes/casa-e-construcao/", "/promocoes/menor-preco/",
                     "/promocoes/loja/magazine-luiza/",  # Magalu (pedido do usuário; o site da Magalu bloqueia robôs)
                     # 30/09: resto da linha do grupo (bebê, fitness) e joias/relógios (tipo de oferta "premium" dos grupos)
-                    "/promocoes/bebes-e-criancas/", "/promocoes/suplementos-e-fitness/", "/promocoes/relogios-e-joias/"]
+                    "/promocoes/bebes-e-criancas/", "/promocoes/suplementos-e-fitness/", "/promocoes/relogios-e-joias/",
+                    # 30/09 04h: lojas de beleza (linha principal do grupo) — teste: 24/20/7/6 aprovadas por página
+                    "/promocoes/loja/beleza-na-web/", "/promocoes/loja/sephora/", "/promocoes/loja/epoca-cosmeticos/",
+                    "/promocoes/loja/natura/"]
 
 # categoria da fonte → grupo mostrado na vitrine
 GRUPOS = {
