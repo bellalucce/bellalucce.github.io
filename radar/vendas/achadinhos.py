@@ -221,6 +221,35 @@ def _grupo_final(g: str, titulo: str) -> str:
 
 
 # ---------------- fontes ----------------
+PRECO_NO_TITULO = re.compile(r"\s+De:?\s*R\$\s*[\d.,]+\s*Por:?\s*R\$\s*[\d.,]*.*$|\s+Selo:?\s*\d*\s*$", re.I)
+
+
+def limpar_titulo(t: str) -> str:
+    """30/09: títulos da Beleza na Web vêm com o preço colado ("... 200ml De: R$ 481,90 Por: R$ 279,90 Selo: 4") →
+    no post saía o preço duas vezes e um "Selo: 4" sem sentido."""
+    t = PRECO_NO_TITULO.sub("", (t or "").strip()).strip(" -–|")
+    letras = [c for c in t if c.isalpha()]
+    if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
+        t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
+    return t
+
+
+SIGLAS = {"edp", "edt", "edc", "fps", "uv", "led", "usb", "tv", "hd", "pc", "ph", "bb", "cc"}
+MIUDAS = {"de", "da", "do", "das", "dos", "e", "com", "para", "em", "no", "na", "a", "o", "p/", "c/"}
+
+
+def _sem_gritar(t: str) -> str:
+    out = []
+    for i, w in enumerate(t.lower().split()):
+        if w in SIGLAS:
+            out.append(w.upper())
+        elif re.fullmatch(r"\d+(?:[.,]\d+)?(?:ml|g|kg|l|w|mm|cm)?", w) or (i and w in MIUDAS) or w in ("ml", "g", "kg"):
+            out.append(w)
+        else:
+            out.append(w[:1].upper() + w[1:])
+    return " ".join(out)
+
+
 def _promobit(caminho: str, cli: httpx.Client) -> list[dict]:
     h = cli.get(PROMOBIT + caminho).text
     m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', h, re.S)
@@ -250,7 +279,7 @@ def _promobit(caminho: str, cli: httpx.Client) -> list[dict]:
                   "curtidas": o.get("offerLikes") or 0, "cliques": o.get("offerClicks") or 0}
         out.append({
             "id": f"promobit:{o['offerId']}", "fonte": "promobit", "loja": o.get("storeName"),
-            "titulo": _html.unescape(o.get("offerTitle") or "").strip(),
+            "titulo": limpar_titulo(_html.unescape(o.get("offerTitle") or "")),
             "grupo": _grupo_final(_grupo(o.get("categorySlug") or o.get("offerTitle") or ""), o.get("offerTitle") or ""),
             "preco": preco, "preco_antigo": antigo, "desconto": int(desc or 0), "cupom": cupom_valido(o.get("offerCoupon")),
             "foto": f"https://i.promobit.com.br/400{o['offerPhoto']}" if o.get("offerPhoto") else None,
@@ -605,7 +634,7 @@ def vitrine(horas: int = 36) -> str:
     ofs = sem_repetidos([o for o in melhores(horas, 20000) if o["link_loja"] and o.get("grupo") in NOMES])
     grupos = [g for g in NOMES if any(o["grupo"] == g for o in ofs)]
     e = _html.escape
-    dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": o["titulo"][:90], "p": _brl(o["preco"]),
+    dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": limpar_titulo(o["titulo"])[:90], "p": _brl(o["preco"]),
               "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "", "d": o.get("desconto") or 0,
               "c": o.get("cupom") or "", "f": o.get("foto") or "", "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
     mins = minimos()
@@ -916,7 +945,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
              else f"Por *{_brl(o['preco'])}*")
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         preco += f" _(às {hora})_"
-    linhas = [f"*{gancho}*", "", o["titulo"][:100], f"🏬 {o.get('loja') or ''}", preco]
+    linhas = [f"*{gancho}*", "", limpar_titulo(o["titulo"])[:100], f"🏬 {o.get('loja') or ''}", preco]
     if selo := selo_preco(o):
         linhas.append(selo)
     if o.get("cupom"):
