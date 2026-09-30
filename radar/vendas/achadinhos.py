@@ -27,7 +27,9 @@ PROMOBIT = "https://www.promobit.com.br"
 PAGINAS_PROMOBIT = ["/promocoes/em-alta/", "/promocoes/recentes/", "/promocoes/perfumes-e-beleza/",
                     "/promocoes/moda-e-calcados-femininos/", "/promocoes/saude-e-higiene/",
                     "/promocoes/utensilios-domesticos/", "/promocoes/casa-e-construcao/", "/promocoes/menor-preco/",
-                    "/promocoes/loja/magazine-luiza/"]  # Magalu (pedido do usuário; o site da Magalu bloqueia robôs)
+                    "/promocoes/loja/magazine-luiza/",  # Magalu (pedido do usuário; o site da Magalu bloqueia robôs)
+                    # 30/09: resto da linha do grupo (bebê, fitness) e joias/relógios (tipo de oferta "premium" dos grupos)
+                    "/promocoes/bebes-e-criancas/", "/promocoes/suplementos-e-fitness/", "/promocoes/relogios-e-joias/"]
 
 # categoria da fonte → grupo mostrado na vitrine
 GRUPOS = {
@@ -271,6 +273,7 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"(?:casasbahia|pontofrio|extra)\.com\.br/.+/p/\d+", r"aliexpress\.com/item/\d+", r"sephora\.com\.br/.+\.html",
     r"belezanaweb\.com\.br/[a-z0-9-]+/?$", r"dafiti\.com\.br/.+-\d+\.html", r"renner\.com\.br/.+/p/\d+",
     r"boticario\.com\.br/[a-z0-9-]+/?$", r"natura\.com\.br/p/", r"epocacosmeticos\.com\.br/[a-z0-9-]+/p",
+    r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
                                r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
