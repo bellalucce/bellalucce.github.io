@@ -211,13 +211,16 @@ def pontuar(o: dict) -> float:
     p += 5 if isinstance(destaque, str) and re.search(r"MAIS VENDIDO|IMPERD", destaque, re.I) else 0
     p += min(s.get("comissao", 0), 20) * 0.4               # ML Afiliados: comissão maior = mais ganho para a loja
     p += PESO_GRUPO.get(o.get("grupo"), 0)                 # segue a linha do grupo
+    p += 8 if MARCAS.search(o.get("titulo") or "") else 0  # marca conhecida (o que os grupos grandes mais postam)
+    p += 4 if 20 <= (o.get("preco") or 0) <= 120 else 0    # faixa de preço que mais sai nos grupos
     titulo = o.get("titulo") or ""
     p -= 18 if MASCULINO.search(titulo) else 0             # público do grupo é principalmente feminino
     p += 4 if re.search(r"feminin|mulher", titulo, re.I) else 0
     return round(max(0.0, min(100.0, p)), 1)
 
 
-MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba", re.I)
+MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba|"
+                       r"m[áa]quina de (acabamento|corte|cortar)|aparador de pelos|barbeador|testosteron", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
@@ -562,20 +565,70 @@ GANCHOS = {
     "casa": ["CASA ARRUMADINHA GASTANDO POUCO 🏠", "ACHADINHO PRA CASA ✨"],
     "eletronicos": ["PREÇÃO NESSE AQUI 📱", "TECNOLOGIA COM DESCONTO ⚡"],
 }
+# Ganchos por BENEFÍCIO do produto, na voz de amiga (estudo dos grupos que funcionam, 29/09 —
+# cerebro/20-Divulgacao/2026-09-29-Estudo-grupos-de-achadinhos.md). O primeiro padrão que casar com o título vence.
+BENEFICIOS = [
+    (r"protetor solar|fps ?\d", "PELE PROTEGIDA SEM PESAR NO BOLSO ☀️"),
+    (r"m[áa]scara de c[íi]lios|r[íi]mel", "CÍLIOS DE BONECA POR ESSE PREÇO? 👀"),
+    (r"s[ée]rum|retinal|retinol|vitamina c|niacinamida|[áa]cido hialur|booster|ampoule", "PELE LISINHA E COM VIÇO, AMIGA ✨"),
+    (r"\bbase\b|corretivo|p[óo] compacto|primer|fixador de maquiagem", "PELE DE FILTRO NA VIDA REAL 💄"),
+    (r"gloss|batom|lip ?tint|lip ?oil|balm", "BOCA LINDA GASTANDO POUCO 💋"),
+    (r"escova secadora|secador", "CABELO LINDO E SECO RAPIDINHO 💨"),
+    (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
+    (r"cachos|cacheador|babyliss|modelador", "CACHOS DE SALÃO EM CASA 🌀"),
+    (r"m[áa]scara capilar|[óo]leo capilar|shampoo|condicionador|ampola|leave-?in", "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
+    (r"lattafa|armaf|al wataniah|maison alhambra|[áa]rabe", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"),
+    (r"perfume|eau de|parfum|body splash|col[ôo]nia", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
+    (r"legging|top fitness|conjunto fitness|short fitness|academia", "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
+    (r"whey|creatina|pr[ée]-?treino|col[áa]geno", "SUPLEMENTO BOM COM PREÇO DE AMIGA 💪"),
+    (r"bicicleta ergom|esteira", "ACADEMIA EM CASA NO PRECINHO 🚴‍♀️"),
+    (r"jogo de cama|len[çc]ol|edredom|travesseiro|colcha", "CAMA DE HOTEL NA SUA CASA 🛏️"),
+    (r"organizador|caixa organizadora|cesto|porta[- ]", "ORGANIZE SUA BAGUNÇA 🧺"),
+    (r"toalha", "TOALHA FOFINHA DE HOTEL 🛁"),
+    (r"panela|frigideira|air ?fryer|fritadeira", "COZINHA LINDA GASTANDO POUCO 🍳"),
+    (r"fralda|len[çc]o umedecido", "MAMÃE, CORRE QUE TÁ BARATO 👶"),
+    (r"bolsa", "A BOLSA QUE COMBINA COM TUDO 👜"),
+    (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira", "PÉ LINDO E CONFORTÁVEL 👟"),
+    (r"brinco|colar|anel|pulseira|rel[óo]gio|semijoia", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
+    (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha", "LOOK NOVO GASTANDO POUCO 👗"),
+    (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
+]
+AMIGA = ["AMIGAS NÃO GUARDAM SEGREDO! 🤫", "OLHA ESSE PRECINHO, AMIGA 😍", "CORRE QUE VAI ESGOTAR 🏃‍♀️",
+         "PRECINHO DE BUG 🐞", "SE ACABAR, NÃO VOLTA MAIS ⏳"]
+KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|p[çc]s|pe[çc]as|rolos)", re.I)
+MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = clique)
+    r"la roche|vichy|cetaphil|neutrogena|principia|creamy|sallve|nivea|eudora|botic[áa]rio|natura|avon|dove|"
+    r"k[ée]rastase|l.or[ée]al|wella|lola|salon line|elseve|pantene|tresemm|celimax|beauty of joseon|skin1004|"
+    r"medicube|anua|cosrx|vizzela|ruby rose|mari maria|boca rosa|bruna tavares|fran by|max love|dailus|"
+    r"dark lab|growth|max titanium|integral ?m[ée]dica|dux|soldiers|probi[óo]tica|puma|adidas|nike|olympikus|"
+    r"lupo|insider|alto giro|mizuno|fila|tramontina|electrolux|mondial|brit[âa]nia|philco|oster|wap\b|brinox|"
+    r"oxford|lattafa|armaf|al wataniah|maison alhambra|carolina herrera|paco rabanne|jean paul|lanc[ôo]me|"
+    r"pampers|huggies|johnson|whiskas|pedigree|golden|premier|samsung|jbl|xiaomi|apple|stanley", re.I)
+
+
+def gancho_post(o: dict, n: int = 0) -> str:
+    """Gancho do post como os grupos que funcionam: desconto absurdo → preço por unidade em kit → benefício do
+    produto → 'tá bombando' → frase de amiga (rodízio)."""
+    d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
+    if d >= 70 and n % 3 == 0:  # nos grupos o "% OFF" é tempero, não regra — o que domina é o benefício
+        return f"{d}% OFF, NÃO É ERRO! 😱"
+    m = KIT.search(titulo)
+    qtd = int(next(g for g in m.groups() if g)) if m else 0
+    if qtd >= 2 and preco and preco / qtd <= 30:
+        return f"SÓ {_brl(preco / qtd).upper()} CADA 😱"
+    if n % 4 != 3:  # 3 de 4 posts com gancho de benefício; o 4º com frase de amiga (variedade)
+        for pad, frase in BENEFICIOS:
+            if re.search(pad, titulo, re.I):
+                return frase
+    sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
+    if sinais.get("top") or sinais.get("vendidos_num", 0) >= 10000:
+        return "TÁ BOMBANDO! 🔥"
+    return AMIGA[n % len(AMIGA)]
 
 
 def legenda_post(o: dict, n: int = 0) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso."""
-    d = o.get("desconto") or 0
-    if d >= 60:
-        gancho = f"{d}% OFF, NÃO É ERRO! 😱"
-    elif o.get("cupom"):
-        gancho = "CUPOM LIBERADO 🎟️"
-    elif (json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})).get("top"):
-        gancho = "TÁ BOMBANDO! 🔥"
-    else:
-        opcoes = GANCHOS.get(o.get("grupo"), ["ACHADINHO DO DIA ✨", "PROMO NO AR, NÃO PERDE! 🏃‍♀️"])
-        gancho = opcoes[n % len(opcoes)]
+    gancho = gancho_post(o, n)
     preco = (f"De {_brl(o['preco_antigo'])} por *{_brl(o['preco'])}*" if o.get("preco_antigo")
              else f"Por *{_brl(o['preco'])}*")
     linhas = [f"*{gancho}*", "", o["titulo"][:100], f"🏬 {o.get('loja') or ''}", preco]
