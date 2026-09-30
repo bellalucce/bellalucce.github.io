@@ -284,7 +284,8 @@ def pontuar(o: dict) -> float:
 
 
 MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba|"
-                       r"m[áa]quina de (acabamento|corte|cortar)|aparador de pelos|barbeador|testosteron", re.I)
+                       r"m[áa]quina de (acabamento|corte|cortar)|aparador de pelos|barbeador|testosteron|"
+                       r"cortador de cabelo|groom|trimmer|clipper", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
