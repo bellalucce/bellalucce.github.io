@@ -15,7 +15,7 @@ import html as _html
 import json
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -48,7 +48,7 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni",
     "casa": r"panela|colchão|colchao|toalha|lençol|lencol|travesseiro|aspirador|air fryer|fritadeira|liquidificador|cafeteira|"
             r"organizador|cortina|tapete|jogo de cama|potes|faqueiro|ventilador|micro-ondas|geladeira|fogão",
-    "eletronicos": r"smart ?tv|notebook|celular|smartphone|fone|headset|monitor|tablet|carregador|ssd|mouse|teclado|caixa de som|câmera|camera",
+    "eletronicos": r"smart ?tv|notebook|(?<!renova[çc][ãa]o )celular|smartphone|fone|headset|monitor|tablet|carregador|ssd|mouse|teclado|caixa de som|câmera|camera",
     "mercado": r"café|cafe|leite|cerveja|vinho|chocolate|sabão|detergente|papel higiênico|fralda",
     "esporte": r"creatina|whey|pré-treino|halter|esteira|bicicleta|academia|suplemento|colágeno",
 }
@@ -73,11 +73,16 @@ PET_POPULAR = re.compile(r"whiskas|pedigree|golden|premier|gran plus|special (do
 FORA = re.compile(  # fora da linha do grupo (pedido do usuário): automotivo, remédios, peças, industrial
     r"automotiv|para-?brisa|palheta|taramps|m[óo]dulo (amplificador|de pot[êe]ncia)|som automotivo|alto-?falante automot|"
     r"pneu|[óo]leo (de )?motor|aditivo|farol|retrovisor|som para carro|"
+    # 30/09 (auditoria do site): shampoo DE CARRO caía em "cabelo"; bike/patinete elétrico e soprador em "infantil"
+    r"vonixx|lava[- ]?autos?|(?<!infantil )(?<!cadeirinha )para carros?\b|veicular|bike el[ée]trica|"
+    r"patinete el[ée]tric|carregador (de )?bike|soprador|\bgamer\b|drone|"
+    # suplemento em cápsula parece remédio (usuário: nada de remédio); colágeno/whey em pó continuam
+    r"\d+ ?c[áa]psulas|coenzima|c[úu]rcuma|metilcobalamina|vitamina b ?\d|melatonina|"
     r"simparic|bravecto|nexgard|credeli|verm[íi]fugo|antipulgas|medicamento|rem[ée]dio|comprimidos? de|"
     r"ra[çc][ãa]o .*(renal|urin|gastro|hipoalerg|obes|hep[áa]t|terap|veterin|diet)|"
-    r"placa de v[íi]deo|processador|placa-?m[ãa]e|mem[óo]ria ram|fonte atx|gabinete gamer|"
+    r"placa de v[íi]deo|processador (intel|amd|ryzen|core)|placa-?m[ãa]e|mem[óo]ria ram|fonte atx|gabinete gamer|"
     r"rolamento|parafuso|disjuntor|cabo flex|fio el[ée]tric|v[áa]lvula|mangueira de press|motor el[ée]tric|"
-    r"livro|apostila|camiseta de time|uniforme|"
+    r"livro|apostila|camiseta de time|uniforme (escolar|de time|profissional|militar)|"
     r"inalador|nebulizador|ox[íi]metro|medidor de press|aparelho de press|term[ôo]metro cl[íi]nic|glicos|palmilha ortop", re.I)
 STOP = {"de", "da", "do", "das", "dos", "com", "para", "e", "em", "a", "o", "kit", "c", "p", "sem", "novo", "nova",
         "original", "promo", "oferta", "unidade", "un", "pcs", "peças", "pecas", "the"}
@@ -116,6 +121,9 @@ def _tabela() -> None:
             aprovada INTEGER DEFAULT 0,
             visto_em TEXT, atualizado_em TEXT, publicado_em TEXT
         );""")
+        if "link_tentado_em" not in {r[1] for r in con.execute("PRAGMA table_info(ofertas)")}:
+            # link da loja que não deu para resolver (ex.: meli.la de terceiros): não tenta de novo por 24 h
+            con.execute("ALTER TABLE ofertas ADD COLUMN link_tentado_em TEXT")
 
 
 def _grupo(slug_ou_titulo: str) -> str:
@@ -133,6 +141,8 @@ PERFUME = re.compile(r"perfume|col[ôo]nia|body splash|eau de|parfum|deo col|\be
 
 
 BEM_ESTAR = re.compile(r"vitamin|multivitam|suplement|col[áa]geno|whey|creatina|[ôo]mega ?3", re.I)
+PET = re.compile(r"para (c[ãa]es|cachorros?|gatos?|pets?|felinos?|caninos?)|\bpet\b|\bra[çc][ãa]o\b|arranhador|"
+                 r"caixa de areia|areia sanit|coleira|comedouro|cama de cachorro|casinha de cachorro", re.I)
 CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|cobertor|manta de sof|tapete", re.I)
 
 
@@ -144,8 +154,10 @@ def _grupo_final(g: str, titulo: str) -> str:
         return "cabelo"
     if FITNESS.search(titulo or ""):
         return "esporte"
-    if g in ("mercado", "outros", "beleza", "casa") and BEBE.search(titulo or ""):
-        return "infantil"
+    if PET.search(titulo or ""):
+        return "pet"      # item de bicho em casa/moda/infantil escapava da regra "pet só de marca popular"
+    if BEBE.search(titulo or ""):
+        return "infantil"  # vale para qualquer g: antes só alguns → infantil↔casa alternava a cada ciclo
     if BEM_ESTAR.search(titulo or ""):
         return "beleza"   # bem-estar fica junto de beleza (a loja da Promobit às vezes classifica errado)
     if CAMA_BANHO.search(titulo or ""):
@@ -286,9 +298,14 @@ def eh_produto(o: dict) -> bool:
     if not (o.get("preco") and 1 <= o["preco"] <= teto):
         return False
     link = o.get("link_loja")
-    if link is not None and (tem_afiliado_terceiro(link) or not any(re.search(p, link) for p in PAGINA_PRODUTO)):
+    if link is not None and (tem_afiliado_terceiro(link) or not pagina_de_produto(link)):
         return False
     return True
+
+
+def pagina_de_produto(link: str) -> bool:
+    """O DOMÍNIO tem que ser da loja (antes 'https://x.com/?u=produto.mercadolivre.com.br/MLB-1' passava)."""
+    return any(re.match(r"https?://(?:[\w-]+\.)*(?:" + p + ")", link) for p in PAGINA_PRODUTO)
 
 
 def aprovada(o: dict) -> bool:
@@ -324,12 +341,14 @@ def _link_loja(link_fonte: str, cli: httpx.Client) -> str | None:
 
 
 ENCURTADORES = ("meli.la", "s.shopee.com.br", "shope.ee", "amzn.to", "tidd.ly", "bit.ly", "onelink.me")
+RASTREIO = re.compile(r"tag|ref_|matt_[a-z_]+|utm_[a-z]+|af_[a-z_]+|smtt|sp_atk|xptdk|mmp_pid|uls_trackid|gads_t_sig|lp|c|"
+                      r"pid|clickid|tracking_id|forceInApp|promoter_id|partner_id|seller_id_divulgador")
 
 
 def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
     """Endereço real do produto, SEM afiliado de terceiros (senão a comissão vai pra eles):
     abre encurtadores (meli.la, s.shopee…), extrai o destino de deeplinks (linksynergy murl/u) e tira tag/utm."""
-    from urllib.parse import parse_qs, unquote, urlparse
+    from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlparse, urlsplit, urlunsplit
     u = urlparse(url)
     if "linksynergy" in u.netloc or "awin" in u.netloc:
         q = parse_qs(u.query)
@@ -349,12 +368,12 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
             url = loc if loc.startswith("http") else str(r.url.join(loc))
             if not any(e in urlparse(url).netloc for e in ENCURTADORES):
                 break
-    url = re.sub(r"([?&])(tag|ref_|matt_[a-z_]+|utm_[a-z]+|af_[a-z_]+|smtt|sp_atk|xptdk|mmp_pid|uls_trackid|"
-                 r"gads_t_sig|lp|c|pid|clickid|tracking_id|forceInApp)=[^&#]*", r"\1", url)
-    url = re.sub(r"[?&]+(#|$)", r"\1", re.sub(r"[?&]{2,}", "&", url.replace("?&", "?")))
-    url = re.sub(r"([?&])(promoter_id|partner_id|seller_id_divulgador)=[^&#]*", r"\1", url)  # Magalu divulgador
-    url = re.sub(r"/divulgador/oferta/(\w+)/", r"/p/\1/", url)
-    url = re.sub(r"[?&]+(#|$)", r"\1", url)
+    # tira parâmetros de rastreio/afiliado de terceiros montando a query de novo (o regex antigo perdia o "?" quando
+    # 2+ parâmetros removidos vinham antes de um mantido)
+    partes = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True) if not RASTREIO.fullmatch(k)]
+    url = urlunsplit(partes._replace(query=urlencode(query)))
+    url = re.sub(r"/divulgador/oferta/(\w+)/", r"/p/\1/", url)  # Magalu divulgador → página normal do produto
     m = re.search(r"shopee\.com\.br/(?:opaanlp|product)/(\d+)/(\d+)", url)
     if m:
         url = f"https://shopee.com.br/product/{m.group(1)}/{m.group(2)}"
@@ -368,7 +387,7 @@ def link_afiliado(url: str | None) -> str | None:
     if not url:
         return None
     af = config.segredos().get("afiliados") or {}
-    m = re.search(r"amazon\.com\.br/(?:.*/)?dp/([A-Z0-9]{10})", url)
+    m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
         return f"https://www.amazon.com.br/dp/{m.group(1)}?tag={af['amazon_tag']}"
     m = re.search(r"magazineluiza\.com\.br/(.+/p/\w+/.*)$", url)
@@ -394,33 +413,43 @@ def coletar(log=print) -> dict:
                 erros.append(f"promobit{cam}: {e}")
             time.sleep(1.5)  # educado com o site
         novos = aprov = 0
-        with db.conectar() as con:
-            for o in {x["id"]: x for x in vistos}.values():
-                o["score"], ok = pontuar(o), aprovada(o)
-                ant = con.execute("SELECT link_loja, visto_em FROM ofertas WHERE id = ?", (o["id"],)).fetchone()
-                link = (ant["link_loja"] if ant else None) or o.get("link_loja")
-                if ok and not link and o.get("link_fonte", "").startswith(PROMOBIT):
-                    try:
-                        link = _link_loja(o["link_fonte"], cli)
-                        time.sleep(1)
-                    except Exception as e:
-                        erros.append(f"link {o['id']}: {e}")
-                if link:  # confere de novo com o link real: página de UM produto e sem afiliado de terceiros
-                    o["link_loja"] = link
-                    ok = aprovada(o)
-                con.execute("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
-                                 link_fonte, link_loja, nota, vendidos, sinais, score, aprovada, visto_em, atualizado_em)
-                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                               ON CONFLICT(id) DO UPDATE SET preco=excluded.preco, preco_antigo=excluded.preco_antigo,
-                                 desconto=excluded.desconto, cupom=excluded.cupom, sinais=excluded.sinais, score=excluded.score,
-                                 aprovada=excluded.aprovada, link_loja=COALESCE(excluded.link_loja, link_loja),
-                                 atualizado_em=excluded.atualizado_em""",
-                            (o["id"], o["fonte"], o.get("loja"), o["titulo"], o["grupo"], o.get("preco"), o.get("preco_antigo"),
-                             o.get("desconto"), o.get("cupom"), o.get("foto"), o.get("link_fonte"), link, o.get("nota"),
-                             o.get("vendidos"), json.dumps(o.get("sinais"), ensure_ascii=False), o["score"], int(ok),
-                             agora, agora))
-                novos += ant is None
-                aprov += ok
+        antes = {r["id"]: r for r in db.consultar("SELECT id, link_loja, link_tentado_em FROM ofertas WHERE fonte = 'promobit'")}
+        ontem = (datetime.now() - timedelta(hours=24)).isoformat(sep=" ", timespec="seconds")
+        linhas = []
+        # fase 1 (internet, SEM segurar o banco): pontua e resolve o link só das aprovadas novas
+        for o in {x["id"]: x for x in vistos}.values():
+            o["score"], ok = pontuar(o), aprovada(o)
+            ant = antes.get(o["id"])
+            link, tentado = (ant["link_loja"] if ant else None) or o.get("link_loja"), (ant or {}).get("link_tentado_em")
+            if ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem):
+                try:
+                    link = _link_loja(o["link_fonte"], cli)
+                    time.sleep(1)
+                except Exception as e:
+                    erros.append(f"link {o['id']}: {e}")
+                tentado = None if link else agora
+            if link:  # confere de novo com o link real: página de UM produto e sem afiliado de terceiros
+                o["link_loja"] = link
+                ok = aprovada(o)
+            linhas.append((o["id"], o["fonte"], o.get("loja"), o["titulo"], o["grupo"], o.get("preco"), o.get("preco_antigo"),
+                           o.get("desconto"), o.get("cupom"), o.get("foto"), o.get("link_fonte"), link, o.get("nota"),
+                           o.get("vendidos"), json.dumps(o.get("sinais"), ensure_ascii=False), o["score"], int(ok),
+                           agora, agora, tentado))
+            novos += ant is None
+            aprov += ok
+    # fase 2 (rápida): grava tudo. Linha que já existia (ex.: esqueleto do cache da nuvem, só com o link) é COMPLETADA —
+    # antes só preço/score eram atualizados e a oferta ficava sem título/grupo/loja → reprovada (site sem Amazon/Magalu)
+    with db.conectar() as con:
+        con.executemany("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
+                             link_fonte, link_loja, nota, vendidos, sinais, score, aprovada, visto_em, atualizado_em,
+                             link_tentado_em)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(id) DO UPDATE SET loja=excluded.loja, titulo=excluded.titulo, grupo=excluded.grupo,
+                             preco=excluded.preco, preco_antigo=excluded.preco_antigo, desconto=excluded.desconto,
+                             cupom=excluded.cupom, foto=COALESCE(excluded.foto, foto), link_fonte=excluded.link_fonte,
+                             nota=excluded.nota, vendidos=excluded.vendidos, sinais=excluded.sinais, score=excluded.score,
+                             aprovada=excluded.aprovada, link_loja=COALESCE(excluded.link_loja, link_loja),
+                             atualizado_em=excluded.atualizado_em, link_tentado_em=excluded.link_tentado_em""", linhas)
     reavaliar()
     problemas = auditar()
     res = {"vistas": len(vistos), "novas": novos, "aprovadas": aprov, "auditoria": len(problemas), "erros": erros}
@@ -699,7 +728,7 @@ def auditar() -> list[str]:
         for r in con.execute("SELECT id, titulo, link_loja FROM ofertas WHERE aprovada = 1").fetchall():
             link = r["link_loja"]
             final = link_afiliado(link) if link else None
-            ruim = tem_afiliado_terceiro(link) or (link and not any(re.search(p, link) for p in PAGINA_PRODUTO))
+            ruim = tem_afiliado_terceiro(link) or (link and not pagina_de_produto(link))
             nosso = config.segredos().get("afiliados", {}).get("amazon_tag")
             if final and "tag=" in final and (not nosso or f"tag={nosso}" not in final):
                 ruim = True  # tag de Amazon que não é a nossa
