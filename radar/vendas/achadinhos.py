@@ -157,6 +157,18 @@ def historico(id_oferta: str, dias: int = 30) -> dict | None:
     return r if r["dias"] else None
 
 
+HIST_EXTERNO: dict | None = None  # na nuvem o banco nasce vazio: {id: [dias, minimo]} que o PC manda (historico.json)
+
+
+def minimos(dias: int = 30) -> dict:
+    """{id: [dias, minimo]} das ofertas com HIST_MIN_DIAS+ dias de histórico ANTES de hoje (selo do site)."""
+    if HIST_EXTERNO is not None:
+        return HIST_EXTERNO
+    return {r["id"]: [r["dias"], r["minimo"]] for r in db.consultar(
+        """SELECT id, COUNT(*) dias, MIN(preco) minimo FROM ofertas_precos WHERE dia < date('now','localtime')
+           AND dia >= date('now','localtime', ?) GROUP BY id HAVING COUNT(*) >= ?""", (f"-{dias} days", HIST_MIN_DIAS))}
+
+
 def selo_preco(o: dict) -> str:
     """'📉 Menor preço em N dias' só com HIST_MIN_DIAS+ de histórico e preço ABAIXO do menor anterior; senão ''."""
     h = historico(o["id"]) if o.get("id") and o.get("preco") else None
@@ -580,6 +592,10 @@ def vitrine(horas: int = 36) -> str:
     dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": o["titulo"][:90], "p": _brl(o["preco"]),
               "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "", "d": o.get("desconto") or 0,
               "c": o.get("cupom") or "", "f": o.get("foto") or "", "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
+    mins = minimos()
+    for o, x in zip(ofs, dados):  # selo "menor preço em N dias" (só quando vale: 7+ dias e abaixo do menor anterior)
+        if o["id"] in mins and o["preco"] < mins[o["id"]][1]:
+            x["h"] = mins[o["id"]][0]
     (SITE).mkdir(parents=True, exist_ok=True)
     (SITE / "ofertas.json").write_text(json.dumps(dados, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # a página desenha os cards a partir de ofertas.json (60 por vez)
@@ -617,6 +633,7 @@ main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap
 .selo{{position:absolute;top:8px;left:8px;background:var(--rosa);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
 .loja{{font-size:11px;color:#888;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
 .preco{{padding:0 10px;font-size:16px}}.preco s{{color:#999;font-size:12px;margin-right:6px}}.preco b{{color:#1a8a3a}}
+.hist{{margin:4px 10px 0;font-size:12px;font-weight:600;color:#0a7a3f}}
 .cupom{{margin:6px 10px 0;font-size:12px;background:#fff0f5;border:1px dashed var(--rosa);border-radius:8px;padding:4px 6px}}
 .btn{{margin:10px;background:var(--rosa);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
 .lnk{{display:flex;flex-direction:column;flex:1;text-decoration:none;color:inherit}}
@@ -639,7 +656,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
 const zap=o=>'https://wa.me/?text='+encodeURIComponent(o.t+' por '+o.p+' 👉 '+o.u+'\\n\\nMais achadinhos: {SITE_URL}');
-const card=o=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="lazy" src="${{E(o.f)}}" alt="">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
+const card=o=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="lazy" src="${{E(o.f)}}" alt="">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.h?`<div class="hist">📉 menor preço em ${{o.h}} dias</div>`:''}}${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
 const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();F=T.filter(o=>(!G||o.g===G)&&(!q||o.t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().includes(q)));N=0;document.getElementById('lista').innerHTML='';mais();document.getElementById('n').textContent=F.length+' ofertas'}};
 const mais=()=>{{document.getElementById('lista').insertAdjacentHTML('beforeend',F.slice(N,N+P).map(card).join('')||(N?'':'<p>Nenhuma oferta aqui agora.</p>'));N+=P;document.getElementById('mais').style.display=N<F.length?'':'none'}};
 document.getElementById('mais').onclick=mais;document.getElementById('q').oninput=e=>{{Q=e.target.value;filtrar()}};
@@ -891,6 +908,8 @@ def publicar_site() -> str:
         for r in ofs:
             r["publicado_em"] = None
         arq.write_text(json.dumps(ofs, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        # resumo do histórico de preço (só quem tem 7+ dias) → selo "menor preço" também no site montado na nuvem
+        (radar / "dados" / "historico.json").write_text(json.dumps(minimos(), separators=(",", ":")), encoding="utf-8")
     _publicar_loja(pasta, radar)
     for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):  # logo da marca (dados/marca)
         if (config.DADOS / "marca" / origem).exists():

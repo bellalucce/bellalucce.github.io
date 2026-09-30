@@ -25,6 +25,8 @@ def main() -> None:
     cols = {r["name"] for r in db.consultar("PRAGMA table_info(ofertas)")}
     ml = json.loads((config.DADOS / "ml.json").read_text(encoding="utf-8")) if (config.DADOS / "ml.json").exists() else []
     cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
+    hist = config.DADOS / "historico.json"  # histórico de preço do PC (o banco daqui nasce vazio) → selo "menor preço"
+    a.HIST_EXTERNO = json.loads(hist.read_text(encoding="utf-8")) if hist.exists() else {}
     with db.conectar() as con:
         for r in ml:
             r = {k: v for k, v in r.items() if k in cols}
