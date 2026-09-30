@@ -53,7 +53,6 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "esporte": r"creatina|whey|pré-treino|halter|esteira|bicicleta|academia|suplemento|colágeno",
 }
 PALAVRAS["eletronicos"] += r"|motorola|samsung|iphone|xiaomi|redmi|galaxy|kindle|echo dot|alexa|smartwatch|playstation|xbox"
-NOSSO_FOCO = ("beleza", "moda", "casa")  # o público do grupo: mulheres que amam comprar (pedido do usuário)
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
 # marca popular. Peso somado ao score — segue uma linha em vez de "aleatório".
 PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6, "infantil": 6, "moda": 5, "pet": 3,
@@ -588,12 +587,6 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
 
 
 # ---------------- posts do grupo (formato estudado nos grupos que o usuário segue) ----------------
-GANCHOS = {
-    "beleza": ["AMIGAS NÃO GUARDAM SEGREDO! 💄", "ACHADINHO DE BELEZA ✨", "CORRE QUE TÁ BARATINHO 💖"],
-    "moda": ["LOOK NOVO GASTANDO POUCO 👗", "PREÇÃO NA MODA 🛍️"],
-    "casa": ["CASA ARRUMADINHA GASTANDO POUCO 🏠", "ACHADINHO PRA CASA ✨"],
-    "eletronicos": ["PREÇÃO NESSE AQUI 📱", "TECNOLOGIA COM DESCONTO ⚡"],
-}
 # Ganchos por BENEFÍCIO do produto, na voz de amiga (estudo dos grupos que funcionam, 29/09 —
 # cerebro/20-Divulgacao/2026-09-29-Estudo-grupos-de-achadinhos.md). O primeiro padrão que casar com o título vence.
 BENEFICIOS = [
@@ -622,6 +615,7 @@ BENEFICIOS = [
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha", "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
 ]
+BENEFICIOS_BELEZA = 11  # as 11 primeiras frases são de beleza/cabelo/perfume
 AMIGA = ["AMIGAS NÃO GUARDAM SEGREDO! 🤫", "OLHA ESSE PRECINHO, AMIGA 😍", "CORRE QUE VAI ESGOTAR 🏃‍♀️",
          "PRECINHO DE BUG 🐞", "SE ACABAR, NÃO VOLTA MAIS ⏳"]
 KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|p[çc]s|pe[çc]as|rolos)", re.I)
@@ -646,7 +640,9 @@ def gancho_post(o: dict, n: int = 0) -> str:
     if qtd >= 2 and preco and preco / qtd <= 30:
         return f"SÓ {_brl(preco / qtd).upper()} CADA 😱"
     if n % 4 != 3:  # 3 de 4 posts com gancho de benefício; o 4º com frase de amiga (variedade)
-        for pad, frase in BENEFICIOS:
+        for i, (pad, frase) in enumerate(BENEFICIOS):
+            if i < BENEFICIOS_BELEZA and o.get("grupo") not in (None, "beleza", "cabelo", "perfume"):
+                continue  # frase de maquiagem/cabelo só em produto de beleza (cama de cachorro "com base" virava "PELE DE FILTRO")
             if re.search(pad, titulo, re.I):
                 return frase
     sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
@@ -740,6 +736,7 @@ def auditar() -> list[str]:
                 problemas.append(f"{r['id']} {link}")
                 con.execute("UPDATE ofertas SET aprovada = 0 WHERE id = ?", (r["id"],))
     if problemas:
+        (config.DADOS / "achadinhos").mkdir(parents=True, exist_ok=True)  # na nuvem a pasta não existe
         with open(config.DADOS / "achadinhos" / "auditoria.log", "a", encoding="utf-8") as f:
             f.write(f"{datetime.now():%Y-%m-%d %H:%M} derrubadas: {problemas}\n")
     return problemas
