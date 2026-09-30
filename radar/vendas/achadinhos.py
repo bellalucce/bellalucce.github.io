@@ -437,10 +437,18 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
     return url
 
 
-def link_afiliado(url: str | None) -> str | None:
-    """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados)."""
+NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", re.I)
+
+
+def link_afiliado(url: str | None, canal: str = "site") -> str | None:
+    """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados).
+    canal="whatsapp": programas que PROÍBEM WhatsApp/Telegram (ML Afiliados — página oficial
+    mercadolivre.com.br/l/afiliados-pode-compartilhar, conferida 30/09) saem como link comum, SEM a nossa etiqueta
+    (a conta de afiliada é a mesma da loja no ML: não arriscar)."""
     if not url:
         return None
+    if canal == "whatsapp" and NAO_PERMITE_WHATSAPP.search(url):
+        return url
     af = config.segredos().get("afiliados") or {}
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
@@ -656,7 +664,8 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
-const zap=o=>'https://wa.me/?text='+encodeURIComponent(o.t+' por '+o.p+' 👉 '+o.u+'\\n\\nMais achadinhos: {SITE_URL}');
+const semAf=u=>/mercadolivre\\.com\\.br\\//.test(u)?u.replace(/[?&]matt_(word|tool)=[^&]*/g,'').replace(/[?&]$/,''):u;  // ML Afiliados proíbe WhatsApp
+const zap=o=>'https://wa.me/?text='+encodeURIComponent(o.t+' por '+o.p+' 👉 '+semAf(o.u)+'\\n\\nMais achadinhos: {SITE_URL}');
 const card=o=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="lazy" src="${{E(o.f)}}" alt="">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.h?`<div class="hist">📉 menor preço em ${{o.h}} dias</div>`:''}}${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
 const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();F=T.filter(o=>(!G||o.g===G)&&(!q||o.t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().includes(q)));N=0;document.getElementById('lista').innerHTML='';mais();document.getElementById('n').textContent=F.length+' ofertas'}};
 const mais=()=>{{document.getElementById('lista').insertAdjacentHTML('beforeend',F.slice(N,N+P).map(card).join('')||(N?'':'<p>Nenhuma oferta aqui agora.</p>'));N+=P;document.getElementById('mais').style.display=N<F.length?'':'none'}};
@@ -881,7 +890,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
-    linhas += ["", f"👉 {link_afiliado(o['link_loja'])}"]
+    linhas += ["", f"👉 {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     return "\n".join(linhas)
