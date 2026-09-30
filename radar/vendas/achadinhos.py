@@ -982,6 +982,21 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     return "\n".join(linhas), str(config.RAIZ / p["foto"])
 
 
+LEMBRETE_HORAS = (12, 18)  # 30/09 (dona): "repete 2× por dia" — quem entrou depois não vê as ofertas da manhã
+TEXTO_LEMBRETE = ("📌 *CHEGOU AGORA?*\n\nTodas as ofertas de hoje ficam no nosso site, separadinhas por categoria 👇\n{site}"
+                  "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 22h._")
+
+
+def lembrete_site(agora: datetime | None = None) -> tuple[str, str] | None:
+    """(texto, foto) do lembrete "chegou agora? as ofertas de hoje estão no site" — 1ª rodada das LEMBRETE_HORAS."""
+    agora = agora or datetime.now()
+    if agora.hour not in LEMBRETE_HORAS or agora.minute >= 15:
+        return None
+    from vendas import convite
+    site = canais().get("site", SITE_URL)
+    return TEXTO_LEMBRETE.format(site=site), str(convite.banner_site(site))
+
+
 def canais() -> dict:
     """Links públicos dos canais (config/achadinhos.json): grupo_whatsapp, telegram, site."""
     arq = config.CONFIG / "achadinhos.json"
