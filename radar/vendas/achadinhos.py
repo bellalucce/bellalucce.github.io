@@ -690,12 +690,17 @@ BENEFICIOS = [
     (r"protetor solar|protetor corporal|bronzeador|fps ?\d+", "PELE PROTEGIDA SEM PESAR NO BOLSO ☀️"),
     (r"m[áa]scara de c[íi]lios|r[íi]mel", "CÍLIOS DE BONECA POR ESSE PREÇO? 👀"),
     (r"s[ée]rum|retinal|retinol|vitamina c|niacinamida|[áa]cido hialur\w*|booster|ampoule|antirrugas|anti-?idade|"
-     r"antissinais|hidratante facial|creme facial|clareador facial|sabonete facial|kit skincare|[áa]gua micelar|micelar",  # "Creamy Skincare" = marca
+     r"antissinais|hidratante facial|creme facial|clareador facial|sabonete facial|kit skincare|[áa]gua micelar|micelar|"
+     # 30/09: coreanas (toner/máscara facial/cleansing balm); toner de impressora fora ("Toner HP 85A", "CF283A")
+     r"t[ôo]nico facial|toner(?!\s*(?:hp|brother|samsung|lexmark|xerox|ricoh|kyocera|canon|epson|compat|p/|para imp|"
+     r"de imp|tn-?\d|[a-z]{1,3}\d{2,}))|m[áa]scara facial|sheet mask|deep mask|cleansing balm|balm de limpeza|"
+     r"[óo]leo de limpeza",  # "Creamy Skincare" = marca
      "PELE LISINHA E COM VIÇO, AMIGA ✨"),
     (r"base|corretivo|concealer|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream|blush|iluminador|contorno|"
-     r"bronzer", "PELE DE FILTRO NA VIDA REAL 💄"),
+     r"bronzer|cushion", "PELE DE FILTRO NA VIDA REAL 💄"),
     (r"paleta de sombras?|sombras?|delineador|l[áa]pis de olho|kajal", "OLHAR PODEROSO NO PRECINHO 👁️"),
-    (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips", "BOCA LINDA GASTANDO POUCO 💋"),
+    (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
+     r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
     (r"escova secadora|secador|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
     (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves| de ondas| ondas)|ondas perfeitas",
@@ -748,7 +753,12 @@ CONECTORES = {"com", "c/", "para", "p/", "pra", "+", "|"}  # "-" não: "Brinox -
 COLETIVOS = {"jogo", "conjunto", "kit", "par", "pares", "pack", "combo", "trio", "duo", "set", "caixa", "box"}
 MARCAS_SKINCARE = re.compile(r"(?<!\w)(?:principia|creamy|sallve|la roche|cetaphil|neutrogena|kokeshi|laneige|medicube|"
                              r"anua|cosrx|skin1004|beauty of joseon|av[èe]ne|isdin|eucerin|bior[ée]|dermachem|"
-                             r"celimax|garnier|vichy|payot)(?!\w)", re.I)
+                             r"celimax|garnier|vichy|payot|bioderma|"
+                             # 30/09: coreanas (K-beauty já é 7% do skincare no Brasil — Mercado&Consumo, jul/26)
+                             r"skin ?1004|missha|klairs|some ?by ?mi|biodance|mediheal|dr\.? ?jart|torriden|round ?lab|"
+                             r"numbuzin|isntree|purito|innisfree|sulwhasoo|abib|mixsoon|axis-?y|aestura|illiyoon|"
+                             r"d'?alba|beplain|haruharu|benton|heimish|neogen|skinfood|banila|tocobo|vt cosmetics|"
+                             r"goodal|cos de baha|dr\.? ?althea)(?!\w)", re.I)
 TREINO, MAMAE = "LOOK DE TREINO QUE VALORIZA TUDO 🍑", "MAMÃE, CORRE QUE TÁ BARATO 👶"
 REFINO = {  # o tipo certo, mas a frase certa é a mais específica que também aparece na cabeça do título
     "CHEIROSA O DIA INTEIRO, AMIGA 🌸": ["CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"],
@@ -769,7 +779,8 @@ KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*|c/\s*)?(\d{1,3})\b|\b(\d{1,3})
 MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = clique)
     r"la roche|vichy|cetaphil|neutrogena|principia|creamy|sallve|nivea|eudora|botic[áa]rio|natura|avon|dove|"
     r"k[ée]rastase|l.or[ée]al|wella|lola|salon line|elseve|pantene|tresemm|celimax|beauty of joseon|skin1004|"
-    r"medicube|anua|cosrx|vizzela|ruby rose|mari maria|boca rosa|bruna tavares|fran by|max love|dailus|"
+    r"medicube|anua|cosrx|tirtir|torriden|round lab|laneige|some by mi|biodance|numbuzin|rom&nd|peripera|"
+    r"vizzela|ruby rose|mari maria|boca rosa|bruna tavares|fran by|max love|dailus|"
     r"dark lab|growth|max titanium|integral ?m[ée]dica|dux|soldiers|probi[óo]tica|puma|adidas|nike|olympikus|"
     r"lupo|insider|alto giro|mizuno|fila|tramontina|electrolux|mondial|brit[âa]nia|philco|oster|wap\b|brinox|"
     r"oxford|lattafa|armaf|al wataniah|maison alhambra|carolina herrera|paco rabanne|jean paul|lanc[ôo]me|"
@@ -876,6 +887,19 @@ def ganchos_recentes(limite: int = 60) -> list[str]:
     return [(r["saida"] or "").split("\n", 1)[0].strip("* ") for r in reversed(linhas)]
 
 
+def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
+    """Amazon (Associados): preço exibido fora da API precisa da data/hora em que foi conferido. "11h40" se foi hoje,
+    "29/09 23h10" se não. Vazio para as outras lojas (a dona não quer rodapé nem carimbo à toa)."""
+    if not re.search(r"amazon\.com\.br|amzn\.to", o.get("link_loja") or "", re.I) or not o.get("atualizado_em"):
+        return ""
+    try:
+        t = datetime.strptime(str(o["atualizado_em"])[:16], "%Y-%m-%d %H:%M")
+    except ValueError:
+        return ""
+    hora = f"{t.hour}h{t.minute:02d}"
+    return hora if t.date() == (agora or datetime.now()).date() else f"{t:%d/%m} {hora}"
+
+
 def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso."""
     gancho = gancho_post(o, n, recentes)
@@ -883,6 +907,8 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
         recentes.append(gancho)  # a própria rodada também não repete
     preco = (f"De {_brl(o['preco_antigo'])} por *{_brl(o['preco'])}*" if o.get("preco_antigo")
              else f"Por *{_brl(o['preco'])}*")
+    if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
+        preco += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", o["titulo"][:100], f"🏬 {o.get('loja') or ''}", preco]
     if selo := selo_preco(o):
         linhas.append(selo)
@@ -931,8 +957,12 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas)."""
     recentes = {chave_produto(r["titulo"]) for r in db.consultar(
         "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-24 hours')")}
+    # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
+    # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
+    amazon_ok = (datetime.now() - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
     cand = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto") and not o["publicado_em"]
-            and chave_produto(o["titulo"]) not in recentes]
+            and chave_produto(o["titulo"]) not in recentes
+            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
