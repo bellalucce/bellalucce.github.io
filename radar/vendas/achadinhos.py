@@ -747,15 +747,9 @@ def legenda_post(o: dict, n: int = 0) -> str:
         linhas.append(selo)
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
-    # Amazon exige data/hora junto do preço; CONAR (guia de 01/06/2026) exige identificar publicidade → "#publi"
-    visto = str(o.get("atualizado_em") or "")
-    quando = f"Preço de {visto[8:10]}/{visto[5:7]} às {visto[11:16]}, pode mudar." if (
-        o.get("loja") == "Amazon" and len(visto) >= 16) else "Preço e cupom podem mudar a qualquer momento."
-    link = link_afiliado(o["link_loja"])
-    aviso = "#publi · link de afiliado" if link != o["link_loja"] else "#publi"  # Sephora/Beleza na Web etc.: sem programa
-    if o.get("loja") == "Amazon" and link != o["link_loja"]:  # Contrato do Associados: a frase onde o link aparece
-        aviso = "#publi · Como Associado Amazon, ganho com compras qualificadas"
-    linhas += ["", f"👉 {link}", "", f"_{quando} {aviso}_"]
+    # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
+    # afiliado fica no site e na descrição do grupo, não em cada post
+    linhas += ["", f"👉 {link_afiliado(o['link_loja'])}"]
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     return "\n".join(linhas)
