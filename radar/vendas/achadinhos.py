@@ -323,7 +323,10 @@ def pontuar(o: dict) -> float:
 
 MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba|"
                        r"m[áa]quina de (acabamento|corte|cortar)|aparador de pelos|barbeador|testosteron|"
-                       r"cortador de cabelo|groom|trimmer|clipper", re.I)
+                       r"cortador de cabelo|groom|trimmer|clipper|"
+                       # 30/09: perfumes masculinos famosos que não dizem "masculino" no título (Lattafa Asad caiu no vídeo)
+                       r"\basad\b|fakhar black|club de nuit intense man|\bsauvage\b|bleu de chanel|\b1 million\b|"
+                       r"\binvictus\b|\beros\b|\bstronger with you\b|\bpour homme\b|\bfor him\b|\bhomme\b", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
