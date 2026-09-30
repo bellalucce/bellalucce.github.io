@@ -673,37 +673,67 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
 # ---------------- posts do grupo (formato estudado nos grupos que o usuário segue) ----------------
 # Ganchos por BENEFÍCIO do produto, na voz de amiga (estudo dos grupos que funcionam, 29/09 —
 # cerebro/20-Divulgacao/2026-09-29-Estudo-grupos-de-achadinhos.md). O primeiro padrão que casar com o título vence.
+# Gancho de benefício = o TIPO do produto (30/09, auditoria das 1.327 ofertas depois da balança que virou "LOOK DE
+# TREINO"): vale o termo que aparece PRIMEIRO no título (em marketplace o tipo vem na frente), só antes de
+# "com/para/+" (depois disso é característica), palavra inteira (+ plural) e sem "de/para/porta…" logo antes.
+# Frase None = tipo conhecido sem gancho próprio (aparelho, ferramenta…) → usa frase neutra, nunca um termo de depois.
 BENEFICIOS = [
-    (r"protetor solar|fps ?\d", "PELE PROTEGIDA SEM PESAR NO BOLSO ☀️"),
+    (r"protetor solar|fps ?\d+", "PELE PROTEGIDA SEM PESAR NO BOLSO ☀️"),
     (r"m[áa]scara de c[íi]lios|r[íi]mel", "CÍLIOS DE BONECA POR ESSE PREÇO? 👀"),
-    (r"s[ée]rum|retinal|retinol|vitamina c|niacinamida|[áa]cido hialur|booster|ampoule", "PELE LISINHA E COM VIÇO, AMIGA ✨"),
-    (r"\bbase\b|corretivo|p[óo] compacto|primer|fixador de maquiagem", "PELE DE FILTRO NA VIDA REAL 💄"),
-    (r"gloss|batom|lip ?tint|lip ?oil|balm", "BOCA LINDA GASTANDO POUCO 💋"),
-    (r"escova secadora|secador", "CABELO LINDO E SECO RAPIDINHO 💨"),
+    (r"s[ée]rum|retinal|retinol|vitamina c|niacinamida|[áa]cido hialur\w*|booster|ampoule|antirrugas|anti-?idade|"
+     r"antissinais|hidratante facial|creme facial|clareador facial|sabonete facial|kit skincare",  # "Creamy Skincare" = marca
+     "PELE LISINHA E COM VIÇO, AMIGA ✨"),
+    (r"base|corretivo|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream", "PELE DE FILTRO NA VIDA REAL 💄"),
+    (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial", "BOCA LINDA GASTANDO POUCO 💋"),
+    (r"escova secadora|secador|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
-    (r"cachos|cacheador|babyliss|modelador", "CACHOS DE SALÃO EM CASA 🌀"),
-    (r"m[áa]scara capilar|[óo]leo capilar|shampoo|condicionador|ampola|leave-?in", "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
-    (r"lattafa|armaf|al wataniah|maison alhambra|[áa]rabe", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"),
-    (r"perfume|eau de|parfum|body splash|col[ôo]nia", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
-    (r"legging|top fitness|conjunto fitness|short fitness|academia", "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
+    (r"cachos|cacheador|babyliss|modelador de cachos", "CACHOS DE SALÃO EM CASA 🌀"),
+    (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|shampoo|condicionador|ampola|leave-?in|elseve|"
+     r"k[ée]rastase|wella|truss|lola cosmetics|salon line|pantene|tresemm[ée]|cadiveu|si[àa]ge",
+     "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
+    (r"lat+af+a|armaf|al wataniah|maison alhambra|[áa]r[áa]be|asad|yara|fakhar|khamrah|club de nuit|french avenue|"
+     r"al wesal|durrat al aroos|sabah al ward", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"),
+    (r"perfume|eau de|parfum|body splash|col[ôo]nia|deo col[ôo]nia", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
+    (r"legging|^top|top fitness|conjunto fitness|short fitness|cal[çc]a fitness|macaquinho|roupa de academia",
+     "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
     (r"whey|creatina|pr[ée]-?treino|col[áa]geno", "SUPLEMENTO BOM COM PREÇO DE AMIGA 💪"),
-    (r"bicicleta ergom|esteira", "ACADEMIA EM CASA NO PRECINHO 🚴‍♀️"),
-    (r"jogo de cama|len[çc]ol|edredom|travesseiro|colcha", "CAMA DE HOTEL NA SUA CASA 🛏️"),
-    (r"organizador|caixa organizadora|cesto|porta[- ]", "ORGANIZE SUA BAGUNÇA 🧺"),
-    (r"toalha", "TOALHA FOFINHA DE HOTEL 🛁"),
-    (r"panela|frigideira|air ?fryer|fritadeira", "COZINHA LINDA GASTANDO POUCO 🍳"),
-    (r"fralda|len[çc]o umedecido", "MAMÃE, CORRE QUE TÁ BARATO 👶"),
-    (r"bolsa", "A BOLSA QUE COMBINA COM TUDO 👜"),
+    (r"bicicleta ergom\w*|esteira", "ACADEMIA EM CASA NO PRECINHO 🚴‍♀️"),
+    (r"jogo de cama|len[çc]ol|len[çc][óo]is|edredom|travesseiro|colcha", "CAMA DE HOTEL NA SUA CASA 🛏️"),
+    (r"organizador|caixa organizadora|cesto|porta(?! beb[êe])|expositor|sacos? (?:de )?armazenamento|saco a v[áa]cuo",
+     "ORGANIZE SUA BAGUNÇA 🧺"),
+    (r"toalha|toalh[ãa]o", "TOALHA FOFINHA DE HOTEL 🛁"),
+    (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira", "COZINHA LINDA GASTANDO POUCO 🍳"),
+    (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby|canguru|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),
+    (r"bolsa(?:s)?(?! (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade|marmita|lancheira))",
+     "A BOLSA QUE COMBINA COM TUDO 👜"),
     (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira", "PÉ LINDO E CONFORTÁVEL 👟"),
-    (r"vivara|pandora|life by", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
-    (r"brinco|colar|anel|pulseira|rel[óo]gio|semijoia", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
+    (r"vivara|pandora|life by vivara", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
+    (r"brinco|colar|colares|anel|an[ée]is|pulseira|rel[óo]gio|semijoia|conjunto de joias", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha", "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
+    (r"balan[çc]a|depilador[a]?|cera quente|termocera|aquecedor de cera|smartwatch|rel[óo]gio inteligente|ferramentas?|"
+     r"massageador|garrafa|copo|trampolim|bolsa (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade)|mochila|"
+     r"processador|mixer|liquidificador|aspirador|ventilador|brinquedo|carrinho|boneca|marmita|lancheira|m[áa]scara (?:de )?led|"
+     r"led facial|maquiagem (?:infantil|crian[çc]a)|kit infantil", None),
 ]
+_BENEF = [(re.compile(rf"(?<!\w)(?:{pad})(?:s|es)?(?!\w)", re.I), frase) for pad, frase in BENEFICIOS]
+CONECTORES = {"com", "c/", "para", "p/", "pra", "+", "|", "-"}
+TREINO, MAMAE = "LOOK DE TREINO QUE VALORIZA TUDO 🍑", "MAMÃE, CORRE QUE TÁ BARATO 👶"
+REFINO = {  # o tipo certo, mas a frase certa é a mais específica que também aparece na cabeça do título
+    "CHEIROSA O DIA INTEIRO, AMIGA 🌸": ["CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"],
+    "BRILHO NO LOOK SEM GASTAR MUITO ✨": ["JOIA DE MARCA COM DESCONTO 💎"],
+    "LOOK NOVO GASTANDO POUCO 👗": [TREINO],                   # "Kit 2 Calças Legging"
+    "CABELO MACIO DE SALÃO EM CASA 💆‍♀️": [MAMAE],             # "Shampoo … Johnson's Baby"
+}
+TECNOLOGIA = re.compile(r"(?<!\w)(?:smart|smart ?watch|smartwatch|inteligente|bluetooth|fone)(?!\w)", re.I)
+PRA_ELE = "PRESENTE CERTO PRA ELE 🎁"
+FEMININAS = {"CHEIROSA O DIA INTEIRO, AMIGA 🌸", "BRILHO NO LOOK SEM GASTAR MUITO ✨", "LOOK NOVO GASTANDO POUCO 👗",
+             TREINO, "PÉ LINDO E CONFORTÁVEL 👟", "A BOLSA QUE COMBINA COM TUDO 👜"}
 BENEFICIOS_BELEZA = 11  # as 11 primeiras frases são de beleza/cabelo/perfume
 AMIGA = ["AMIGAS NÃO GUARDAM SEGREDO! 🤫", "OLHA ESSE PRECINHO, AMIGA 😍", "CORRE QUE VAI ESGOTAR 🏃‍♀️",
          "PRECINHO DE BUG 🐞", "SE ACABAR, NÃO VOLTA MAIS ⏳"]
-KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|p[çc]s|pe[çc]as|rolos)", re.I)
+# "peças" fora: "Jogo de Lençol 2 Peças"/"Conjunto de Panelas 10 Peças" são partes de UM jogo, não itens → "SÓ R$ X CADA" enganava
+KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|rolos)", re.I)
 MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = clique)
     r"la roche|vichy|cetaphil|neutrogena|principia|creamy|sallve|nivea|eudora|botic[áa]rio|natura|avon|dove|"
     r"k[ée]rastase|l.or[ée]al|wella|lola|salon line|elseve|pantene|tresemm|celimax|beauty of joseon|skin1004|"
@@ -715,6 +745,47 @@ MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = c
     r"pampers|huggies|johnson|whiskas|pedigree|golden|premier|samsung|jbl|xiaomi|apple|stanley", re.I)
 
 
+PARA_ALGO = {"de", "da", "do", "das", "dos", "para", "p/", "pra", "sem", "porta", "suporte", "expositor", "organizador", "estojo"}
+
+
+def cabeca_do_titulo(titulo: str) -> str:
+    """As até 6 primeiras palavras, parando no primeiro conector ("com", "para", "+", " - "): é onde está o TIPO."""
+    out = []
+    for p in titulo.split()[:6]:
+        if p.lower() in CONECTORES:
+            break
+        out.append(p)
+    return " ".join(out)
+
+
+def beneficio(titulo: str, grupo: str | None) -> str | None:
+    """Frase de benefício do TIPO do produto (ou None): o termo que aparece primeiro na cabeça do título vence."""
+    cabeca = cabeca_do_titulo(titulo)
+    melhor: tuple[int, int, str | None] | None = None  # (posição, ordem na lista, frase)
+    for i, (rx, frase) in enumerate(_BENEF):
+        if i < BENEFICIOS_BELEZA and grupo not in (None, "beleza", "cabelo", "perfume"):
+            continue  # frase de maquiagem/cabelo só em produto de beleza (cama de cachorro "com base" virava "PELE DE FILTRO")
+        for m in rx.finditer(cabeca):
+            antes = cabeca[:m.start()].split()[-1:]
+            if antes and antes[0].lower().strip(",") in PARA_ALGO:
+                continue  # "Expositor De Perfumes", "Porta Batom": o produto é PARA aquilo, não aquilo
+            if melhor is None or (m.start(), i) < melhor[:2]:
+                melhor = (m.start(), i, frase)
+            break
+    if not melhor or not melhor[2]:
+        return None
+    frase = melhor[2]
+    for fino in REFINO.get(frase, []):  # "Perfume Árabe Lattafa": o tipo é perfume, mas a frase certa é a do árabe
+        if any(rx.search(cabeca) for rx, f in _BENEF if f == fino):
+            frase = fino
+            break
+    if frase == "BRILHO NO LOOK SEM GASTAR MUITO ✨" and TECNOLOGIA.search(cabeca):
+        return None  # smartwatch não é joia
+    if frase in FEMININAS and MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher", titulo, re.I):
+        return PRA_ELE  # perfume/relógio/tênis masculino não é "amiga"
+    return frase
+
+
 def gancho_post(o: dict, n: int = 0) -> str:
     """Gancho do post como os grupos que funcionam: desconto absurdo → preço por unidade em kit → benefício do
     produto → 'tá bombando' → frase de amiga (rodízio)."""
@@ -723,14 +794,12 @@ def gancho_post(o: dict, n: int = 0) -> str:
         return f"{d}% OFF, NÃO É ERRO! 😱"
     m = KIT.search(titulo)
     qtd = int(next(g for g in m.groups() if g)) if m else 0
-    if qtd >= 2 and preco and preco / qtd <= 30:
+    if 2 <= qtd <= 12 and preco and preco / qtd <= 30:  # "60 unidades" de lenço/cápsula: "R$ 0,53 CADA" engana
         return f"SÓ {_brl(preco / qtd).upper()} CADA 😱"
     if n % 4 != 3:  # 3 de 4 posts com gancho de benefício; o 4º com frase de amiga (variedade)
-        for i, (pad, frase) in enumerate(BENEFICIOS):
-            if i < BENEFICIOS_BELEZA and o.get("grupo") not in (None, "beleza", "cabelo", "perfume"):
-                continue  # frase de maquiagem/cabelo só em produto de beleza (cama de cachorro "com base" virava "PELE DE FILTRO")
-            if re.search(pad, titulo, re.I):
-                return frase
+        frase = beneficio(titulo, o.get("grupo"))
+        if frase:
+            return frase
     sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
     if sinais.get("top") or sinais.get("vendidos_num", 0) >= 10000:
         return "TÁ BOMBANDO! 🔥"
