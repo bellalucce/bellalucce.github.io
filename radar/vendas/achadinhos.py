@@ -753,6 +753,8 @@ def legenda_post(o: dict, n: int = 0) -> str:
         o.get("loja") == "Amazon" and len(visto) >= 16) else "Preço e cupom podem mudar a qualquer momento."
     link = link_afiliado(o["link_loja"])
     aviso = "#publi · link de afiliado" if link != o["link_loja"] else "#publi"  # Sephora/Beleza na Web etc.: sem programa
+    if o.get("loja") == "Amazon" and link != o["link_loja"]:  # Contrato do Associados: a frase onde o link aparece
+        aviso = "#publi · Como Associado Amazon, ganho com compras qualificadas"
     linhas += ["", f"👉 {link}", "", f"_{quando} {aviso}_"]
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
