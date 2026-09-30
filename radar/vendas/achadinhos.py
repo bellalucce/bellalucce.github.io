@@ -62,7 +62,8 @@ CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|ca
                     r"t[ôo]nico capilar|progressiva|tintura|coloraç", re.I)
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
-                     r"suplemento em p|hipercal|carboidrat|albumina|bioimped", re.I)
+                     r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
+                     r"termog[êe]nic|probi[óo]tic|\bprotein\b|isolate", re.I)
 BEBE = re.compile(r"fralda|len[çc]o umedecido|beb[êe]|infantil|mamadeira|chupeta|carrinho de beb|body infantil|"
                   r"banheira|trocador|kit ber[çc]o|brinquedo", re.I)
 # pet: só o que vende muito e serve para qualquer bicho (nada de remédio nem ração específica)
@@ -77,12 +78,13 @@ FORA = re.compile(  # fora da linha do grupo (pedido do usuário): automotivo, r
     r"patinete el[ée]tric|carregador (de )?bike|soprador|\bgamer\b|drone|"
     # suplemento em cápsula parece remédio (usuário: nada de remédio); colágeno/whey em pó continuam
     r"\d+ ?c[áa]psulas|coenzima|c[úu]rcuma|metilcobalamina|vitamina b ?\d|melatonina|"
+    r"\d+ ?(c[áa]ps|tabs?|tabletes)\b|seringa|insulina|agulha|compress[ãa]o \d|raspador (de )?l[íi]ngua|"
     r"simparic|bravecto|nexgard|credeli|verm[íi]fugo|antipulgas|medicamento|rem[ée]dio|comprimidos? de|"
     r"ra[çc][ãa]o .*(renal|urin|gastro|hipoalerg|obes|hep[áa]t|terap|veterin|diet)|"
     r"placa de v[íi]deo|processador (intel|amd|ryzen|core)|placa-?m[ãa]e|mem[óo]ria ram|fonte atx|gabinete gamer|"
     r"rolamento|parafuso|disjuntor|cabo flex|fio el[ée]tric|v[áa]lvula|mangueira de press|motor el[ée]tric|"
     r"livro|apostila|camiseta de time|uniforme (escolar|de time|profissional|militar)|"
-    r"inalador|nebulizador|ox[íi]metro|medidor de press|aparelho de press|term[ôo]metro cl[íi]nic|glicos|palmilha ortop", re.I)
+    r"inalador|nebulizador|ox[íi]metro|medidor de press|aparelho de press|term[ôo]metro cl[íi]nic|glicos|palmilha", re.I)
 STOP = {"de", "da", "do", "das", "dos", "com", "para", "e", "em", "a", "o", "kit", "c", "p", "sem", "novo", "nova",
         "original", "promo", "oferta", "unidade", "un", "pcs", "peças", "pecas", "the"}
 
@@ -142,7 +144,8 @@ PERFUME = re.compile(r"perfume|col[ôo]nia|body splash|eau de|parfum|deo col|\be
 BEM_ESTAR = re.compile(r"vitamin|multivitam|suplement|col[áa]geno|whey|creatina|[ôo]mega ?3", re.I)
 PET = re.compile(r"para (c[ãa]es|cachorros?|gatos?|pets?|felinos?|caninos?)|\bpet\b|\bra[çc][ãa]o\b|arranhador|"
                  r"caixa de areia|areia sanit|coleira|comedouro|cama de cachorro|casinha de cachorro", re.I)
-CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|cobertor|manta de sof|tapete", re.I)
+CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|cobertor|manta de sof|tapete|"
+                        r"papel higi[êe]nico|umidificador|balan[çc]a", re.I)  # casa (antes caíam em "beleza")
 
 
 def _grupo_final(g: str, titulo: str) -> str:
@@ -720,15 +723,25 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
         "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-24 hours')")}
     cand = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto") and not o["publicado_em"]
             and chave_produto(o["titulo"]) not in recentes]
+    # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
+    # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
+    filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL]}
     out, ultimo = [], []
-    for o in cand:
-        if len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == o["grupo"]:
+    for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 2)):
+        if len(out) >= n or not (filas["B"] or filas["O"]):
+            break
+        fila = filas[vez] or filas["O" if vez == "B" else "B"]
+        o = next((x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])), None)
+        if o is None:
             continue
+        fila.remove(o)
         out.append(o)
         ultimo.append(o["grupo"])
-        if len(out) >= n:
-            break
     return out
+
+
+LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
+PADRAO_LINHA = ("B", "O", "B", "B", "O")
 
 
 def marcar_postado(id_oferta: str) -> None:
