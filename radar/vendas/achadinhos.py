@@ -32,7 +32,10 @@ PAGINAS_PROMOBIT = ["/promocoes/em-alta/", "/promocoes/recentes/", "/promocoes/p
                     "/promocoes/bebes-e-criancas/", "/promocoes/suplementos-e-fitness/", "/promocoes/relogios-e-joias/",
                     # 30/09 04h: lojas de beleza (linha principal do grupo) — teste: 24/20/7/6 aprovadas por página
                     "/promocoes/loja/beleza-na-web/", "/promocoes/loja/sephora/", "/promocoes/loja/epoca-cosmeticos/",
-                    "/promocoes/loja/natura/"]
+                    "/promocoes/loja/natura/",
+                    # 30/09 15h (dona: vídeos de GRIFE → o grupo precisa ter grife de verdade): Farfetch = luxo
+                    # (Ray-Ban de R$ 1.030 por R$ 515 no teste); Dafiti/Zattini/Amazon/Magalu/Vivara não trouxeram produto
+                    "/promocoes/loja/farfetch/"]
 
 # categoria da fonte → grupo mostrado na vitrine
 GRUPOS = {
@@ -221,6 +224,9 @@ def _grupo_final(g: str, titulo: str) -> str:
 
 
 # ---------------- fontes ----------------
+LINK_OU_FONE = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|ly|io|me|to|br|co|gl|app|link|"
+                          r"site|xyz|info|shop|store)(?:\.br)?(?:/\S*)?\b|(?<![\w.])(?:\+?55\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]\d{4}(?!\d)|"
+                          r"[\w.+-]+@[\w-]+\.[\w.]+")
 PRECO_NO_TITULO = re.compile(r"\s+De:?\s*R\$\s*[\d.,]+\s*Por:?\s*R\$\s*[\d.,]*.*$|\s+Selo:?\s*\d*\s*$", re.I)
 
 
@@ -228,6 +234,9 @@ def limpar_titulo(t: str) -> str:
     """30/09: títulos da Beleza na Web vêm com o preço colado ("... 200ml De: R$ 481,90 Por: R$ 279,90 Selo: 4") →
     no post saía o preço duas vezes e um "Selo: 4" sem sentido."""
     t = PRECO_NO_TITULO.sub("", (t or "").strip()).strip(" -–|")
+    # 30/09 segurança: título vem da comunidade (Promobit) → link/telefone no título viraria link clicável no grupo
+    # (golpe). O único link do post é o da loja, conferido por pagina_de_produto().
+    t = re.sub(r"\s{2,}", " ", LINK_OU_FONE.sub(" ", t)).strip(" -–|:")
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
@@ -352,6 +361,7 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"belezanaweb\.com\.br/[a-z0-9-]+/?$", r"dafiti\.com\.br/.+-\d+\.html", r"renner\.com\.br/.+/p/\d+",
     r"boticario\.com\.br/[a-z0-9-]+/?$", r"natura\.com\.br/p/", r"epocacosmeticos\.com\.br/[a-z0-9-]+/p",
     r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
+    r"farfetch\.com/br/shopping/[a-z]+/[a-z0-9-]+-item-\d+\.aspx",  # luxo (30/09)
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
                                r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
@@ -378,6 +388,8 @@ def eh_produto(o: dict) -> bool:
     if o.get("grupo") == "pet" and not PET_POPULAR.search(titulo):  # pet: só marca/item popular
         return False
     teto = PRECO_MAX[o["grupo"]] * (1.5 if (o.get("desconto") or 0) >= 50 else 1)
+    if LUXO.search(titulo):  # 30/09 (dona): grife é a vitrine do grupo (vídeos de divulgação) — bolsa de marca passa de R$ 1.000
+        teto *= 2
     if not (o.get("preco") and 1 <= o["preco"] <= teto):
         return False
     link = o.get("link_loja")
@@ -584,7 +596,10 @@ def salvar_ml_afiliados(itens: list[dict]) -> dict:
                       "destaque": it.get("destaque") or "", "vendidos_num": vend}
             o = {"id": f"mlaf:{it['id']}", "fonte": "ml_afiliados", "loja": "Mercado Livre", "titulo": titulo, "grupo": grupo,
                  "preco": it["preco"], "preco_antigo": it.get("preco_antigo"), "desconto": int(it.get("desconto") or 0),
-                 "cupom": None, "foto": it.get("foto"), "link_fonte": None, "link_loja": limpar_link(it.get("url")),
+                 # 30/09 segurança: foto só do CDN do ML (o JS monta assim; nada de caminho local/rede interna)
+                 "cupom": None, "foto": it.get("foto") if re.match(r"https://http2\.mlstatic\.com/",
+                                                                    it.get("foto") or "") else None,
+                 "link_fonte": None, "link_loja": limpar_link(it.get("url")),
                  "nota": it.get("nota"), "vendidos": f"{vend} vendidos" if vend else None, "sinais": sinais}
             o["score"], ok = pontuar(o), aprovada(o)
             ant = con.execute("SELECT 1 FROM ofertas WHERE id = ?", (o["id"],)).fetchone()
@@ -660,7 +675,9 @@ def vitrine(horas: int = 36) -> str:
     grupo = canais().get("grupo_whatsapp")
     entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">💬 Entrar no grupo de achadinhos do WhatsApp</a>'
               if grupo else "")
-    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
+    # ainda bloquearia script/formulário/objeto de terceiros.
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce</title>
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta property="og:title" content="Achadinhos Bella Lucce ✨"><meta property="og:type" content="website">
@@ -902,7 +919,10 @@ def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
 LUXO = re.compile(  # marcas "caras" que fazem a pessoa parar o dedo (vídeo de divulgação do grupo, 30/09)
     r"(?<!\w)(?:dior|chanel|carolina herrera|lanc[ôo]me|givenchy|ysl|yves saint|prada|michael kors|coach|guess|arezzo|"
     r"schutz|carmen steffens|lacoste|tommy hilfiger|calvin klein|ray-?ban|oakley|vivara|pandora|k[ée]rastase|clinique|"
-    r"victoria.?s secret|jean paul gaultier|paco rabanne|azzaro|montblanc|hugo boss|armani|versace|dolce|burberry|"
+    # "dolce" sozinho pegava Dolce Gusto (café) e Dolce Arome (cafeteira) como grife — 30/09
+    r"victoria.?s secret|jean paul gaultier|paco rabanne|azzaro|montblanc|hugo boss|armani|versace|"
+    r"dolce\s*(?:&|e|and)\s*gabbana|d&g|burberry|gucci|fendi|valentino|bvlgari|bulgari|tiffany|cartier|swarovski|"
+    r"jimmy choo|marc jacobs|kate spade|longchamp|furla|victor hugo|mont blanc|"
     r"shiseido|too faced|laneige|fossil|mac cosmetics|kiko|la roche-?posay|sephora collection|lattafa|stanley)(?!\w)",
     re.I)
 

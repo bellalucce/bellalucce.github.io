@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install httpx
+      - run: pip install "httpx==0.28.1"  # versão fixa (segurança: cadeia de suprimentos)
       - uses: actions/cache@v4
         with:
           path: radar/dados/cache_links.json
