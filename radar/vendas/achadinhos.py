@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import httpx
 
-from vendas import config, db
+from vendas import config, db, ganchos
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     "Chrome/131.0 Safari/537.36", "Accept-Language": "pt-BR,pt;q=0.9"}
@@ -362,6 +362,9 @@ def pagina_de_produto(link: str) -> bool:
     return any(re.match(r"https?://(?:[\w-]+\.)*(?:" + p + ")", link) for p in PAGINA_PRODUTO)
 
 
+FALSIFICAVEL = re.compile(rf"k[ée]rastase|{ganchos.KB}", re.I)  # 30/09: marcas muito falsificadas no marketplace
+
+
 def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o):
@@ -375,6 +378,10 @@ def aprovada(o: dict) -> bool:
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
     if o["fonte"] == "ml_afiliados":  # lista oficial do ML: sem votos da comunidade → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
+        # Kérastase/coreana: muita falsificação no marketplace e o painel não diz se é loja oficial → só anúncio com
+        # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
+        if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000):
+            return False
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
             return d >= 40 or (d >= 20 and bom) or (d >= 15 and viral)
@@ -1077,6 +1084,7 @@ def publicar_site() -> str:
     for sub in ("vendas", "config", "dados"):
         (radar / sub).mkdir(parents=True, exist_ok=True)
     shutil.copyfile(Path(__file__), radar / "vendas" / "achadinhos.py")
+    shutil.copyfile(Path(__file__).with_name("ganchos.py"), radar / "vendas" / "ganchos.py")  # achadinhos importa (30/09)
     shutil.copyfile(config.CONFIG / "achadinhos.json", radar / "config" / "achadinhos.json")
     af = config.segredos().get("afiliados") or {}
     publicos = {k: af[k] for k in ("amazon_tag", "magalu_loja", "ml_tool", "ml_etiqueta") if k in af}
