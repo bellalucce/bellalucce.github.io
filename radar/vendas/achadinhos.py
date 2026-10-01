@@ -443,6 +443,20 @@ INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterpro
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
                            r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
                            r"cosm[ée]ticos \d+ cores|para deslocamento")  # (Nina 01/10)
+# 01/10 (Nina): peça vendida com o nome do aparelho na frente ("Cortador De Cabelo Kemei 2299 Pentes Guia" por R$ 29,99
+# = só os pentes) → o gancho e a foto vendem o aparelho. Aparelho nas 4 primeiras palavras + peça/refil depois = fora.
+APARELHO = re.compile(r"(?i)^(?:\S+\s+){0,3}?(?:cortador|m[áa]quina de (?:cortar|corte|barbear)|aparador|barbeador|"
+                      r"secador|chapinha|prancha|escova (?:rotativa|secadora|alisadora)|babyliss|depilador|"
+                      r"liquidificador|aspirador|cafeteira|air ?fryer|fritadeira|purificador|umidificador)\b")
+PECA = re.compile(r"(?i)\b(?:pentes? (?:guias?|de encaixe|limitadores?)|(?:kit|jogo) (?:de )?pentes|refil|refis|"
+                  r"l[âa]minas? (?:de reposi[çc][ãa]o|extras?|sobressalentes?)|cabe[çc]a de reposi[çc][ãa]o|"
+                  r"pe[çc]as? de reposi[çc][ãa]o|s[óo] (?:o |a )?(?:pente|l[âa]mina|base|capa))\b")
+
+
+def so_peca(titulo: str) -> bool:
+    m = APARELHO.search(titulo or "") and PECA.search(titulo or "")
+    # "Máquina Kemei Com 4 Pentes Guia" = aparelho que ACOMPANHA os pentes → passa
+    return bool(m) and not re.search(r"(?i)(?:\bcom|\bacompanha|\+|\bmais|\be)(?:\s+\d+)?\s*$", titulo[:m.start()])
 
 
 def titulo_ruim(titulo: str) -> bool:
@@ -465,7 +479,7 @@ def eh_produto(o: dict) -> bool:
     titulo = o.get("titulo") or ""
     if o.get("grupo") not in GRUPOS_OK or SPAM.search(titulo) or VOLUMOSOS.search(titulo) or FORA.search(titulo):
         return False
-    if SENSIVEL.search(titulo) or titulo_ruim(titulo):  # 01/10 (Rita, 1ª revisão antes de postar: 16 de 40 vetadas)
+    if SENSIVEL.search(titulo) or titulo_ruim(titulo) or so_peca(titulo):  # 01/10 (Rita/Nina: 16 de 40 vetadas)
         return False
     if o.get("grupo") == "pet" and not PET_POPULAR.search(titulo):  # pet: só marca/item popular
         return False
