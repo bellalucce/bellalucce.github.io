@@ -815,7 +815,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
-<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a></p>
+<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a> · <a href="https://t.me/achadinhosbellalucce" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✈️ Canal no Telegram</a></p>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
