@@ -334,7 +334,7 @@ def _sazonais(tipo: str, hoje: date | None) -> list[str]:
     return [f for t, f, ini, fim in SAZONAIS if t == tipo and ini <= (hoje.month, hoje.day) <= fim]
 
 
-def candidatos(tipo: str, titulo: str, hoje: date | None = None) -> list[str]:
+def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | None = None) -> list[str]:
     """Frases possíveis para esse produto: sazonal e características do título primeiro, depois as do tipo."""
     out = list(_sazonais(tipo, hoje))
     for rx, frases in ATRIBUTOS.get(tipo, []):
@@ -348,7 +348,15 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None) -> list[str]:
     if tipo == "PELE DE FILTRO NA VIDA REAL 💄" and out and not SO_BASE.search(titulo):
         rep = ["ACABAMENTO DE MAKE DE SALÃO 💄"]
     out += rep
-    return list(dict.fromkeys(out))  # sem duplicar, mantendo a ordem
+    out = list(dict.fromkeys(out))  # sem duplicar, mantendo a ordem
+    # 01/10 (Rita, revisão antes de postar): emoji/frase que não combina com o produto
+    if re.search(r"sand[áa]lia|rasteir|chinelo|tamanco|papete|birken", titulo, re.I):
+        out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
+    if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
+        out = [f for f in out if not re.search(r"\bPELE\b", f)] or out  # reparador LABIAL ≠ "sua pele vai agradecer"
+    if preco and preco > 120:
+        out = [f for f in out if not re.search(r"BARAT|PRECINHO|CENTAVO|BOLSO", f)] or out  # R$ 207 não é "bom e barato"
+    return out
 
 
 SO_BASE = re.compile(r"\bbase\b|corretivo|concealer|cushion|p[óo] compacto|bb cream|cc cream|primer|fixador", re.I)

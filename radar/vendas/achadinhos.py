@@ -207,9 +207,13 @@ CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|coberto
 
 def _grupo_final(g: str, titulo: str) -> str:
     """Refina a categoria pelo título: perfume vira aba própria; categoria genérica tenta pelas palavras."""
-    if PERFUME.search(titulo or "") and not re.search(r"expositor|organizador|porta[- ]|sem (?:perfume|fragr[âa]ncia)",
+    if PERFUME.search(titulo or "") and not re.search(r"expositor|organizador|porta[- ]|sem (?:perfume|fragr[âa]ncia)|"
+                                                       r"lan[çc]a[- ]perfume",  # 01/10: Lança Perfume = marca de roupa
                                                        titulo or "", re.I):  # 01/10 (Marcos): "Loção… Sem Perfume"
         return "perfume"
+    if g == "perfume":  # gravado como perfume por engano (Lança Perfume, "sem perfume") → refaz pelas palavras
+        g2 = _grupo(re.sub(r"(?i)lan[çc]a[- ]perfume|sem perfume", " ", titulo or ""))
+        g = g2 if g2 in GRUPOS_OK else "outros"
     if re.search(r"smart ?watch|smart ?band|mi ?band|rel[óo]gio inteligente", titulo or "", re.I):
         return "eletronicos"  # 01/10 (Marcos): smartwatch/Mi Band ocupavam vaga de moda
     if re.search(r"cushion|tocobo", titulo or "", re.I):
@@ -252,7 +256,7 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"^\s*[\[(【](?:official|oficial|original|hot|new|novo|promo\w*|sale)[\])】]\s*", "", t, flags=re.I)
     # 01/10 (Marcos): "…Original Blogueira Promoção Envio Da Coreia" — palavra de anúncio no MEIO também
     t = re.sub(r"\s+(?:blogueira|promo[çc][ãa]o|envio (?:da|do|de) (?:coreia|china|brasil)|envio r[áa]pido|"
-               r"envio imediato|pronta entrega|frete gr[áa]tis)\b", "", t, flags=re.I)
+               r"envio imediato|pronta entrega|frete gr[áa]tis|marca de luxo|top de linha)\b", "", t, flags=re.I)
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
@@ -420,6 +424,26 @@ def tem_afiliado_terceiro(url: str | None) -> bool:
     return bool(url) and bool(AFILIADO_TERCEIRO.search(url))
 
 
+# 01/10 (Rita): hospitalar/íntimo/promessa de tratamento não combina com o grupo de achadinhos
+SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (?:m[ée]dica|de identifica)|autis|"
+                      r"fralda geri[áa]trica|sonda|bolsa de colostomia|preservativo|lubrificante [íi]ntimo|vibrador|"
+                      r"sex ?shop|redutor de (?:celulite|medidas|gordura)|emagrec|queima de gordura|antiacne|anti-acne|"
+                      r"clareador (?:[íi]ntimo|de virilha)|calv[íi]cie|disfun[çc]")
+INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
+                    r"set|pcs|color|natural|matte|face|eye|lip|lips|new|hot|sale|fashion|style|quality|high|"
+                    r"portable|wireless|mini|cute|luxury|brand|original)\b")
+LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
+                           r"marca de luxo|\bnovo estilo\b|\bmoda nova\b")
+
+
+def titulo_ruim(titulo: str) -> bool:
+    """01/10 (Rita): título de marketplace chinês com lixo de tradução, caractere chinês ou quase todo em inglês."""
+    if LIXO_TRADUCAO.search(titulo or ""):
+        return True
+    palavras = re.findall(r"[A-Za-zÀ-ÿ]{3,}", titulo or "")
+    return len(palavras) >= 4 and len(INGLES.findall(titulo or "")) / len(palavras) >= 0.4
+
+
 def eh_produto(o: dict) -> bool:
     """Só anúncio de 1 produto, com página de produto, preço até PRECO_MAX e categoria permitida."""
     s = o.get("sinais") or {}
@@ -431,6 +455,8 @@ def eh_produto(o: dict) -> bool:
         return False
     titulo = o.get("titulo") or ""
     if o.get("grupo") not in GRUPOS_OK or SPAM.search(titulo) or VOLUMOSOS.search(titulo) or FORA.search(titulo):
+        return False
+    if SENSIVEL.search(titulo) or titulo_ruim(titulo):  # 01/10 (Rita, 1ª revisão antes de postar: 16 de 40 vetadas)
         return False
     if o.get("grupo") == "pet" and not PET_POPULAR.search(titulo):  # pet: só marca/item popular
         return False
@@ -479,6 +505,10 @@ def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
         return False
+    # 01/10 (relógio Curren "De R$ 670 por R$ 109,99"; Rita: secador/cinto/cadeira > 4×): "De" acima de 4× o preço é
+    # vitrine inflada, não desconto real
+    if (o.get("preco_antigo") or 0) > 4 * (o.get("preco") or 0) > 0 and not s.get("oficial"):
+        return False
     if s.get("ruim", 0) > s.get("otima", 0):
         return False
     if o.get("grupo") in ("beleza", "cabelo", "perfume") and o["fonte"] == "promobit":  # foco: mais permissivo
@@ -486,7 +516,7 @@ def aprovada(o: dict) -> bool:
     # "só promoções muito boas": desconto alto + algum sinal de qualidade (loja oficial, nota, voto da comunidade)
     if o["fonte"] == "ml_ofertas":
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
-    if o["fonte"] in ("ml_afiliados", "shopee_afiliados"):  # listas oficiais: sem votos → desconto + nota + vendas
+    if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
         if o["fonte"] == "shopee_afiliados" and (FALSIFICAVEL.search(o.get("titulo") or "")
@@ -940,7 +970,10 @@ BENEFICIOS = [
      "SUPLEMENTO BOM COM PREÇO DE AMIGA 💪"),
     (r"bicicleta ergom\w*|esteira", "ACADEMIA EM CASA NO PRECINHO 🚴‍♀️"),
     (r"jogo de cama|len[çc]ol|len[çc][óo]is|edredom|travesseiro|colcha", "CAMA DE HOTEL NA SUA CASA 🛏️"),
-    (r"organizador|caixa organizadora|cesto|porta(?! beb[êe])|expositor|sacos? (?:de )?armazenamento|saco a v[áa]cuo",
+    # 01/10: "Curren Portas Relógios Dos Homens" (tradução ruim de "relógios masculinos") virou "ORGANIZE SUA
+    # BAGUNÇA" → "portas" (plural) não é porta-objetos
+    (r"organizador|caixa organizadora|cesto|porta(?!s\b)(?! beb[êe])|expositor|sacos? (?:de )?armazenamento|"
+     r"saco a v[áa]cuo",
      "ORGANIZE SUA BAGUNÇA 🧺"),
     (r"toalha|toalh[ãa]o", "TOALHA FOFINHA DE HOTEL 🛁"),
     (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira|mixer|processador de alimentos|liquidificador|cafeteira|"
@@ -956,7 +989,8 @@ BENEFICIOS = [
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha|camiseta|camisa|blazer|moletom|jaqueta|"
      # 01/10 (Tati): "Body Gua Sha Bar" não é roupa; "Kit Meias… Sapatilha" é meia, não calçado
      r"casaco|regata|shorts?|bermuda|conjunto feminino|"
-     r"body(?! splash| lotion| oil| bar| scrub| mist| butter| cream| wash| gua)|cardig[ãa]|meia(?! pata)",
+     r"body(?! splash| lotion| oil| bar| scrub| mist| butter| cream| wash| gua| spray| clarifying| pad|\s*-)|"
+     r"cardig[ãa]|meia(?! pata)",
      "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
     (r"creme hidratante|hidratante corporal|lo[çc][ãa]o hidratante|lo[çc][ãa]o corporal|body lotion|[óo]leo corporal|"
@@ -1079,9 +1113,43 @@ SUPLEMENTO = re.compile(r"\bwhey\b|creatina|pr[ée]-?treino|suplemento|col[áa]g
                         r"esteira|bicicleta ergom|halter|anilha", re.I)
 
 
+# 01/10 (dona, relógio com "ORGANIZE SUA BAGUNÇA"): a família da FRASE tem que bater com a categoria do PRODUTO.
+# Frase → família (regex na frase) → categorias aceitas. Frase neutra (achado do dia, % OFF, pra ele…) passa sempre.
+FAMILIAS = [  # (frase, categorias aceitas, palavra que o TÍTULO precisa ter — ou None)
+    (r"ORGANIZ|BAGUN[ÇC]A", {"casa", "infantil", "beleza", "moda"},
+     r"organiz|porta[- ](?!rel[óo]gio)|expositor|cesto|caixa|armazenamento|v[áa]cuo|necessaire|gaveta|prateleira"),
+    (r"COZINHA|CAMA DE HOTEL|TOALHA|LAR |CASA (?:LINDA|ARRUMADA)", {"casa", "infantil"}, None),
+    (r"GELADINHO|QUENTINHO", {"casa", "esporte", "infantil"}, None),
+    (r"TECNOLOGIA|GADGET|NOTIFICA[ÇC]", {"eletronicos", "moda", "esporte"}, None),
+    (r"\bPET\b|DOGUINHO|GATINHO|BOLSO TAMB[ÉE]M", {"pet"}, None),
+    (r"PEQUENOS|MAM[ÃA]E|CRIAN[ÇC]A|BEB[ÊE]", {"infantil", "moda", "casa", "beleza", "cabelo", "perfume"}, None),
+    (r"LOOK|P[ÉE] LINDO|SALTO|BOLSA|JOIA|BRILHO NO LOOK|PROTE[ÇC][ÃA]O COM ESTILO|VER[ÃA]O|SAND[ÁA]LIA|T[ÊE]NIS",
+     {"moda", "esporte", "infantil"}, None),
+    (r"TREINO|SUPLEMENT|ACADEMIA|SHAPE", {"esporte", "beleza", "moda"}, None),
+    (r"CABELO|CACHO|\bLISO\b|CAPILAR|(?<!\d )FIOS|PELE|CHEIR|PERFUM|[ÁA]RABE|BOCA|OLHAR|MAKE|FILTRO|DEPILA[ÇC]|C[ÍI]LIOS|"
+     r"UNHA|SKINCARE|GLOW|VI[ÇC]O|AUTOCUIDADO|MASSAGEM|CORPO CANSADO", {"beleza", "cabelo", "perfume", "infantil"}, None),
+]
+
+
+def familia_confere(frase: str, grupo: str | None, titulo: str = "") -> bool:
+    """A frase é da família da categoria do produto (e, para "organize", o título fala de organizador mesmo)?"""
+    for rx, aceitas, precisa in FAMILIAS:
+        if re.search(rx, frase or "", re.I):
+            if precisa and titulo and not re.search(precisa, titulo, re.I):
+                return False
+            # "esporte"/"outros" a fonte erra muito (lençol, mixer, patinete em esporte) → não serve de prova contra
+            return not grupo or grupo in GRUPOS_RUIDOSOS or grupo in aceitas
+    return True
+
+
+GRUPOS_RUIDOSOS = {"esporte", "outros", "mercado"}
+
+
 def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     """False quando a frase do gancho é de um tipo e o produto é claramente de outro (whey de tônico capilar com
     frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
+    if not familia_confere(gancho, grupo, titulo):
+        return False
     cat = next((c for c, rx in CAT_GANCHO if re.search(rx, gancho or "", re.I)), None)
     t = re.split(r"\bsabor\b", titulo or "", flags=re.I)[0]  # "Whey… Sabor Creme de Avelã": sabor não é cosmético
     if cat == "fitness":
@@ -1133,8 +1201,10 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if 2 <= qtd <= 12 and preco and preco / qtd <= 30:  # "60 unidades" de lenço/cápsula: "R$ 0,53 CADA" engana
         return ganchos.escolher([f.format(p=_brl(preco / qtd).upper()) for f in ganchos.KIT], n, recentes)
     tipo = beneficio(titulo, o.get("grupo"))
+    if tipo and not familia_confere(tipo, o.get("grupo"), titulo):
+        tipo = None  # 01/10 (dona): "ORGANIZE SUA BAGUNÇA" num RELÓGIO ("Curren Portas Relógios…") → frase neutra
     if tipo:
-        return ganchos.escolher(ganchos.candidatos(tipo, titulo), n, recentes)
+        return ganchos.escolher(ganchos.candidatos(tipo, titulo, preco=preco), n, recentes)
     if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher", titulo, re.I):
         return ganchos.escolher(ganchos.REPERTORIO[PRA_ELE], n, recentes)
     sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
@@ -1147,7 +1217,9 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if d >= 60:
         # 01/10 (dona): "PRECINHO DE BUG 🐞" — bug virou joaninha, sem sentido → frase clara
         opcoes.append("PREÇO QUE PARECE ERRO 😱")
-    return ganchos.escolher(opcoes + ganchos.UNIVERSAL, n, recentes)
+    uni = ganchos.UNIVERSAL if preco <= 120 else [f for f in ganchos.UNIVERSAL  # R$ 207 não é "precinho"
+                                                    if not re.search(r"BARAT|PRECINHO|CENTAVO", f)]
+    return ganchos.escolher(opcoes + uni, n, recentes)
 
 
 LUXO = re.compile(  # marcas "caras" que fazem a pessoa parar o dedo (vídeo de divulgação do grupo, 30/09)
@@ -1297,9 +1369,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
         px = json.loads(_FOTO_PX_ARQ.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError):
         px = {}
+    from vendas import revisao_fila  # 01/10 (dona): revisoras vetam ANTES de postar → o robô pula o vetado
+    vet = revisao_fila.vetados()
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
-            and not vencendo(o.get("titulo") or "")]
+            and not vencendo(o.get("titulo") or "") and o["id"] not in vet]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
