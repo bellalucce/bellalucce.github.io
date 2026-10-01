@@ -239,6 +239,10 @@ def limpar_titulo(t: str) -> str:
     # 30/09 segurança: título vem da comunidade (Promobit) → link/telefone no título viraria link clicável no grupo
     # (golpe). O único link do post é o da loja, conferido por pagina_de_produto().
     t = re.sub(r"\s{2,}", " ", LINK_OU_FONE.sub(" ", t)).strip(" -–|:")
+    # 01/10 (revisão do grupo): "[OFFICIAL] Epais…", "…Original Blogueira Promoção" — rótulo/palavra de anúncio no nome
+    t = re.sub(r"^\s*[\[(【](?:official|oficial|original|hot|new|novo|promo\w*|sale)[\])】]\s*", "", t, flags=re.I)
+    t = re.sub(r"(?:\s+(?:promo[çc][ãa]o|blogueira|lan[çc]amento|envio imediato|pronta entrega|frete gr[áa]tis|"
+               r"original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
@@ -320,7 +324,20 @@ def pontuar(o: dict) -> float:
     titulo = o.get("titulo") or ""
     p -= 18 if MASCULINO.search(titulo) else 0             # público do grupo é principalmente feminino
     p += 4 if re.search(r"feminin|mulher", titulo, re.I) else 0
+    p += 10 if EM_ALTA.search(titulo) else 0               # 01/10 (dona): "mais promoção de coisas que estão em alta"
     return round(max(0.0, min(100.0, p)), 1)
+
+
+# 01/10 (dona: "quero mais promoção de coisas que estão em alta"): o que está viral em beleza no Brasil agora
+# (TikTok Shop/ELLE/Beleza na Web, out/2026) — revisar 1×/mês: cerebro/10-Mercado/2026-10-01-Em-alta-beleza.md
+EM_ALTA = re.compile(
+    r"vitamina c|[áa]cido hialur[ôo]nico|baba de caracol|snail|mucin|protetor solar com cor|protetor com cor|"
+    r"m[áa]scara de argila|argila|patch(?:es)? (?:de |para )?espinha|pimple|lip ?oil|[óo]leo labial|gloss|"
+    r"blush (?:l[íi]quido|cremoso|em bast[ãa]o)|body splash|body mist|hair mist|perfume [áa]rabe|lattafa|"
+    r"escova secadora|escova alisadora|l[âa]mina (?:facial|de sobrancelha)|dermaplan|rolo de (?:jade|quartzo)|"
+    r"gua ?sha|niacinamida|retinol|rare beauty|sol de janeiro|glow recipe|e\.?l\.?f\.? cosmetics|\belf\b|missha|"
+    r"forever liss|wepink|boca rosa|sallve|principia|\bcreamy\b|cosrx|\banua\b|skin ?1004|beauty of joseon|medicube|tirtir",
+    re.I)
 
 
 MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba|"
@@ -860,7 +877,7 @@ BENEFICIOS = [
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
     (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves| de ondas| ondas)|ondas perfeitas",
      "CACHOS DE SALÃO EM CASA 🌀"),
-    (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|t[ôo]nico capilar|capilar|antiqueda|couro cabeludo|"
+    (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|t[ôo]nico capilar|capilar|antiqueda|couro cabeludo|scalp|hair|"
      r"shampoo|condicionador|ampola|leave-?in|elseve|"
      r"k[ée]rastase|wella|truss|lola cosmetics|salon line|pantene|tresemm[ée]|cadiveu|si[àa]ge|keune|braé|matrix",
      "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
@@ -884,7 +901,9 @@ BENEFICIOS = [
     (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),  # "canguru": moletom
     (r"bolsa(?:s)?(?! (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade|marmita|lancheira))",
      "A BOLSA QUE COMBINA COM TUDO 👜"),
-    (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira|pantufa|sapatilha|bota|scarpin|mocassim", "PÉ LINDO E CONFORTÁVEL 👟"),
+    # 01/10: scarpin de salto alto saía "PÉ LINDO E CONFORTÁVEL 👟" (a variação do salto já tinha saído) → tipo próprio
+    (r"scarpin|salto alto|salto fino|salto agulha|meia pata", "SALTO LINDO PRO LOOK 👠"),
+    (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira|pantufa|sapatilha|bota|mocassim", "PÉ LINDO E CONFORTÁVEL 👟"),
     (r"vivara|pandora|life by vivara", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
     (r"brinco|colar|colares|anel|an[ée]is|pulseira|rel[óo]gio|semijoia|conjunto de joias|alian[çc]a|pingente", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha|camiseta|camisa|blazer|moletom|jaqueta|"
@@ -929,7 +948,7 @@ REFINO = {  # o tipo certo, mas a frase certa é a mais específica que também 
 TECNOLOGIA = re.compile(r"(?<!\w)(?:smart|smart ?watch|smartwatch|inteligente|bluetooth|fone)(?!\w)", re.I)
 PRA_ELE = "PRESENTE CERTO PRA ELE 🎁"
 FEMININAS = {"CHEIROSA O DIA INTEIRO, AMIGA 🌸", "BRILHO NO LOOK SEM GASTAR MUITO ✨", "LOOK NOVO GASTANDO POUCO 👗",
-             TREINO, "PÉ LINDO E CONFORTÁVEL 👟", "A BOLSA QUE COMBINA COM TUDO 👜"}
+             TREINO, "PÉ LINDO E CONFORTÁVEL 👟", "SALTO LINDO PRO LOOK 👠", "A BOLSA QUE COMBINA COM TUDO 👜"}
 BENEFICIOS_BELEZA = 12  # as 12 primeiras frases são de beleza/cabelo/perfume
 # 30/09: frases variadas e por característica moram em vendas/ganchos.py (repertório próprio, sem repetir)
 SEGREDO = "AMIGAS NÃO GUARDAM SEGREDO! 🤫"  # frase de DICA de cuidado (retinol, protetor, tratamento) — dona, 30/09
@@ -1234,12 +1253,13 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             out.append(top)
             ultimo.append(top["grupo"])
             break
-    filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL]}
+    filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "M": [o for o in cand if o["grupo"] == "moda"],
+             "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda"]}
     tentativas = 0
     for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
-        if len(out) >= n or not (filas["B"] or filas["O"]) or tentativas > n * 6:
+        if len(out) >= n or not any(filas.values()) or tentativas > n * 6:
             break
-        fila = filas[vez] or filas["O" if vez == "B" else "B"]
+        fila = filas[vez] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
         o = next((x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])), None)
         if o is None:
             continue
@@ -1298,7 +1318,9 @@ def foto_boa(o: dict) -> bool:
 
 
 LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
-PADRAO_LINHA = ("B", "O", "B", "B", "O")
+# 01/10 (dona + estudo do "Ofertas Entre Mulheres": ~58% beleza / 31% moda / 11% resto) → em cada 10: 6 beleza, 3 moda,
+# 1 variado (casa, pet, esporte, infantil, eletrônicos); + a grife que abre a rodada = ~70% beleza
+PADRAO_LINHA = ("B", "M", "B", "B", "M", "B", "O", "B", "M", "B")
 
 
 def marcar_postado(id_oferta: str) -> None:
