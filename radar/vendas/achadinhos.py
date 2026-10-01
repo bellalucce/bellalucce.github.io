@@ -71,7 +71,7 @@ PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6,
               "eletronicos": 0}
 CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador|chapinha|prancha|babyliss|"
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
-                    r"t[ôo]nico capilar|progressiva|tintura|coloraç", re.I)
+                    r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante", re.I)  # 01/10: Lola Rapunzel
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
@@ -435,7 +435,10 @@ def tem_afiliado_terceiro(url: str | None) -> bool:
 SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (?:m[ée]dica|de identifica)|autis|"
                       r"fralda geri[áa]trica|sonda|bolsa de colostomia|preservativo|lubrificante [íi]ntimo|vibrador|"
                       r"sex ?shop|redutor (?:de )?(?:celulite|medidas|gordura|barriga|abd[ôo]men)|emagrec|"
-                      r"queima de gordura|antiacne|anti-acne|modeladora|empina|balaclava|touca ninja|"  # (Nina 01/10)
+                      r"queima de gordura|antiacne|anti-acne|empina|balaclava|touca ninja|"  # (Nina 01/10)
+                      # cinta/roupa modeladora sim; "escova modeladora", "pasta modeladora" de barba não (verificador 01/10)
+                      r"(?:cinta|calcinha|body|bermuda|shorts?|camiseta|regata|faixa|meia|cueca|macac[ãa]o|"
+                      r"cal[çc]a|legging|lingerie)\s+(?:\w+\s+)?modeladora|modeladora\s+(?:de\s+)?(?:barriga|cintura|abd)|"
                       r"clareador (?:[íi]ntimo|de virilha)|calv[íi]cie|disfun[çc]")
 INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
                     r"set|pcs|color|natural|matte|face|eye|lip|lips|new|hot|sale|fashion|style|quality|high|"
@@ -1141,14 +1144,15 @@ SUPLEMENTO = re.compile(r"\bwhey\b|creatina|pr[ée]-?treino|suplemento|col[áa]g
 FAMILIAS = [  # (frase, categorias aceitas, palavra que o TÍTULO precisa ter — ou None)
     (r"ORGANIZ|BAGUN[ÇC]A", {"casa", "infantil", "beleza", "moda"},
      r"organiz|porta[- ](?!rel[óo]gio)|expositor|cesto|caixa|armazenamento|v[áa]cuo|necessaire|gaveta|prateleira"),
-    (r"COZINHA|CAMA DE HOTEL|TOALHA|LAR |CASA (?:LINDA|ARRUMADA)", {"casa", "infantil"}, None),
-    (r"GELADINHO|QUENTINHO", {"casa", "esporte", "infantil"}, None),
+    # \bLAR\b: "CELULAR NA BOLSA" caía em casa (verificador 01/10); QUENTINHO vale para jaqueta/pantufa/moletom (moda)
+    (r"COZINHA|CAMA DE HOTEL|TOALHA|\bLAR\b|CASA (?:LINDA|ARRUMADA)", {"casa", "infantil"}, None),
+    (r"GELADINHO|QUENTINHO", {"casa", "esporte", "infantil", "moda"}, None),
     (r"TECNOLOGIA|GADGET|NOTIFICA[ÇC]", {"eletronicos", "moda", "esporte"}, None),
     (r"\bPET\b|DOGUINHO|GATINHO|BOLSO TAMB[ÉE]M", {"pet"}, None),
     (r"PEQUENOS|MAM[ÃA]E|CRIAN[ÇC]A|BEB[ÊE]", {"infantil", "moda", "casa", "beleza", "cabelo", "perfume"}, None),
     (r"LOOK|P[ÉE] LINDO|SALTO|BOLSA|JOIA|BRILHO NO LOOK|PROTE[ÇC][ÃA]O COM ESTILO|VER[ÃA]O|SAND[ÁA]LIA|T[ÊE]NIS",
      {"moda", "esporte", "infantil"}, None),
-    (r"TREINO|SUPLEMENT|ACADEMIA|SHAPE", {"esporte", "beleza", "moda"}, None),
+    (r"TREINO|SUPLEMENT|ACADEMIA|SHAPE", {"esporte", "beleza", "moda", "eletronicos"}, None),  # smartwatch esportivo
     (r"CABELO|CACHO|\bLISO\b|CAPILAR|(?<!\d )FIOS|PELE|CHEIR|PERFUM|[ÁA]RABE|BOCA|OLHAR|MAKE|FILTRO|DEPILA[ÇC]|C[ÍI]LIOS|"
      r"UNHA|SKINCARE|GLOW|VI[ÇC]O|AUTOCUIDADO|MASSAGEM|CORPO CANSADO", {"beleza", "cabelo", "perfume", "infantil"}, None),
 ]
