@@ -258,6 +258,13 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s+(?:blogueira|promo[çc][ãa]o|envio (?:da|do|de) (?:coreia|china|brasil)|envio r[áa]pido|"
                r"envio imediato|pronta entrega|frete gr[áa]tis|marca de luxo|top de linha)\b", "", t, flags=re.I)
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
+    # 01/10 (Nina): ML cola atributos da variação no fim ("… Cor-1 M", "… Padrão", "- Cor Preto Tamanho M")
+    t = re.sub(r"(?:\s*[-|/]?\s*(?:\b(?:cor|tamanho|tam|voltagem)\b[\s:\-]+[\w-]+|\bmodelo\b[\s:\-]+\w*\d[\w-]*)"
+               r"(?:\s+(?:PP|P|M|G|GG|XG|\d{2}))?)+\s*$", "", t, flags=re.I)  # "Modelo Ciganinha" fica; "Modelo X12" sai
+    t = re.sub(r"(?:\s+(?:padr[ãa]o|[A-Z]{1,2}\d{2,}[-\w]*|cor-?\d+(?:\s+[PMG]{1,2})?))+\s*$", "", t, flags=re.I).strip(" -–|:/")
+    # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior
+    ps = t.split()
+    t = " ".join(p for i, p in enumerate(ps) if i == 0 or re.sub(r"(.)\1", r"\1", p.lower()) != re.sub(r"(.)\1", r"\1", ps[i - 1].lower()))
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
@@ -427,13 +434,15 @@ def tem_afiliado_terceiro(url: str | None) -> bool:
 # 01/10 (Rita): hospitalar/íntimo/promessa de tratamento não combina com o grupo de achadinhos
 SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (?:m[ée]dica|de identifica)|autis|"
                       r"fralda geri[áa]trica|sonda|bolsa de colostomia|preservativo|lubrificante [íi]ntimo|vibrador|"
-                      r"sex ?shop|redutor de (?:celulite|medidas|gordura)|emagrec|queima de gordura|antiacne|anti-acne|"
+                      r"sex ?shop|redutor (?:de )?(?:celulite|medidas|gordura|barriga|abd[ôo]men)|emagrec|"
+                      r"queima de gordura|antiacne|anti-acne|modeladora|empina|balaclava|touca ninja|"  # (Nina 01/10)
                       r"clareador (?:[íi]ntimo|de virilha)|calv[íi]cie|disfun[çc]")
 INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
                     r"set|pcs|color|natural|matte|face|eye|lip|lips|new|hot|sale|fashion|style|quality|high|"
                     r"portable|wireless|mini|cute|luxury|brand|original)\b")
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
-                           r"marca de luxo|\bnovo estilo\b|\bmoda nova\b")
+                           r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
+                           r"cosm[ée]ticos \d+ cores|para deslocamento")  # (Nina 01/10)
 
 
 def titulo_ruim(titulo: str) -> bool:
@@ -1305,12 +1314,23 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     vez = agora.timetuple().tm_yday * len(HORAS_LOJA) + HORAS_LOJA.index(agora.hour)
     sku, p = ok[vez % len(ok)]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
+    cabeca = "*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*"
+    # 01/10 (dona: "o batom de ursinho é bom pro Dia das Crianças também"): data grande chegando com produto NOSSO
+    # (agenda → chegando[].loja_sku) → nas 2 primeiras horas da loja do dia ele entra no lugar do rodízio
+    from vendas import datas
+    for c in datas.chegando(agora.date()):
+        alvo = dict(ok).get(c.get("loja_sku"))
+        if alvo and HORAS_LOJA.index(agora.hour) < 2:
+            sku, p = c["loja_sku"], alvo
+            legenda = c.get("loja_legenda") or legenda
+            cabeca = f"*{c.get('loja_chamada', 'PRESENTE DA NOSSA LOJINHA 🎁')}*"
+            break
     pr = p.get("promo") or {}
     agora_txt = agora.strftime("%Y-%m-%d %H:%M")
     if pr and pr.get("desde", "") <= agora_txt <= pr.get("ate", ""):
         # 01/10 (dona): "lança meus produtos com promoção, sem promoção fica nada a ver" → mesmo modelo das ofertas
         # (De riscado / Por), com a Promoção de Desconto REAL criada na Shopee (config/midia.json → promo)
-        linhas = ["*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*", "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
+        linhas = [cabeca, "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
                   f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, até {pr['ate'][8:10]}/{pr['ate'][5:7]})_"]
         url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
         linhas += ["", f"🛒 *Compre aqui:* {url}"]
