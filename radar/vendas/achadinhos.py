@@ -525,6 +525,12 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         r = db.consultar("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{m.group(1)}",))
         if r and (curto := json.loads(r[0]["sinais"] or "{}").get("offer_link")):
             return curto
+        try:  # 01/10: link curto oficial gerado no painel (integracoes/shopee_links.py)
+            from vendas.integracoes import shopee_links
+            if curto := shopee_links.curto(url):
+                return curto
+        except ImportError:  # radar na nuvem do GitHub não leva a integração
+            pass
         if curto := _shopee_curto(url):  # produto da Shopee vindo de outra fonte (Promobit): gera o NOSSO link
             return curto
         if af.get("shopee_id"):  # 01/10: link de afiliada no formato da Shopee (testado: chega com an_<nosso id>)
@@ -1029,6 +1035,8 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
         probs.append("'de' menor ou igual ao 'por'")
     if "https://" not in texto:
         probs.append("sem link")
+    if "shope.ee/an_redir" in texto:  # 01/10 (dona): link da Shopee sempre curto
+        probs.append("link da Shopee sem encurtar")
     if re.search(r"\bNone\b|\{[a-z]\}", texto):
         probs.append("texto com campo vazio")
     return probs
@@ -1116,18 +1124,21 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     gancho = gancho_post(o, n, recentes)
     if recentes is not None:
         recentes.append(gancho)  # a própria rodada também não repete
-    preco = (f"De {_brl_zap(o['preco_antigo'])} por *{_brl_zap(o['preco'])}*" if o.get("preco_antigo")
-             else f"Por *{_brl_zap(o['preco'])}*")
+    # 01/10 (dona, print do "Ofertas Entre Mulheres"): 🛍️ produto / "De:" riscado / 🗣️ *Por:* / 🛒 *Compre aqui:*
+    por = f"🗣️ *Por:* {_brl_zap(o['preco'])}"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
-        preco += f" _(às {hora})_"
-    linhas = [f"*{gancho}*", "", limpar_titulo(o["titulo"])[:100], f"🏬 {o.get('loja') or ''}", preco]
+        por += f" _(às {hora})_"
+    linhas = [f"*{gancho}*", "", f"🛍️ {limpar_titulo(o['titulo'])[:100]}", ""]
+    if o.get("preco_antigo"):
+        linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
+    linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
-    linhas += ["", f"👉 {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
+    linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     return "\n".join(linhas)
@@ -1178,9 +1189,17 @@ def canais() -> dict:
     return {"site": SITE_URL, **(json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {})}
 
 
-def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
+def shopee_sem_curto(o: dict) -> bool:
+    """Produto da Shopee cujo link para o grupo ainda seria o comprido (shope.ee/an_redir?...)."""
+    if not re.search(r"shopee\.com\.br/product/", o.get("link_loja") or ""):
+        return False
+    return not re.match(r"https://s\.shopee\.com\.br/", link_afiliado(o["link_loja"], canal="whatsapp") or "")
+
+
+def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
     """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
-    (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas)."""
+    (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
+    01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     recentes = {chave_produto(r["titulo"]) for r in db.consultar(
         "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-24 hours')")}
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
@@ -1189,6 +1208,8 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
     cand = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto") and not o["publicado_em"]
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+    if so_com_link_curto:
+        cand = [o for o in cand if not shopee_sem_curto(o)]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
@@ -1200,7 +1221,8 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
     # partir de R$ 150
     volta = (datetime.now() - timedelta(days=2)).isoformat(sep=" ", timespec="seconds")
     pool = cand + [o for o in sem_repetidos(melhores(horas, 3000)) if o["publicado_em"] and o["publicado_em"] < volta
-                   and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes]
+                   and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
+                   and not (so_com_link_curto and shopee_sem_curto(o))]
     grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
