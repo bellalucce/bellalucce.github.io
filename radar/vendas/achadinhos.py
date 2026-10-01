@@ -519,7 +519,31 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         r = db.consultar("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{m.group(1)}",))
         if r and (curto := json.loads(r[0]["sinais"] or "{}").get("offer_link")):
             return curto
+        if curto := _shopee_curto(url):  # produto da Shopee vindo de outra fonte (Promobit): gera o NOSSO link
+            return curto
     return url  # ML: link curto só pela ferramenta do painel
+
+
+def _shopee_curto(url: str) -> str | None:
+    """Link de afiliada da Shopee pela Open API (só com AppID/Senha; cache em dados/achadinhos/shopee_links.json)."""
+    try:
+        from vendas.integracoes import shopee_afiliados as sa
+    except ImportError:  # radar na nuvem do GitHub não leva a integração
+        return None
+    if not sa.credenciais():
+        return None
+    arq = config.DADOS / "achadinhos" / "shopee_links.json"
+    cache = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+    if url not in cache:
+        try:
+            curto = sa.link_curto(url)
+        except Exception:  # noqa: BLE001 — sem o link curto, vai o link comum
+            return None
+        if not (curto and re.match(r"https://s\.shopee\.com\.br/\w+$", curto)):
+            return None
+        cache[url] = curto
+        arq.write_text(json.dumps(cache, indent=0), encoding="utf-8")
+    return cache[url]
 
 
 # ---------------- ciclo ----------------
@@ -775,6 +799,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
+<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a></p>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
