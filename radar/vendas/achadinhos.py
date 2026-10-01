@@ -1212,7 +1212,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
 
 LEMBRETE_HORAS = (12, 18)  # 30/09 (dona): "repete 2× por dia" — quem entrou depois não vê as ofertas da manhã
 TEXTO_LEMBRETE = ("📌 *CHEGOU AGORA?*\n\nTodas as ofertas de hoje ficam no nosso site, separadinhas por categoria 👇\n{site}"
-                  "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 23h._")
+                  "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 22h._")  # 01/10 (dona): até as 22h
 
 
 def lembrete_site(agora: datetime | None = None) -> tuple[str, str] | None:
@@ -1274,7 +1274,9 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     # masculino nem grife. A grife abre a rodada que começa um novo ciclo de 10 (com 10 por rodada: toda rodada).
     pos = (db.consultar("SELECT COUNT(*) n FROM ofertas WHERE date(publicado_em) = date('now','localtime')")
            or [{"n": 0}])[0]["n"]
-    vez_grife = n >= len(PADRAO_LINHA) or pos % len(PADRAO_LINHA) < n
+    from vendas import datas
+    tema = datas.tema_do_dia()  # 01/10 (dona): 2 dias temáticos por semana ("Quarta do Perfume") → 9 em 10 do tema
+    vez_grife = (n >= len(PADRAO_LINHA) or pos % len(PADRAO_LINHA) < n) and not tema
     for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if vez_grife else []:
         if top in cand:
             cand.remove(top)
@@ -1284,9 +1286,30 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             break
     filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "M": [o for o in cand if o["grupo"] == "moda"],
              "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda"]}
+    if datas.chegando():  # data grande chegando (Dia das Crianças, Natal…): o que é ligado a ela sobe na fila
+        for f in filas.values():
+            f.sort(key=lambda o: (o["score"] or 0) + datas.bonus(o), reverse=True)
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     tentativas = 0
+    if tema:
+        k = datas.vagas_do_tema(pos, len(out), n)
+        for o in sorted((o for o in cand if datas.casa(o, tema)),
+                        key=lambda o: (o["score"] or 0) + datas.bonus(o), reverse=True):
+            if k <= 0 or tentativas > n * 10:
+                break
+            if por_vendedor.get(vendedor(o)):
+                continue
+            tentativas += 1
+            for f in filas.values():
+                if o in f:
+                    f.remove(o)
+            if foto_boa(o):
+                out.append(o)
+                ultimo.append(o["grupo"])
+                k -= 1
+                if vendedor(o):
+                    por_vendedor[vendedor(o)] = 1
     inicio = (pos + len(out)) % len(PADRAO_LINHA)
     for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
