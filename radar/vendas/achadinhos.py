@@ -420,8 +420,12 @@ def aprovada(o: dict) -> bool:
     # "só promoções muito boas": desconto alto + algum sinal de qualidade (loja oficial, nota, voto da comunidade)
     if o["fonte"] == "ml_ofertas":
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
-    if o["fonte"] == "ml_afiliados":  # lista oficial do ML: sem votos da comunidade → desconto + nota + vendas
+    if o["fonte"] in ("ml_afiliados", "shopee_afiliados"):  # listas oficiais: sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
+        # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
+        if o["fonte"] == "shopee_afiliados" and (FALSIFICAVEL.search(o.get("titulo") or "")
+                                                 or LUXO.search(o.get("titulo") or "")) and not s.get("oficial"):
+            return False
         # Kérastase/coreana: muita falsificação no marketplace e o painel não diz se é loja oficial → só anúncio com
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
         if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000):
@@ -510,7 +514,12 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     if re.search(r"mercadolivre\.com\.br/", url) and af.get("ml_tool"):  # ML Afiliados: mesmos parâmetros do meli.la oficial
         base = url.split("#")[0]
         return f"{base}{'&' if '?' in base else '?'}matt_word={af.get('ml_etiqueta', 'bellalucce')}&matt_tool={af['ml_tool']}"
-    return url  # ML/Shopee: gerar link curto pela ferramenta/API de afiliados quando o cadastro existir
+    m = re.search(r"shopee\.com\.br/product/\d+/(\d+)", url)
+    if m:  # Shopee Afiliados (permite WhatsApp): o link curto da Open API, guardado na coleta
+        r = db.consultar("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{m.group(1)}",))
+        if r and (curto := json.loads(r[0]["sinais"] or "{}").get("offer_link")):
+            return curto
+    return url  # ML: link curto só pela ferramenta do painel
 
 
 # ---------------- ciclo ----------------
@@ -621,6 +630,49 @@ def salvar_ml_afiliados(itens: list[dict]) -> dict:
             aprov += ok
     problemas = auditar()
     return {"salvos": len(itens), "novos": novos, "aprovados": aprov, "auditoria": len(problemas)}
+
+
+def salvar_shopee_afiliados(itens: list[dict]) -> dict:
+    """Ofertas da Open API de Afiliados da Shopee (integracoes/shopee_afiliados.py). link_loja = página do produto;
+    o link de afiliada (offerLink, s.shopee…) fica em sinais e entra no post por link_afiliado()."""
+    _tabela()
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    novos = aprov = 0
+    with db.conectar() as con:
+        for it in {x["id"]: x for x in itens if x.get("id")}.values():
+            titulo = limpar_titulo((it.get("titulo") or "").strip())
+            if not (titulo and it.get("preco")):
+                continue
+            grupo = _grupo_final(_grupo(titulo), titulo)
+            vend = int(it.get("vendidos") or 0)
+            sinais = {"tipo": "NORMAL", "comissao": it.get("comissao") or 0, "vendidos_num": vend,
+                      "oficial": bool(it.get("oficial")), "loja_nome": it.get("loja_nome") or "",
+                      "offer_link": it.get("offer_link") if re.match(r"https://s\.shopee\.com\.br/\w+$",
+                                                                     it.get("offer_link") or "") else None}
+            link = it.get("url") if it.get("url") and pagina_de_produto(it["url"]) else None
+            foto = it.get("foto") if re.match(r"https://(?:cf|down-br\.img)\.(?:shopee|susercontent)\.com(?:\.br)?/",
+                                              it.get("foto") or "") else None
+            o = {"id": f"shpaf:{it['id']}", "fonte": "shopee_afiliados", "loja": "Shopee", "titulo": titulo,
+                 "grupo": grupo, "preco": it["preco"], "preco_antigo": it.get("preco_antigo"),
+                 "desconto": int(it.get("desconto") or 0), "cupom": None, "foto": foto, "link_fonte": None,
+                 "link_loja": link, "nota": it.get("nota"), "vendidos": f"{vend} vendidos" if vend else None,
+                 "sinais": sinais}
+            o["score"], ok = pontuar(o), aprovada(o) and bool(link)
+            ant = con.execute("SELECT 1 FROM ofertas WHERE id = ?", (o["id"],)).fetchone()
+            con.execute("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
+                             link_fonte, link_loja, nota, vendidos, sinais, score, aprovada, visto_em, atualizado_em)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(id) DO UPDATE SET preco=excluded.preco, preco_antigo=excluded.preco_antigo,
+                             desconto=excluded.desconto, sinais=excluded.sinais, score=excluded.score, grupo=excluded.grupo,
+                             aprovada=excluded.aprovada, foto=excluded.foto, nota=excluded.nota, vendidos=excluded.vendidos,
+                             link_loja=excluded.link_loja, atualizado_em=excluded.atualizado_em""",
+                        (o["id"], o["fonte"], o["loja"], titulo, grupo, o["preco"], o["preco_antigo"], o["desconto"], None,
+                         foto, None, link, o["nota"], o["vendidos"], json.dumps(sinais, ensure_ascii=False),
+                         o["score"], int(ok), agora, agora))
+            _guardar_precos(con, [(o["id"], o["preco"])])
+            novos += ant is None
+            aprov += ok
+    return {"salvos": len(itens), "novos": novos, "aprovados": aprov}
 
 
 def melhores(horas: int = 24, limite: int = 60, grupo: str | None = None) -> list[dict]:
