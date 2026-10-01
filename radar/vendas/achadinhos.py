@@ -1046,23 +1046,73 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
     grife = [o for o in cand if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 200
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco]  # preço visto há pouco (grife muda rápido)
-    if grife and n >= 3:
-        top = max(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"])
+    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:5] if n >= 3 else []:
         cand.remove(top)
-        out.append(top)
-        ultimo.append(top["grupo"])
+        if foto_boa(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
+            out.append(top)
+            ultimo.append(top["grupo"])
+            break
     filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL]}
-    for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 2)):
-        if len(out) >= n or not (filas["B"] or filas["O"]):
+    tentativas = 0
+    for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
+        if len(out) >= n or not (filas["B"] or filas["O"]) or tentativas > n * 6:
             break
         fila = filas[vez] or filas["O" if vez == "B" else "B"]
         o = next((x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])), None)
         if o is None:
             continue
         fila.remove(o)
+        tentativas += 1
+        if not foto_boa(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
+            continue
         out.append(o)
         ultimo.append(o["grupo"])
     return out
+
+
+FOTO_MIN_PX = 600  # maior lado da foto que vai pro grupo (a Promobit guarda 200–300 px → esticada fica borrada)
+_FOTO_PX_ARQ = config.DADOS / "achadinhos" / "foto_px.json"
+
+
+def foto_px(url: str) -> int:
+    """Maior lado, em px, da MELHOR versão disponível da foto (cache em dados/achadinhos/foto_px.json)."""
+    try:
+        cache = json.loads(_FOTO_PX_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        cache = {}
+    if url in cache:
+        return cache[url]
+    import io
+
+    from PIL import Image
+
+    from vendas.integracoes.whatsapp import foto_grande
+    px = 0
+    for u in dict.fromkeys((foto_grande(url), url)):
+        try:
+            r = httpx.get(u, timeout=20, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code == 200:
+                px = max(px, max(Image.open(io.BytesIO(r.content)).size))
+        except Exception:  # noqa: BLE001 — foto que não abre = ruim
+            pass
+    cache[url] = px
+    if len(cache) > 5000:
+        cache = dict(list(cache.items())[-4000:])
+    _FOTO_PX_ARQ.parent.mkdir(parents=True, exist_ok=True)
+    _FOTO_PX_ARQ.write_text(json.dumps(cache), encoding="utf-8")
+    return px
+
+
+def foto_boa(o: dict) -> bool:
+    """30/09 (dona: "sempre que for enviar a imagem, verifique"): só vai pro grupo foto com ≥ FOTO_MIN_PX de verdade.
+    Oferta da Promobit que aponta pro ML: usa a foto em alta da coleta do ML do MESMO anúncio, se tivermos."""
+    f = o.get("foto") or ""
+    m = re.search(r"MLB-?(\d{6,})", o.get("link_loja") or "")
+    if "promobit.com.br" in f and m:
+        alt = db.consultar("SELECT foto FROM ofertas WHERE id = ? AND foto IS NOT NULL", (f"mlaf:MLB{m.group(1)}",))
+        if alt:
+            o["foto"] = f = alt[0]["foto"]
+    return bool(f) and foto_px(f) >= FOTO_MIN_PX
 
 
 LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
