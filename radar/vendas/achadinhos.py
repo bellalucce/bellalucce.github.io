@@ -646,6 +646,12 @@ def _brl(v) -> str:
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if v else ""
 
 
+def _brl_zap(v) -> str:
+    """Preço para o WhatsApp: no celular, "234,12" (5+ dígitos) vira link VERDE de telefone (30/09, dona). Um
+    separador invisível (U+2060) depois da vírgula quebra a sequência sem mudar o que se vê."""
+    return _brl(v).replace(",", ",⁠")
+
+
 def vitrine(horas: int = 36) -> str:
     """Gera dados/achadinhos/site/index.html (celular primeiro). Só ofertas aprovadas e com link."""
     # todas as ofertas ativas (o que saiu de promoção não é revisto na coleta e some em até `horas`), o melhor de cada tipo
@@ -964,8 +970,8 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     gancho = gancho_post(o, n, recentes)
     if recentes is not None:
         recentes.append(gancho)  # a própria rodada também não repete
-    preco = (f"De {_brl(o['preco_antigo'])} por *{_brl(o['preco'])}*" if o.get("preco_antigo")
-             else f"Por *{_brl(o['preco'])}*")
+    preco = (f"De {_brl_zap(o['preco_antigo'])} por *{_brl_zap(o['preco'])}*" if o.get("preco_antigo")
+             else f"Por *{_brl_zap(o['preco'])}*")
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         preco += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", limpar_titulo(o["titulo"])[:100], f"🏬 {o.get('loja') or ''}", preco]
