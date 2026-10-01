@@ -56,7 +56,8 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "beleza": r"perfume|batom|gloss|maquiag|base |rímel|rimel|sérum|serum|creme|hidratante|protetor solar|shampoo|condicionador|"
               r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash|"
               r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion",  # 01/10: "innisfree… powder pact" caía em outros
-    "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni",
+    "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni|"
+            r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir",  # 01/10 (Rafa): blazer caía em outros
     "casa": r"panela|colchão|colchao|toalha|lençol|lencol|travesseiro|aspirador|air fryer|fritadeira|liquidificador|cafeteira|"
             r"organizador|cortina|tapete|jogo de cama|potes|faqueiro|ventilador|micro-ondas|geladeira|fogão",
     "eletronicos": r"smart ?tv|notebook|(?<!renova[çc][ãa]o )celular|smartphone|fone|headset|monitor|tablet|carregador|ssd|mouse|teclado|caixa de som|câmera|camera",
@@ -225,6 +226,8 @@ def _grupo_final(g: str, titulo: str) -> str:
         return "beleza"   # bem-estar fica junto de beleza (a loja da Promobit às vezes classifica errado)
     if CAMA_BANHO.search(titulo or ""):
         return "casa"
+    if g in ("outros", "mercado", "esporte", "pet", "casa") and MARCAS_SKINCARE.search(titulo or ""):
+        return "beleza"  # 01/10 (Rafa): "Principia Kit Essencial GL-03…" caía em outros
     if g in ("outros", "mercado", "esporte", "pet"):
         g2 = _grupo(titulo)
         return g2 if g2 in GRUPOS_OK else g
@@ -387,7 +390,9 @@ VOLUMOSOS = re.compile(r"geladeira|refrigerador|freezer|conservador|fog[ãa]o|co
                        # material de obra/ferramenta: nada a ver com o público do grupo
                        r"manta l[íi]quida|impermeabiliz|bomba (pressurizadora|d.?[áa]gua)|refletor|holofote|argamassa|"
                        r"cimento|furadeira|parafusadeira|motosserra|compressor de ar", re.I)
-SPAM = re.compile(r"cupo(m|ns)|pacote|viagem|passage|hotel|\bvoo|assinatura|receb(a|er) |grupo d|whatsapp|telegram|"
+# 01/10 (Rafa): "Maleta de Maquiagem… de Viagem" era barrada — viagem só é spam quando é PACOTE/destino, não produto
+SPAM = re.compile(r"cupo(m|ns)|pacote|pacote de viagem|viagens? (?:para|pra|nacional|internacional|com)|passage|hotel|"
+                  r"\bvoo|assinatura|receb(a|er) |grupo d|whatsapp|telegram|"
                   r"achados|sele[çc][ãa]o|todo o site|frete gr[áa]tis|cashback|cart[ãa]o de|cr[ée]dito|gift ?card|"
                   r"vale[- ]presente|streaming|\bplano |liberad|imperd[íi]vel dia|at[ée] \d+% off em|"
                   # política/religião/armas: nada que divida o público do grupo
