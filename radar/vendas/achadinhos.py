@@ -346,6 +346,8 @@ PRECO_MAX = {"perfume": 1500, "beleza": 1000, "cabelo": 1000, "moda": 1000, "cas
 VOLUMOSOS = re.compile(r"geladeira|refrigerador|freezer|conservador|fog[ãa]o|cooktop|forno el[ée]tri|m[áa]quina de lavar|"
                        r"lava e seca|lavadora|lava[- ]lou[çc]a|secadora de roupa|ar[- ]condicionado|smart ?tv|televis|"
                        r"\btv \d|colch[ãa]o|sof[áa]|guarda[- ]roupa|cama box|bicicleta (?!ergom)|pneu|"
+                       # 01/10: móvel de banheiro/cozinha (gabinete com cuba, armário aéreo) — fora do tom do grupo
+                       r"gabinete .*(cuba|banheiro|pia)|arm[áa]rio (de |para )?(banheiro|cozinha|a[ée]reo)|\bcuba\b|"
                        # material de obra/ferramenta: nada a ver com o público do grupo
                        r"manta l[íi]quida|impermeabiliz|bomba (pressurizadora|d.?[áa]gua)|refletor|holofote|argamassa|"
                        r"cimento|furadeira|parafusadeira|motosserra|compressor de ar", re.I)
