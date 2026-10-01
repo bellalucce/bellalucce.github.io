@@ -433,8 +433,8 @@ def aprovada(o: dict) -> bool:
             return False
         # Kérastase/coreana: muita falsificação no marketplace e o painel não diz se é loja oficial → só anúncio com
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
-        if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000):
-            return False
+        if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000) and not s.get("oficial"):
+            return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
             return d >= 40 or (d >= 20 and bom) or (d >= 15 and viral)
@@ -527,6 +527,10 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
             return curto
         if curto := _shopee_curto(url):  # produto da Shopee vindo de outra fonte (Promobit): gera o NOSSO link
             return curto
+        if af.get("shopee_id"):  # 01/10: link de afiliada no formato da Shopee (testado: chega com an_<nosso id>)
+            from urllib.parse import quote
+            return (f"https://shope.ee/an_redir?origin_link={quote(url, safe='')}&affiliate_id={af['shopee_id']}"
+                    f"&sub_id={'grupo' if canal == 'whatsapp' else canal}")
     return url  # ML: link curto só pela ferramenta do painel
 
 
@@ -673,7 +677,7 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
             titulo = limpar_titulo((it.get("titulo") or "").strip())
             if not (titulo and it.get("preco")):
                 continue
-            grupo = _grupo_final(_grupo(titulo), titulo)
+            grupo = _grupo_final(it.get("grupo") or _grupo(titulo), titulo)  # feed traz a categoria (Beauty → beleza)
             vend = int(it.get("vendidos") or 0)
             sinais = {"tipo": "NORMAL", "comissao": it.get("comissao") or 0, "vendidos_num": vend,
                       "oficial": bool(it.get("oficial")), "loja_nome": it.get("loja_nome") or "",
@@ -1360,7 +1364,7 @@ def publicar_site() -> str:
     shutil.copyfile(Path(__file__).with_name("ganchos.py"), radar / "vendas" / "ganchos.py")  # achadinhos importa (30/09)
     shutil.copyfile(config.CONFIG / "achadinhos.json", radar / "config" / "achadinhos.json")
     af = config.segredos().get("afiliados") or {}
-    publicos = {k: af[k] for k in ("amazon_tag", "magalu_loja", "ml_tool", "ml_etiqueta") if k in af}
+    publicos = {k: af[k] for k in ("amazon_tag", "magalu_loja", "ml_tool", "ml_etiqueta", "shopee_id") if k in af}
     (radar / "config" / "afiliados.json").write_text(json.dumps(publicos, indent=1), encoding="utf-8")
     # vai para a nuvem: TUDO do ML da última coleta + as aprovadas das outras lojas (a nuvem começa o banco do zero a cada
     # execução e só veria a Promobit daquele instante — 30/09: 12 Amazon no site × 88 no PC). No máx. 1×/hora: cada
