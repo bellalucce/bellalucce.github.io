@@ -291,6 +291,43 @@ UNIVERSAL = ["OLHA ESSE PRECINHO 😍", "ACHADO DO DIA 🔎", "VALE CADA CENTAVO
 KIT = ["SÓ {p} CADA 😱", "SAI {p} CADA 😱", "{p} CADA, ACREDITA? 😱"]
 OFF = ["{d}% OFF, NÃO É ERRO! 😱", "{d}% OFF DE VERDADE 😱", "CAIU {d}%, OLHA ISSO 😱"]
 
+# 01/10 (dona): "um agente que todo dia vai atualizar o repertório de legendas, sempre criando novos, pra não ficar
+# repetitivo" → a Tati (agente) escreve frases NOVAS em dados/achadinhos/ganchos_extra.json {tipo: [frases]}; aqui só
+# entram as que passam na checagem (sem promessa milagrosa, sem link/grupo/@, maiúsculas, curta, com emoji)
+PROIBIDAS = re.compile(r"(?i)\b(?:cura|curar|elimina\w*|acaba com|garantid\w*|milagr\w*|link|grupo|clique|whatsapp|"
+                       r"http|www|definitiv\w*|100%)|@")
+
+
+def frase_ok(f: str, tipo: str = "") -> bool:
+    letras = [c for c in f if c.isalpha()]
+    emoji = any(ord(c) > 0x2100 and not c.isalpha() for c in f)
+    if not (6 <= len(f) <= 42 and letras and all(c.isupper() for c in letras) and emoji) or PROIBIDAS.search(f):
+        return False
+    return not (tipo.endswith("PRA ELE 🎁") and re.search(r"AMIGA|LINDA|CHEIROSA", f))  # frase de homem sem "amiga"
+
+
+def _carregar_extra() -> int:
+    try:
+        import json
+
+        from vendas import config
+        dados = json.loads((config.DADOS / "achadinhos" / "ganchos_extra.json").read_text(encoding="utf-8-sig"))  # BOM do PowerShell
+    except Exception:  # noqa: BLE001 — sem arquivo (ou no radar da nuvem): só o repertório fixo
+        return 0
+    n = 0
+    for tipo, frases in (dados or {}).items():
+        lista = UNIVERSAL if tipo == "UNIVERSAL" else REPERTORIO.get(tipo)
+        if lista is None:
+            continue
+        for f in frases:
+            if isinstance(f, str) and f not in lista and frase_ok(f, tipo):
+                lista.append(f)
+                n += 1
+    return n
+
+
+EXTRA_CARREGADAS = _carregar_extra()
+
 
 def _sazonais(tipo: str, hoje: date | None) -> list[str]:
     hoje = hoje or date.today()

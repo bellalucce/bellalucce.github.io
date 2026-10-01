@@ -322,7 +322,8 @@ def pontuar(o: dict) -> float:
     p += 8 if MARCAS.search(o.get("titulo") or "") else 0  # marca conhecida (o que os grupos grandes mais postam)
     p += 4 if 20 <= (o.get("preco") or 0) <= 120 else 0    # faixa de preço que mais sai nos grupos
     titulo = o.get("titulo") or ""
-    p -= 18 if MASCULINO.search(titulo) else 0             # público do grupo é principalmente feminino
+    # público principal é feminino; 01/10 (dona) masculino também entra (2 vagas em 10 na fila do grupo) → só um ajuste leve
+    p -= 6 if MASCULINO.search(titulo) else 0
     p += 4 if re.search(r"feminin|mulher", titulo, re.I) else 0
     p += 10 if EM_ALTA.search(titulo) else 0               # 01/10 (dona): "mais promoção de coisas que estão em alta"
     return round(max(0.0, min(100.0, p)), 1)
@@ -1259,8 +1260,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 6:
             break
-        fila = filas[vez] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
-        o = next((x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])), None)
+        fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
+        livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])]
+        # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
+        quer_h = vez.endswith("h")
+        o = next((x for x in livres if eh_masculino(x) == quer_h), None) or (livres[0] if livres else None)
         if o is None:
             continue
         fila.remove(o)
@@ -1320,7 +1324,13 @@ def foto_boa(o: dict) -> bool:
 LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
 # 01/10 (dona + estudo do "Ofertas Entre Mulheres": ~58% beleza / 31% moda / 11% resto) → em cada 10: 6 beleza, 3 moda,
 # 1 variado (casa, pet, esporte, infantil, eletrônicos); + a grife que abre a rodada = ~70% beleza
-PADRAO_LINHA = ("B", "M", "B", "B", "M", "B", "O", "B", "M", "B")
+# 01/10 (dona): também público MASCULINO → 2 das 10 vagas ("Bh" beleza, "Mh" moda) preferem produto masculino
+PADRAO_LINHA = ("B", "M", "B", "Bh", "M", "B", "O", "B", "Mh", "B")
+
+
+def eh_masculino(o: dict) -> bool:
+    t = o.get("titulo") or ""
+    return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher", t, re.I)
 
 
 def marcar_postado(id_oferta: str) -> None:
