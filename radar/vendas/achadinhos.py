@@ -1269,7 +1269,13 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
              and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
-    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if n >= 3 else []:
+    # 01/10 (dona: "segue o ritmo do grupo das mulheres", ~108/dia → 2 por rodada): o padrão de 10 vagas CONTINUA de uma
+    # rodada para a outra (pelo nº de posts de hoje) — senão toda rodada começaria em "B, M" e nunca sairia variado,
+    # masculino nem grife. A grife abre a rodada que começa um novo ciclo de 10 (com 10 por rodada: toda rodada).
+    pos = (db.consultar("SELECT COUNT(*) n FROM ofertas WHERE date(publicado_em) = date('now','localtime')")
+           or [{"n": 0}])[0]["n"]
+    vez_grife = n >= len(PADRAO_LINHA) or pos % len(PADRAO_LINHA) < n
+    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if vez_grife else []:
         if top in cand:
             cand.remove(top)
         if foto_boa(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
@@ -1281,7 +1287,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     tentativas = 0
-    for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
+    inicio = (pos + len(out)) % len(PADRAO_LINHA)
+    for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
             break
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
