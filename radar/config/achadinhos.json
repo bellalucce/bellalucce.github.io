@@ -5,5 +5,5 @@
   "telegram": "",
   "posts_por_rodada": 10,
   "intervalo_entre_posts_s": [12, 25],
-  "horario": [8, 22]
+  "horario": [8, 23]
 }

@@ -850,7 +850,8 @@ BENEFICIOS = [
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
     (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves| de ondas| ondas)|ondas perfeitas",
      "CACHOS DE SALÃO EM CASA 🌀"),
-    (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|shampoo|condicionador|ampola|leave-?in|elseve|"
+    (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|t[ôo]nico capilar|capilar|antiqueda|couro cabeludo|"
+     r"shampoo|condicionador|ampola|leave-?in|elseve|"
      r"k[ée]rastase|wella|truss|lola cosmetics|salon line|pantene|tresemm[ée]|cadiveu|si[àa]ge|keune|braé|matrix",
      "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
     (r"lat+af+a|armaf|al wataniah|maison alhambra|[áa]r[áa]be|asad|yara|fakhar|khamrah|club de nuit|french avenue|"
@@ -858,7 +859,11 @@ BENEFICIOS = [
     (r"perfume|eau de|parfum|body splash|splash|col[ôo]nia|deo col[ôo]nia|edp|edt", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
     (r"legging|^top|top fitness|conjunto fitness|short fitness|cal[çc]a fitness|macaquinho|roupa de academia",
      "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
-    (r"whey|creatina|pr[ée]-?treino|col[áa]geno", "SUPLEMENTO BOM COM PREÇO DE AMIGA 💪"),
+    # 01/10 (dona): "Tônico Capilar Yenzah Whey Amino" virou "PRA QUEM LEVA O TREINO A SÉRIO" — whey/colágeno em
+    # cosmético (capilar, creme, facial…) é ingrediente, não suplemento
+    (r"(?:whey|creatina|pr[ée]-?treino|col[áa]geno)(?!.*(?:capilar|cabelo|shampoo|condicionador|creme|facial|lo[çc][ãa]o|"
+     r"s[ée]rum|sabonete|m[áa]scara))",
+     "SUPLEMENTO BOM COM PREÇO DE AMIGA 💪"),
     (r"bicicleta ergom\w*|esteira", "ACADEMIA EM CASA NO PRECINHO 🚴‍♀️"),
     (r"jogo de cama|len[çc]ol|len[çc][óo]is|edredom|travesseiro|colcha", "CAMA DE HOTEL NA SUA CASA 🛏️"),
     (r"organizador|caixa organizadora|cesto|porta(?! beb[êe])|expositor|sacos? (?:de )?armazenamento|saco a v[áa]cuo",
@@ -980,7 +985,61 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
     return frase
 
 
+# ---- conferência da legenda ANTES de enviar (01/10, dona: "se atentar na legenda sempre antes de mandar… só pq o
+# nome diz whey não quer dizer que seja de treino") — a frase do gancho tem que ser do MESMO tipo do produto
+CAT_GANCHO = [("fitness", r"TREINO|SUPLEMENT|ACADEMIA|MALHA|SHAPE|PROTE[ÍI]NA"),
+              ("beleza", r"CABELO|(?<!\d )FIOS|CACHO|\bLISO\b|CAPILAR|CHEIR|PERFUM|\bPELE\b|ROSTO|\bMAKE\b|BOCA|"
+                         r"C[ÍI]LIOS|L[ÁA]BIO|\bUNHA|SKINCARE|GLOW|VI[ÇC]O"),
+              ("pet", r"\bPET\b|DOGUINHO|GATINHO|AU ?AU")]
+# produto que é claramente de OUTRO tipo (conflito) — só o óbvio, para não trocar frase boa à toa
+COSMETICO = re.compile(r"capilar|cabelo|shampoo|condicionador|creme|facial|lo[çc][ãa]o|s[ée]rum|sabonete|t[ôo]nico|"
+                       r"m[áa]scara (?:capilar|facial)|hidratante|perfume|maquiag|batom|gloss|esmalte", re.I)
+ROUPA_TREINO = re.compile(r"legging|\btop\b|short|cal[çc]a|conjunto|academia|fitness|bicicleta|esteira", re.I)
+SUPLEMENTO = re.compile(r"\bwhey\b|creatina|pr[ée]-?treino|suplemento|col[áa]geno em p[óo]|albumina|termog[êe]nic|"
+                        r"esteira|bicicleta ergom|halter|anilha", re.I)
+
+
+def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
+    """False quando a frase do gancho é de um tipo e o produto é claramente de outro (whey de tônico capilar com
+    frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
+    cat = next((c for c, rx in CAT_GANCHO if re.search(rx, gancho or "", re.I)), None)
+    t = re.split(r"\bsabor\b", titulo or "", flags=re.I)[0]  # "Whey… Sabor Creme de Avelã": sabor não é cosmético
+    if cat == "fitness":
+        return not (COSMETICO.search(t) and not ROUPA_TREINO.search(t))
+    if cat == "beleza":
+        return not (SUPLEMENTO.search(t) and not COSMETICO.search(t)) and not PET.search(t)
+    if cat == "pet":
+        return bool(PET.search(t)) or grupo == "pet"
+    return True
+
+
+def conferir_legenda(o: dict, texto: str) -> list[str]:
+    """Checagem final de CADA post antes do envio (rodada do grupo): lista de problemas (vazia = pode mandar)."""
+    probs = []
+    linhas = (texto or "").replace("⁠", "").split("\n")
+    if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo")):
+        probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
+    if o.get("preco") and _brl(o["preco"]) not in "\n".join(linhas):
+        probs.append("preço do texto diferente do preço da oferta")
+    if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
+        probs.append("'de' menor ou igual ao 'por'")
+    if "https://" not in texto:
+        probs.append("sem link")
+    if re.search(r"\bNone\b|\{[a-z]\}", texto):
+        probs.append("texto com campo vazio")
+    return probs
+
+
 def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
+    """Gancho conferido: se a frase escolhida não combina com o tipo do produto, vai uma frase neutra."""
+    from vendas import ganchos
+    g = _gancho_bruto(o, n, recentes)
+    if gancho_confere(g, o.get("titulo") or "", o.get("grupo")):
+        return g
+    return ganchos.escolher(ganchos.UNIVERSAL, n, recentes)
+
+
+def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho do post: desconto absurdo → preço por unidade em kit → frase do TIPO/CARACTERÍSTICA do produto
     (vendas/ganchos.py) → sinal real de venda / frase universal. `recentes` = ganchos dos últimos posts (não repetir)."""
     from vendas import ganchos
@@ -1096,7 +1155,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
 
 LEMBRETE_HORAS = (12, 18)  # 30/09 (dona): "repete 2× por dia" — quem entrou depois não vê as ofertas da manhã
 TEXTO_LEMBRETE = ("📌 *CHEGOU AGORA?*\n\nTodas as ofertas de hoje ficam no nosso site, separadinhas por categoria 👇\n{site}"
-                  "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 22h._")
+                  "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 23h._")
 
 
 def lembrete_site(agora: datetime | None = None) -> tuple[str, str] | None:
