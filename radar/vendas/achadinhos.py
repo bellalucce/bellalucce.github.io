@@ -35,7 +35,9 @@ PAGINAS_PROMOBIT = ["/promocoes/em-alta/", "/promocoes/recentes/", "/promocoes/p
                     "/promocoes/loja/natura/",
                     # 30/09 15h (dona: vídeos de GRIFE → o grupo precisa ter grife de verdade): Farfetch = luxo
                     # (Ray-Ban de R$ 1.030 por R$ 515 no teste); Dafiti/Zattini/Amazon/Magalu/Vivara não trouxeram produto
-                    "/promocoes/loja/farfetch/"]
+                    "/promocoes/loja/farfetch/",
+                    # 01/10: The Beauty Box (grupo Boticário) = perfume importado de grife (teste: 8 de 32 eram grife)
+                    "/promocoes/loja/the-beauty-box/"]
 
 # categoria da fonte → grupo mostrado na vitrine
 GRUPOS = {
@@ -363,7 +365,8 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"magazineluiza\.com\.br/.+/p/\w+/", r"(?:netshoes|zattini|centauro)\.com\.br/(?:p/|.+-[A-Z0-9]{3}-\d{4}-\d{3})",
     r"kabum\.com\.br/produto/\d+", r"(?:americanas|submarino|shoptime)\.com\.br/produto/\d+",
     r"(?:casasbahia|pontofrio|extra)\.com\.br/.+/p/\d+", r"aliexpress\.com/item/\d+", r"sephora\.com\.br/.+\.html",
-    r"belezanaweb\.com\.br/[a-z0-9-]+/?$", r"dafiti\.com\.br/.+-\d+\.html", r"renner\.com\.br/.+/p/\d+",
+    r"belezanaweb\.com\.br/[a-z0-9-]+/?$", r"beautybox\.com\.br/[a-z0-9-]+/?$",  # The Beauty Box: grife (01/10)
+    r"dafiti\.com\.br/.+-\d+\.html", r"renner\.com\.br/.+/p/\d+",
     r"boticario\.com\.br/[a-z0-9-]+/?$", r"natura\.com\.br/p/", r"epocacosmeticos\.com\.br/[a-z0-9-]+/p",
     r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
     r"farfetch\.com/br/shopping/[a-z]+/[a-z0-9-]+-item-\d+\.aspx",  # luxo (30/09)
@@ -483,7 +486,8 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
     # 2+ parâmetros removidos vinham antes de um mantido)
     partes = urlsplit(url)
     query = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True) if not RASTREIO.fullmatch(k)
-             and not (k == "q" and "belezanaweb" in partes.netloc)]  # ?q= da Beleza na Web = rastreio de busca
+             and not (k == "q" and "belezanaweb" in partes.netloc)  # ?q= da Beleza na Web = rastreio de busca
+             and "beautybox.com.br" not in partes.netloc]  # The Beauty Box: a página do produto não usa parâmetro
     url = urlunsplit(partes._replace(query=urlencode(query)))
     url = re.sub(r"/divulgador/oferta/(\w+)/", r"/p/\1/", url)  # Magalu divulgador → página normal do produto
     m = re.search(r"shopee\.com\.br/(?:opaanlp|product)/(\d+)/(\d+)", url)
@@ -1128,11 +1132,19 @@ def fila_posts(n: int = 5, horas: int = 30) -> list[dict]:
     # 30/09: 1 oferta de GRIFE abre cada rodada (o vídeo de divulgação promete "itens de marca por preço de verdade" no
     # grupo — tem que ser verdade quando a pessoa entra): a de maior desconto em reais, 'de' ≥ R$ 200, ≥ 25% off
     fresco = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
-    grife = [o for o in cand if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 200
+    # 01/10: a vaga abre ~56 rodadas/dia e a grife inédita ACABAVA (sobrava 1) → grife ainda em promoção pode voltar
+    # depois de 2 dias (quem entrou no grupo nesse meio tempo não viu; chegam só ~13 grifes boas por dia) e "de" a
+    # partir de R$ 150
+    volta = (datetime.now() - timedelta(days=2)).isoformat(sep=" ", timespec="seconds")
+    pool = cand + [o for o in sem_repetidos(melhores(horas, 3000)) if o["publicado_em"] and o["publicado_em"] < volta
+                   and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes]
+    grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
-             and (o.get("atualizado_em") or "") >= fresco]  # preço visto há pouco (grife muda rápido)
-    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:5] if n >= 3 else []:
-        cand.remove(top)
+             and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
+             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if n >= 3 else []:
+        if top in cand:
+            cand.remove(top)
         if foto_boa(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
             out.append(top)
             ultimo.append(top["grupo"])
