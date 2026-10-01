@@ -54,7 +54,8 @@ GRUPOS = {
 }
 PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "beleza": r"perfume|batom|gloss|maquiag|base |rímel|rimel|sérum|serum|creme|hidratante|protetor solar|shampoo|condicionador|"
-              r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash",
+              r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash|"
+              r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion",  # 01/10: "innisfree… powder pact" caía em outros
     "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni",
     "casa": r"panela|colchão|colchao|toalha|lençol|lencol|travesseiro|aspirador|air fryer|fritadeira|liquidificador|cafeteira|"
             r"organizador|cortina|tapete|jogo de cama|potes|faqueiro|ventilador|micro-ondas|geladeira|fogão",
@@ -722,6 +723,8 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
                       "oficial": bool(it.get("oficial")), "loja_nome": it.get("loja_nome") or "",
                       "offer_link": it.get("offer_link") if re.match(r"https://s\.shopee\.com\.br/\w+$",
                                                                      it.get("offer_link") or "") else None}
+            if it.get("origem"):
+                sinais["origem"] = it["origem"]  # "referencia" = achado do grupo Ofertas Entre Mulheres
             link = it.get("url") if it.get("url") and pagina_de_produto(it["url"]) else None
             foto = it.get("foto") if re.match(r"https://(?:cf|down-br\.img)\.(?:shopee|susercontent)\.com(?:\.br)?/",
                                               it.get("foto") or "") else None
