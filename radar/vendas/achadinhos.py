@@ -15,7 +15,7 @@ import html as _html
 import json
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import httpx
 
@@ -448,9 +448,31 @@ def pagina_de_produto(link: str) -> bool:
 FALSIFICAVEL = re.compile(rf"k[ée]rastase|{ganchos.KB}", re.I)  # 30/09: marcas muito falsificadas no marketplace
 
 
+VALIDADE = re.compile(r"(?i)(?:exp|val(?:idade)?|venc\w*)\.?\s*[:.]?\s*(?:(20\d\d)[./-](\d{1,2})[./-](\d{1,2})|"
+                      r"(\d{1,2})[./-](\d{1,2})[./-](20\d\d)|(\d{1,2})[./-](20\d\d))")
+
+
+def vencendo(titulo: str, folga_dias: int = 60) -> bool:
+    """01/10 (Mila): saiu sérum "(exp . 2026.09.04)" — título com validade já passada ou a menos de 2 meses = não posta."""
+    m = VALIDADE.search(titulo or "")
+    if not m:
+        return False
+    g = m.groups()
+    try:
+        if g[0]:
+            v = date(int(g[0]), int(g[1]), int(g[2]))
+        elif g[5]:
+            v = date(int(g[5]), int(g[4]), int(g[3]))
+        else:
+            v = date(int(g[7]), int(g[6]), 28)
+    except ValueError:
+        return False
+    return (v - date.today()).days < folga_dias
+
+
 def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
-    if not eh_produto(o):
+    if not eh_produto(o) or vencendo(o.get("titulo") or ""):
         return False
     if s.get("ruim", 0) > s.get("otima", 0):
         return False
@@ -897,7 +919,8 @@ BENEFICIOS = [
     (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves| de ondas| ondas)|ondas perfeitas",
      "CACHOS DE SALÃO EM CASA 🌀"),
     (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|t[ôo]nico capilar|capilar|antiqueda|couro cabeludo|scalp|hair|"
-     r"shampoo|condicionador|ampola|leave-?in|elseve|"
+     # 01/10 (Mila): "ampola" sozinha pegava sérum de PELE (goodal retinol, IOPE) → só ampola capilar
+     r"shampoo|condicionador|ampolas? capilar(?:es)?|leave-?in|elseve|"
      r"k[ée]rastase|wella|truss|lola cosmetics|salon line|pantene|tresemm[ée]|cadiveu|si[àa]ge|keune|braé|matrix",
      "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
     (r"lat+af+a|armaf|al wataniah|maison alhambra|[áa]r[áa]be|asad|yara|fakhar|khamrah|club de nuit|french avenue|"
@@ -1117,7 +1140,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if sinais.get("top"):
         opcoes.append("A GALERA AMOU ESSA 🔥")
     if d >= 60:
-        opcoes.append("PRECINHO DE BUG 🐞")
+        # 01/10 (dona): "PRECINHO DE BUG 🐞" — bug virou joaninha, sem sentido → frase clara
+        opcoes.append("PREÇO QUE PARECE ERRO 😱")
     return ganchos.escolher(opcoes + ganchos.UNIVERSAL, n, recentes)
 
 
@@ -1204,8 +1228,18 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     vez = agora.timetuple().tm_yday * len(HORAS_LOJA) + HORAS_LOJA.index(agora.hour)
     sku, p = ok[vez % len(ok)]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
-    linhas = ["*DA NOSSA LOJINHA 💖*", "", legenda, "", f"💰 {p.get('preco', '')}"]
-    linhas += [f"👉 {canal}: {url}" for canal, url in p["links"].items()]
+    pr = p.get("promo") or {}
+    agora_txt = agora.strftime("%Y-%m-%d %H:%M")
+    if pr and pr.get("desde", "") <= agora_txt <= pr.get("ate", ""):
+        # 01/10 (dona): "lança meus produtos com promoção, sem promoção fica nada a ver" → mesmo modelo das ofertas
+        # (De riscado / Por), com a Promoção de Desconto REAL criada na Shopee (config/midia.json → promo)
+        linhas = ["*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*", "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
+                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, até {pr['ate'][8:10]}/{pr['ate'][5:7]})_"]
+        url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
+        linhas += ["", f"🛒 *Compre aqui:* {url}"]
+    else:
+        linhas = ["*DA NOSSA LOJINHA 💖*", "", legenda, "", f"💰 {p.get('preco', '')}"]
+        linhas += [f"👉 {canal}: {url}" for canal, url in p["links"].items()]
     linhas += ["", "_Produto da loja Bella Lucce, notificado na ANVISA._"]
     return "\n".join(linhas), str(config.RAIZ / p["foto"])
 
@@ -1252,6 +1286,15 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
     if so_com_link_curto:
         cand = [o for o in cand if not shopee_sem_curto(o)]
+    # 01/10 (Mila): a vaga do variado testava 6 fotos de 400–500 px JÁ medidas e se perdia → pula de cara quem tem foto
+    # pequena conhecida (Promobit→ML ainda pode trocar pela foto do ML em foto_boa); e nada de produto vencendo
+    try:
+        px = json.loads(_FOTO_PX_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        px = {}
+    cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
+                                    and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
+            and not vencendo(o.get("titulo") or "")]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
@@ -1291,6 +1334,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             f.sort(key=lambda o: (o["score"] or 0) + datas.bonus(o), reverse=True)
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
+    # 01/10 (Mila): com 3 por rodada, "1 por rodada" ainda deu 33% de um lojista → 1 por lojista a cada 10 posts
+    for r in db.consultar("SELECT link_loja FROM ofertas WHERE publicado_em >= datetime('now','localtime','-4 hours') "
+                          "ORDER BY publicado_em DESC LIMIT 9") or []:
+        if vendedor(dict(r)):
+            por_vendedor[vendedor(dict(r))] = 1
     tentativas = 0
     if tema:
         k = datas.vagas_do_tema(pos, len(out), n)
