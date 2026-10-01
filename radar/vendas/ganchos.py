@@ -342,8 +342,16 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None) -> list[str]:
         if m:
             fios = re.search(r"(\d+) fios", titulo, re.I)
             out += [f.format(fios=fios.group(1) if fios else "") for f in frases]
-    out += REPERTORIO.get(tipo, [tipo])
+    rep = REPERTORIO.get(tipo, [tipo])
+    # 01/10 (Tati): blush "Banila Co… Lip and Cheek" saiu "PELE UNIFORME EM MINUTOS" (frase de BASE) → sem base no
+    # título, só a frase da característica (blush/iluminador/contorno) + a neutra de make
+    if tipo == "PELE DE FILTRO NA VIDA REAL 💄" and out and not SO_BASE.search(titulo):
+        rep = ["ACABAMENTO DE MAKE DE SALÃO 💄"]
+    out += rep
     return list(dict.fromkeys(out))  # sem duplicar, mantendo a ordem
+
+
+SO_BASE = re.compile(r"\bbase\b|corretivo|concealer|cushion|p[óo] compacto|bb cream|cc cream|primer|fixador", re.I)
 
 
 def escolher(opcoes: list[str], n: int, recentes: list[str] | None) -> str:

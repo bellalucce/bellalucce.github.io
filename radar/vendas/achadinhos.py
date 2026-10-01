@@ -205,8 +205,13 @@ CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|coberto
 
 def _grupo_final(g: str, titulo: str) -> str:
     """Refina a categoria pelo título: perfume vira aba própria; categoria genérica tenta pelas palavras."""
-    if PERFUME.search(titulo or "") and not re.search(r"expositor|organizador|porta[- ]", titulo or "", re.I):
+    if PERFUME.search(titulo or "") and not re.search(r"expositor|organizador|porta[- ]|sem (?:perfume|fragr[âa]ncia)",
+                                                       titulo or "", re.I):  # 01/10 (Marcos): "Loção… Sem Perfume"
         return "perfume"
+    if re.search(r"smart ?watch|smart ?band|mi ?band|rel[óo]gio inteligente", titulo or "", re.I):
+        return "eletronicos"  # 01/10 (Marcos): smartwatch/Mi Band ocupavam vaga de moda
+    if re.search(r"cushion|tocobo", titulo or "", re.I):
+        return "beleza"  # 01/10 (Marcos): "Almofada TOCOBO" é base cushion, não almofada de casa
     if CABELO.search(titulo or ""):
         return "cabelo"
     if FITNESS.search(titulo or ""):
@@ -241,12 +246,22 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s{2,}", " ", LINK_OU_FONE.sub(" ", t)).strip(" -–|:")
     # 01/10 (revisão do grupo): "[OFFICIAL] Epais…", "…Original Blogueira Promoção" — rótulo/palavra de anúncio no nome
     t = re.sub(r"^\s*[\[(【](?:official|oficial|original|hot|new|novo|promo\w*|sale)[\])】]\s*", "", t, flags=re.I)
-    t = re.sub(r"(?:\s+(?:promo[çc][ãa]o|blogueira|lan[çc]amento|envio imediato|pronta entrega|frete gr[áa]tis|"
-               r"original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
+    # 01/10 (Marcos): "…Original Blogueira Promoção Envio Da Coreia" — palavra de anúncio no MEIO também
+    t = re.sub(r"\s+(?:blogueira|promo[çc][ãa]o|envio (?:da|do|de) (?:coreia|china|brasil)|envio r[áa]pido|"
+               r"envio imediato|pronta entrega|frete gr[áa]tis)\b", "", t, flags=re.I)
+    t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
     return t
+
+
+def cortar(t: str, n: int) -> str:
+    """01/10 (Marcos): "…Natu", "…Cravej" — corta no fim da palavra (e sem "de/com/para" sobrando no fim)."""
+    if len(t) <= n:
+        return t
+    t = t[:n + 1].rsplit(" ", 1)[0] if " " in t[:n + 1] else t[:n]
+    return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|em|no|na|a|o|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
 
 
 SIGLAS = {"edp", "edt", "edc", "fps", "uv", "led", "usb", "tv", "hd", "pc", "ph", "bb", "cc"}
@@ -768,7 +783,7 @@ def vitrine(horas: int = 36) -> str:
     ofs = sem_repetidos([o for o in melhores(horas, 20000) if o["link_loja"] and o.get("grupo") in NOMES])
     grupos = [g for g in NOMES if any(o["grupo"] == g for o in ofs)]
     e = _html.escape
-    dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": limpar_titulo(o["titulo"])[:90], "p": _brl(o["preco"]),
+    dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": cortar(limpar_titulo(o["titulo"]), 90), "p": _brl(o["preco"]),
               "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "", "d": o.get("desconto") or 0,
               "c": o.get("cupom") or "", "f": o.get("foto") or "", "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
     mins = minimos()
@@ -884,7 +899,7 @@ BENEFICIOS = [
      "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"),
     (r"lat+af+a|armaf|al wataniah|maison alhambra|[áa]r[áa]be|asad|yara|fakhar|khamrah|club de nuit|french avenue|"
      r"al wesal|durrat al aroos|sabah al ward", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"),
-    (r"perfume|eau de|parfum|body splash|splash|col[ôo]nia|deo col[ôo]nia|edp|edt", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
+    (r"(?<!sem )perfume|eau de|parfum|body splash|splash|col[ôo]nia|deo col[ôo]nia|edp|edt", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
     (r"legging|^top|top fitness|conjunto fitness|short fitness|cal[çc]a fitness|macaquinho|roupa de academia",
      "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
     # 01/10 (dona): "Tônico Capilar Yenzah Whey Amino" virou "PRA QUEM LEVA O TREINO A SÉRIO" — whey/colágeno em
@@ -908,7 +923,10 @@ BENEFICIOS = [
     (r"vivara|pandora|life by vivara", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
     (r"brinco|colar|colares|anel|an[ée]is|pulseira|rel[óo]gio|semijoia|conjunto de joias|alian[çc]a|pingente", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha|camiseta|camisa|blazer|moletom|jaqueta|"
-     r"casaco|regata|shorts?|bermuda|conjunto feminino|body(?! splash)|cardig[ãa]", "LOOK NOVO GASTANDO POUCO 👗"),
+     # 01/10 (Tati): "Body Gua Sha Bar" não é roupa; "Kit Meias… Sapatilha" é meia, não calçado
+     r"casaco|regata|shorts?|bermuda|conjunto feminino|"
+     r"body(?! splash| lotion| oil| bar| scrub| mist| butter| cream| wash| gua)|cardig[ãa]|meia(?! pata)",
+     "LOOK NOVO GASTANDO POUCO 👗"),
     (r"whiskas|pedigree|golden|premier|ra[çc][ãa]o|areia", "O PET AGRADECE E O BOLSO TAMBÉM 🐾"),
     (r"creme hidratante|hidratante corporal|lo[çc][ãa]o hidratante|lo[çc][ãa]o corporal|body lotion|[óo]leo corporal|"
      r"bio oil|manteiga corporal|hidratante desodorante", "PELE MACIA O DIA INTEIRO 🧴"),
@@ -916,9 +934,10 @@ BENEFICIOS = [
     (r"mai[ôo]|biqu[íi]ni|sa[íi]da de praia|canga", "PRONTA PRO VERÃO 👙"),
     (r"brinquedo|boneca|pel[úu]cia|carrinho de controle|carrinhos|pista|caminh[ãa]o (?:de )?controle|patinete|lego|blocos de montar|"
      r"quebra-?cabe[çc]a|massinha|maquiagem (?:infantil|crian[çc]a)|reborn|hama beads", "PRESENTE PROS PEQUENOS 🧸"),
-    (r"roupa infantil|conjunto infantil|menin[oa]", "ROUPINHA FOFA PROS PEQUENOS 🧸"),
+    (r"roupa infantil|conjunto infantil|menin[oa]|(?:camisa|camiseta|blusa|vestido|short|bermuda|cal[çc]a|pijama|"
+     r"jaqueta|moletom|macac[ãa]o)s? infant(?:il|is)", "ROUPINHA FOFA PROS PEQUENOS 🧸"),  # 01/10: "Camisa Infantil"
     (r"garrafa t[ée]rmica|copo t[ée]rmico|caneca t[ée]rmica|squeeze|tumbler|stanley", "GELADINHO OU QUENTINHO O DIA TODO 🧊"),
-    (r"massageador", "ALÍVIO PRO CORPO CANSADO 💆‍♀️"),
+    (r"massageador|gua sha", "ALÍVIO PRO CORPO CANSADO 💆‍♀️"),
     (r"depilador[a]?|cera quente|termocera|aquecedor de cera|depila[çc][ãa]o", "DEPILAÇÃO EM CASA, SEM SOFRER ✨"),
     (r"smart ?watch|rel[óo]gio inteligente|fones? de ouvido|fone bluetooth|caixa de som|caixinha de som|"
      r"carregador port[áa]til|power ?bank", "TECNOLOGIA NO PRECINHO 📱"),
@@ -1148,7 +1167,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     por = f"🗣️ *Por:* {_brl_zap(o['preco'])}"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
-    linhas = [f"*{gancho}*", "", f"🛍️ {limpar_titulo(o['titulo'])[:100]}", ""]
+    linhas = [f"*{gancho}*", "", f"🛍️ {cortar(limpar_titulo(o['titulo']), 100)}", ""]
     if o.get("preco_antigo"):
         linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
     linhas.append(por)
@@ -1256,24 +1275,34 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             break
     filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "M": [o for o in cand if o["grupo"] == "moda"],
              "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda"]}
+    # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
+    por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     tentativas = 0
     for vez in (PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
-        if len(out) >= n or not any(filas.values()) or tentativas > n * 6:
+        if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
             break
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
-        livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])]
+        livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
+                  and not por_vendedor.get(vendedor(x))]
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
         quer_h = vez.endswith("h")
-        o = next((x for x in livres if eh_masculino(x) == quer_h), None) or (livres[0] if livres else None)
-        if o is None:
-            continue
-        fila.remove(o)
-        tentativas += 1
-        if not foto_boa(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
-            continue
-        out.append(o)
-        ultimo.append(o["grupo"])
+        # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
+        for o in sorted(livres, key=lambda x: eh_masculino(x) != quer_h)[:6]:
+            fila.remove(o)
+            tentativas += 1
+            if foto_boa(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
+                out.append(o)
+                ultimo.append(o["grupo"])
+                if vendedor(o):
+                    por_vendedor[vendedor(o)] = 1
+                break
     return out
+
+
+def vendedor(o: dict) -> str:
+    """Lojista da Shopee pelo link do produto (shopee.com.br/product/<loja>/<item> ou …-i.<loja>.<item>)."""
+    m = re.search(r"shopee\.com\.br/(?:product/)?(\d+)/\d+|-i\.(\d+)\.\d+", o.get("link_loja") or "")
+    return f"shopee:{m.group(1) or m.group(2)}" if m else ""
 
 
 FOTO_MIN_PX = 600  # maior lado da foto que vai pro grupo (a Promobit guarda 200–300 px → esticada fica borrada)
