@@ -460,7 +460,9 @@ SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (
                       r"clareador (?:[íi]ntimo|de virilha)|calv[íi]cie|disfun[çc]")
 INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
                     r"set|pcs|color|natural|matte|face|eye|lip|lips|new|hot|sale|fashion|style|quality|high|"
-                    r"portable|wireless|mini|cute|luxury|brand|original)\b")
+                    r"portable|wireless|mini|cute|luxury|brand|original|"
+                    # 01/10 (verificador): "Boncept Waterproof Eyeliner 2 Colors" saiu às 21h15
+                    r"colors|eyeliner|eyeshadow|tint|liquid|cream|types?|ea|\d+(?:types?|ea|colors?))\b")
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
                            r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
                            r"cosm[ée]ticos \d+ cores|para deslocamento|\bde arte de\b")  # (Nina/Rita 01/10)
@@ -485,7 +487,10 @@ def titulo_ruim(titulo: str) -> bool:
     if LIXO_TRADUCAO.search(titulo or ""):
         return True
     palavras = re.findall(r"[A-Za-zÀ-ÿ]{3,}", titulo or "")
-    return len(palavras) >= 4 and len(INGLES.findall(titulo or "")) / len(palavras) >= 0.4
+    if re.search(r"(?i)\b\d+(?:ea|types?|pcs)\b", titulo or ""):  # "dermask 1ea 11types": unidade em inglês colada
+        return True
+    ingl = [w for w in INGLES.findall(titulo or "") if not (w.lower() == "cream" and re.search(r"(?i)\bcreme\b", titulo))]
+    return len(palavras) >= 4 and len(ingl) / len(palavras) >= 0.4
 
 
 def sem_lista_de_palavras(t: str) -> str:
