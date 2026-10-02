@@ -130,10 +130,17 @@ def acima_do_mercado(o: dict, limite: float = 1.4) -> bool:
     """02/10 (Beto): loja OFICIAL não garante preço honesto — Yara Lattafa a R$ 342 na loja oficial da Shopee, contra
     R$ 155–210 no ML (5–10 mil vendidos). Produto = as 2 palavras MAIS RARAS do título no banco ("yara", "lattafa") +
     o tamanho; "por" mais de 40% acima da MEDIANA das ≥ 3 outras ofertas com essas palavras = não vai para o grupo."""
+    med = mediana_mercado(o)
+    return med is not None and (o.get("preco") or 0) > limite * med
+
+
+def mediana_mercado(o: dict) -> float | None:
+    """Mediana do preço do MESMO produto (mesmas palavras raras + mesmo tamanho, sem kit) nas outras ofertas dos
+    últimos 7 dias; None se não dá para comparar (< 3 outras)."""
     from collections import Counter
     from statistics import median
     if not o.get("preco"):
-        return False
+        return None
     if "lista" not in _MERCADO:
         _MERCADO["lista"] = [(_tokens_produto(r["titulo"]), r["preco"]) for r in db.consultar(
             "SELECT titulo, preco FROM ofertas WHERE preco > 0 AND visto_em >= datetime('now','localtime','-7 days')")]
@@ -144,19 +151,19 @@ def acima_do_mercado(o: dict, limite: float = 1.4) -> bool:
                 idx.setdefault(p, []).append(i)
         _MERCADO["idx"] = idx  # palavra → ofertas (busca pela palavra mais rara: instantâneo)
     if re.search(r"\bkit\d*\b|\bcombo\b|\bconjunto\b|\b\d+\s*(?:un|unid|p[çc]s|pe[çc]as)\b", o.get("titulo") or "", re.I):
-        return False  # kit/quantidade: não dá para comparar com o avulso
+        return None  # kit/quantidade: não dá para comparar com o avulso
     tk = _tokens_produto(o.get("titulo") or "")
     tam = {p for p in tk if re.fullmatch(r"\d+(?:x\d+)?(?:ml|g|kg|l)", p)}
     if not tam:
-        return False  # sem tamanho (roupa, acessório…): "curto" × "longo" confunde; só compara o que tem ml/g/L
+        return None  # sem tamanho (roupa, acessório…): "curto" × "longo" confunde; só compara o que tem ml/g/L
     raras = sorted((p for p in tk - tam if not re.search(r"\d", p) and _MERCADO["df"].get(p, 0) >= 3),
                    key=lambda p: _MERCADO["df"][p])[:2]
     if len(raras) < 2:
-        return False  # sem palavras que identifiquem o produto
+        return None  # sem palavras que identifiquem o produto
     chave = set(raras) | tam
     lista = _MERCADO["lista"]
     outros = [lista[i][1] for i in _MERCADO["idx"].get(raras[0], []) if chave <= lista[i][0] and lista[i][1] != o["preco"]]
-    return len(outros) >= 3 and o["preco"] > limite * median(outros)
+    return median(outros) if len(outros) >= 3 else None
 
 
 def sem_repetidos(ofs: list[dict], por_tipo: int = 1) -> list[dict]:
@@ -620,10 +627,6 @@ def vencendo(titulo: str, folga_dias: int = 60) -> bool:
 def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
-        return False
-    # 02/10 (Beto, Mila, Marcos e Rafa): loja koksara.kbeauty (Shopee 457864097) — NÃO é oficial, "De" ~70% fixo,
-    # mini com o "De" do tamanho cheio, "71% OFF NÃO É ERRO"; sérum a R$ 150 aqui × R$ 65 no grupo dela → bloqueada
-    if re.search(r"shopee\.com\.br/product/(?:457864097)/", o.get("link_loja") or ""):
         return False
     # 01/10 (relógio Curren "De R$ 670 por R$ 109,99"; Rita: secador/cinto/cadeira > 4×): "De" acima de 4× o preço é
     # vitrine inflada, não desconto real
@@ -1322,6 +1325,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     (vendas/ganchos.py) → sinal real de venda / frase universal. `recentes` = ganchos dos últimos posts (não repetir)."""
     from vendas import ganchos
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
+    if not de_confiavel(o):
+        d = 0  # 02/10: "De" inflado da loja → nada de gancho "XX% OFF"
     if d >= 70 and n % 3 == 0:  # nos grupos o "% OFF" é tempero, não regra — o que domina é o benefício
         return ganchos.escolher([f.format(d=d) for f in ganchos.OFF], n, recentes)
     m = KIT.search(titulo)
@@ -1390,6 +1395,21 @@ def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
     return hora if t.date() == (agora or datetime.now()).date() else f"{t:%d/%m} {hora}"
 
 
+# 02/10 (dona: "a gente não precisa mentir; não precisa barrar a marca, só quando o preço estiver ok"): lojas cujo
+# preço "De" é inflado de propósito (koksara.kbeauty: "De" ~70% fixo, mini com o "De" do tamanho cheio) → a oferta
+# pode sair, mas SEM "De" riscado e sem gancho de "% OFF"; a trava acima_do_mercado continua valendo.
+LOJAS_DE_INFLADO = ("457864097",)
+
+
+def de_confiavel(o: dict) -> bool:
+    """Loja normal → confia no "De". Loja da lista → o "De" só aparece quando é REAL (dona 02/10: "onde a oferta for
+    real pode deixar o De"): até 20% acima da mediana do mesmo produto nas outras lojas (preço normal de mercado)."""
+    if not any(f"/product/{s}/" in (o.get("link_loja") or "") for s in LOJAS_DE_INFLADO):
+        return True
+    med = mediana_mercado(o)
+    return bool(med and o.get("preco_antigo") and o["preco_antigo"] <= 1.2 * med and o.get("preco", 0) < med)
+
+
 def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso."""
     gancho = gancho_post(o, n, recentes)
@@ -1400,7 +1420,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", f"🛍️ {cortar(limpar_titulo(o['titulo']), 100)}", ""]
-    if o.get("preco_antigo"):
+    if o.get("preco_antigo") and de_confiavel(o):
         linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
     linhas.append(por)
     if selo := selo_preco(o):
