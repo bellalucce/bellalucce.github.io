@@ -1401,10 +1401,36 @@ def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
 LOJAS_DE_INFLADO = ("457864097",)
 
 
+_DESC_LOJA: dict = {}
+
+
+def _loja_desconto_fixo(link: str) -> bool:
+    """02/10 (Beto): loja da Shopee em que quase TODAS as peças têm o mesmo desconto (Vizzela: 23–25% em 20 de 20;
+    "De" = preço ÷ 0,75) → o "De" é inventado. ≥ 8 ofertas e ≥ 80% delas a ±2 pontos da mediana (≥ 15%)."""
+    from statistics import median
+    m = re.search(r"shopee\.com\.br/product/(\d+)/", link or "")
+    if not m:
+        return False
+    if not _DESC_LOJA:
+        por: dict[str, list[int]] = {}
+        for r in db.consultar("SELECT link_loja, desconto FROM ofertas WHERE fonte = 'shopee_afiliados' AND desconto > 0 "
+                              "AND visto_em >= datetime('now','localtime','-7 days')"):
+            s = re.search(r"/product/(\d+)/", r["link_loja"] or "")
+            if s:
+                por.setdefault(s.group(1), []).append(r["desconto"])
+        for s, ds in por.items():
+            med = median(ds)
+            _DESC_LOJA[s] = len(ds) >= 8 and med >= 15 and sum(abs(d - med) <= 2 for d in ds) >= 0.8 * len(ds)
+        _DESC_LOJA.setdefault("_", False)
+    return _DESC_LOJA.get(m.group(1), False)
+
+
 def de_confiavel(o: dict) -> bool:
-    """Loja normal → confia no "De". Loja da lista → o "De" só aparece quando é REAL (dona 02/10: "onde a oferta for
-    real pode deixar o De"): até 20% acima da mediana do mesmo produto nas outras lojas (preço normal de mercado)."""
-    if not any(f"/product/{s}/" in (o.get("link_loja") or "") for s in LOJAS_DE_INFLADO):
+    """Loja normal → confia no "De". Loja da lista (ou com desconto igual em quase tudo) → o "De" só aparece quando é
+    REAL (dona 02/10: "onde a oferta for real pode deixar o De"): até 20% acima da mediana do mesmo produto nas outras
+    lojas (preço normal de mercado)."""
+    link = o.get("link_loja") or ""
+    if not any(f"/product/{s}/" in link for s in LOJAS_DE_INFLADO) and not _loja_desconto_fixo(link):
         return True
     med = mediana_mercado(o)
     return bool(med and o.get("preco_antigo") and o["preco_antigo"] <= 1.2 * med and o.get("preco", 0) < med)
