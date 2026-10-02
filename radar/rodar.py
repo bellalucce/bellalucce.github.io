@@ -50,7 +50,9 @@ def main() -> None:
         shutil.copytree(REPO / "loja", SAIDA / "loja", dirs_exist_ok=True)
     if (REPO / "links").exists():  # página de links (bio do Instagram) — 01/10
         shutil.copytree(REPO / "links", SAIDA / "links", dirs_exist_ok=True)
-    novo = {r["id"]: r["link_loja"] for r in db.consultar(
+    if (REPO / "grupo").exists():  # página de entrada do grupo/canal (link dos pins) — 02/10: dava 404, não era copiada
+        shutil.copytree(REPO / "grupo", SAIDA / "grupo", dirs_exist_ok=True)
+    novo ={r["id"]: r["link_loja"] for r in db.consultar(
         "SELECT id, link_loja FROM ofertas WHERE fonte = 'promobit' AND link_loja IS NOT NULL "
         "AND atualizado_em >= datetime('now', 'localtime', '-3 days')")}
     CACHE.write_text(json.dumps(novo), encoding="utf-8")
