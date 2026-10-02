@@ -245,6 +245,13 @@ LINK_OU_FONE = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.
 PRECO_NO_TITULO = re.compile(r"\s+De:?\s*R\$\s*[\d.,]+\s*Por:?\s*R\$\s*[\d.,]*.*$|\s+Selo:?\s*\d*\s*$", re.I)
 
 
+CORES = (r"(?:preto|preta|branco|branca|marrom|nude|bege|rosa|azul|vermelho|vermelha|verde|amarelo|cinza|caramelo|"
+         r"vinho|lil[áa]s|roxo|off ?white|chocolate|creme|dourado|dourada|prata|prateado|prateada|ouro|grafite|granito)")
+# 01/10 (Nina): variação sem a palavra "Cor" no fim ("Bege Liso 40", "Médio Preto Liso Ouro", "Prateado Azul")
+VARIACAO_FIM = re.compile(rf"(?:\s+(?:{CORES}|lis[oa]|estampad[oa]|m[ée]dio|pequen[oa]|grande|PP|GG|XG|\d{{2}}))+\s*$",
+                          re.I)
+
+
 def limpar_titulo(t: str) -> str:
     """30/09: títulos da Beleza na Web vêm com o preço colado ("... 200ml De: R$ 481,90 Por: R$ 279,90 Selo: 4") →
     no post saía o preço duas vezes e um "Selo: 4" sem sentido."""
@@ -262,6 +269,17 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"(?:\s*[-|/]?\s*(?:\b(?:cor|tamanho|tam|voltagem)\b[\s:\-]+[\w-]+|\bmodelo\b[\s:\-]+\w*\d[\w-]*)"
                r"(?:\s+(?:PP|P|M|G|GG|XG|\d{2}))?)+\s*$", "", t, flags=re.I)  # "Modelo Ciganinha" fica; "Modelo X12" sai
     t = re.sub(r"(?:\s+(?:padr[ãa]o|[A-Z]{1,2}\d{2,}[-\w]*|cor-?\d+(?:\s+[PMG]{1,2})?))+\s*$", "", t, flags=re.I).strip(" -–|:/")
+    # 01/10 (Rita): cores da variação ligadas por "+" com o tamanho solto no fim ("… Comfy Preto+marrom+nude M")
+    t = re.sub(rf"\s*[-–]?\s*(?:{CORES}\+)+{CORES}(?:\s+(?:PP|P|M|G|GG|XG|\d{{2}}))?\s*$", "", t, flags=re.I).strip(" -–|:/")
+    t = re.sub(r"\s+\bcor\b[\s:\-]+(?:[A-Za-zÀ-ÿ-]+\s*){1,2}$", "", t, flags=re.I).strip(" -–|:/")  # "Cor Preto Granito"
+    m = VARIACAO_FIM.search(t)
+    if m and len(m.group(0).split()) >= 2 and re.search(CORES, m.group(0), re.I) and len(t[:m.start()].split()) >= 3:
+        t = t[:m.start()].strip(" -–|:/")
+    # SKU antes da marca ("… Corporal SKB001 - Koasis") e ficha técnica entre barras ("… RPM | 5 Modos | USB | IPX7")
+    t = re.sub(r"\s+\b[A-Z]{2,4}\d{3,}[A-Z\d]*\b\s*(?=[-–]\s)", " ", t).strip()
+    if t.count("|") >= 2 and len(t.split("|")[0].split()) >= 3:
+        t = t.split("|")[0].strip(" -–|:/")
+    t = sem_lista_de_palavras(t)
     # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior
     ps = t.split()
     t = " ".join(p for i, p in enumerate(ps) if i == 0 or re.sub(r"(.)\1", r"\1", p.lower()) != re.sub(r"(.)\1", r"\1", ps[i - 1].lower()))
@@ -445,7 +463,7 @@ INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterpro
                     r"portable|wireless|mini|cute|luxury|brand|original)\b")
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
                            r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
-                           r"cosm[ée]ticos \d+ cores|para deslocamento")  # (Nina 01/10)
+                           r"cosm[ée]ticos \d+ cores|para deslocamento|\bde arte de\b")  # (Nina/Rita 01/10)
 # 01/10 (Nina): peça vendida com o nome do aparelho na frente ("Cortador De Cabelo Kemei 2299 Pentes Guia" por R$ 29,99
 # = só os pentes) → o gancho e a foto vendem o aparelho. Aparelho nas 4 primeiras palavras + peça/refil depois = fora.
 APARELHO = re.compile(r"(?i)^(?:\S+\s+){0,3}?(?:cortador|m[áa]quina de (?:cortar|corte|barbear)|aparador|barbeador|"
@@ -468,6 +486,24 @@ def titulo_ruim(titulo: str) -> bool:
         return True
     palavras = re.findall(r"[A-Za-zÀ-ÿ]{3,}", titulo or "")
     return len(palavras) >= 4 and len(INGLES.findall(titulo or "")) / len(palavras) >= 0.4
+
+
+def sem_lista_de_palavras(t: str) -> str:
+    """01/10 (Rita): título-lista de palavra-chave ("Mochila Térmica… Almoço, Mochila De Trabalho…, Mochila Para
+    Notebook"; "CURREN Relógio Dourado Feminino Relógio com Pulseira… Relógio Feminino") → corta antes da 2ª vez que a
+    palavra (3+ vezes no título) começa uma frase nova. "Gel de Limpeza", "Ativador de Cachos" (depois de de/para/com)
+    é descrição, não lista — fica."""
+    ps = t.split()
+    chaves = [re.sub(r"\W", "", p).lower() for p in ps]
+    repetidas = [c for c in dict.fromkeys(chaves) if len(c) >= 4 and c not in MIUDAS
+                 and c not in ("para", "kit", "unidades") and chaves.count(c) >= 3 and chaves.index(c) <= 3]
+    if not repetidas:
+        return t
+    w = repetidas[0]  # a palavra principal (aparece primeiro no título)
+    i2 = [i for i, c in enumerate(chaves) if c == w][1]
+    if i2 < 4 or chaves[i2 - 1] in MIUDAS:
+        return t
+    return re.sub(r"(?:\s+(?:de|da|do|e|com|para|em|\+|-|–|/))+\s*$", "", " ".join(ps[:i2]), flags=re.I).strip(" ,;-–|:/(")
 
 
 def eh_produto(o: dict) -> bool:
@@ -977,7 +1013,10 @@ BENEFICIOS = [
      r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
     (r"escova secadora|secador|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
-    (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves| de ondas| ondas)|ondas perfeitas",
+    # 01/10 (Rita): "Modelador De Ondas" saiu "CACHOS DE SALÃO" — onda não é cacho
+    (r"modelador(?:a)? de ondas|ondulador|modelador(?= ondas)|ondas perfeitas|babyliss de ondas",
+     "CABELO COM ONDAS DE SALÃO 🌊"),
+    (r"cachos|cacheador|cachead\w*|fitagem|babyliss|modelador de cachos|modelador(?= curves)",
      "CACHOS DE SALÃO EM CASA 🌀"),
     (r"m[áa]scara capilar|[óo]leo capilar|s[ée]rum capilar|t[ôo]nico capilar|capilar|antiqueda|couro cabeludo|scalp|hair|"
      # 01/10 (Mila): "ampola" sozinha pegava sérum de PELE (goodal retinol, IOPE) → só ampola capilar
@@ -1120,7 +1159,9 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
             break
     if frase == "BRILHO NO LOOK SEM GASTAR MUITO ✨" and TECNOLOGIA.search(cabeca):
         return "TECNOLOGIA NO PRECINHO 📱"  # smartwatch não é joia
-    if frase in FEMININAS and MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher", titulo, re.I):
+    # 01/10 (Rita): kit "Casal Body Splash Bold Homme E My Sweet Delight" saiu "PERFUME PRA ELE" — kit de casal é dos dois
+    if frase in FEMININAS and MASCULINO.search(titulo) and not re.search(
+            r"feminin|unissex|mulher|\bcasal\b|ele e ela|dele e dela|\bdupla\b", titulo, re.I):
         return PRA_ELE  # perfume/relógio/tênis masculino não é "amiga"
     return frase
 
@@ -1387,6 +1428,22 @@ def shopee_sem_curto(o: dict) -> bool:
     return not re.match(r"https://s\.shopee\.com\.br/", link_afiliado(o["link_loja"], canal="whatsapp") or "")
 
 
+MAX_TIPO_DIA = 3
+TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b", "whey"), (r"mochila", "mochila"),
+            (r"t[êe]nis\b", "tênis"), (r"smart ?watch|smart ?band|mi ?band", "smartwatch"), (r"\bfones?\b|headset|earbuds?", "fone"),
+            (r"camiseta|camisa\b", "camiseta"), (r"\bcal[çc]a\b", "calça"), (r"panela", "panela"),
+            (r"garrafa|copo t[ée]rmico", "garrafa"), (r"[óo]culos", "óculos"), (r"sand[áa]lia|rasteir", "sandália"),
+            (r"carregador|cabo usb", "carregador"), (r"\bbolsa\b(?! t[ée]rmica)", "bolsa")]
+
+
+def tipo_repetivel(o: dict) -> str | None:
+    """Tipo de produto que não pode se repetir muito no dia (fora da linha principal)."""
+    if o.get("grupo") in LINHA_PRINCIPAL:
+        return None
+    t = o.get("titulo") or ""
+    return next((nome for rx, nome in TIPO_DIA if re.search(rx, t, re.I)), None)
+
+
 def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
     """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
@@ -1412,6 +1469,14 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
             and not vencendo(o.get("titulo") or "") and o["id"] not in vet]
+    # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
+    # (só fora da linha de beleza/cabelo/perfume, que é o foco do grupo)
+    tipos_hoje: dict = {}
+    for r in db.consultar("SELECT titulo, grupo FROM ofertas WHERE publicado_em >= date('now','localtime')"):
+        t = tipo_repetivel(dict(r))
+        if t:
+            tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
+    cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < MAX_TIPO_DIA]
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
