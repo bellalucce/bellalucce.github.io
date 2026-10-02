@@ -114,6 +114,51 @@ def chave_produto(titulo: str) -> str:
     return " ".join(pal[:2])
 
 
+_MERCADO: dict = {}  # cache por processo: [(tokens, preço)] das ofertas vistas nos últimos 7 dias
+
+
+def _tokens_produto(titulo: str) -> set[str]:
+    """Todas as palavras relevantes do título + tamanho colado ("100 ml" → "100ml")."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", (titulo or "").lower()).encode("ascii", "ignore").decode()
+    t = re.sub(r"(\d+)[.,](\d+)\s*(ml|g|kg|l)\b", r"\1x\2\3", t)  # "1,5 L" → "1x5l" (uma palavra só)
+    t = re.sub(r"(\d+)\s*(ml|g|kg|l)\b", r"\1\2", t)
+    return {p for p in re.findall(r"[a-z0-9]+", t) if p not in STOP and len(p) > 2 and not p.isdigit()}
+
+
+def acima_do_mercado(o: dict, limite: float = 1.4) -> bool:
+    """02/10 (Beto): loja OFICIAL não garante preço honesto — Yara Lattafa a R$ 342 na loja oficial da Shopee, contra
+    R$ 155–210 no ML (5–10 mil vendidos). Produto = as 2 palavras MAIS RARAS do título no banco ("yara", "lattafa") +
+    o tamanho; "por" mais de 40% acima da MEDIANA das ≥ 3 outras ofertas com essas palavras = não vai para o grupo."""
+    from collections import Counter
+    from statistics import median
+    if not o.get("preco"):
+        return False
+    if "lista" not in _MERCADO:
+        _MERCADO["lista"] = [(_tokens_produto(r["titulo"]), r["preco"]) for r in db.consultar(
+            "SELECT titulo, preco FROM ofertas WHERE preco > 0 AND visto_em >= datetime('now','localtime','-7 days')")]
+        _MERCADO["df"] = Counter(p for tk, _ in _MERCADO["lista"] for p in tk)
+        idx: dict[str, list[int]] = {}
+        for i, (t2, _) in enumerate(_MERCADO["lista"]):
+            for p in t2:
+                idx.setdefault(p, []).append(i)
+        _MERCADO["idx"] = idx  # palavra → ofertas (busca pela palavra mais rara: instantâneo)
+    if re.search(r"\bkit\d*\b|\bcombo\b|\bconjunto\b|\b\d+\s*(?:un|unid|p[çc]s|pe[çc]as)\b", o.get("titulo") or "", re.I):
+        return False  # kit/quantidade: não dá para comparar com o avulso
+    tk = _tokens_produto(o.get("titulo") or "")
+    tam = {p for p in tk if re.fullmatch(r"\d+(?:x\d+)?(?:ml|g|kg|l)", p)}
+    if not tam:
+        return False  # sem tamanho (roupa, acessório…): "curto" × "longo" confunde; só compara o que tem ml/g/L
+    raras = sorted((p for p in tk - tam if not re.search(r"\d", p) and _MERCADO["df"].get(p, 0) >= 3),
+                   key=lambda p: _MERCADO["df"][p])[:2]
+    if len(raras) < 2:
+        return False  # sem palavras que identifiquem o produto
+    chave = set(raras) | tam
+    lista = _MERCADO["lista"]
+    outros = [lista[i][1] for i in _MERCADO["idx"].get(raras[0], []) if chave <= lista[i][0] and lista[i][1] != o["preco"]]
+    return len(outros) >= 3 and o["preco"] > limite * median(outros)
+
+
 def sem_repetidos(ofs: list[dict], por_tipo: int = 1) -> list[dict]:
     """Mantém a ordem (melhores primeiro) e só `por_tipo` oferta(s) de cada tipo de produto."""
     vistos: dict[str, int] = {}
@@ -1481,6 +1526,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
             and not vencendo(o.get("titulo") or "") and o["id"] not in vet]
+    cand = [o for o in cand if not acima_do_mercado(o)]
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (só fora da linha de beleza/cabelo/perfume, que é o foco do grupo)
     tipos_hoje: dict = {}
