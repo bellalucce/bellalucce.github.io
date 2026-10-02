@@ -263,7 +263,9 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"^\s*[\[(【](?:official|oficial|original|hot|new|novo|promo\w*|sale)[\])】]\s*", "", t, flags=re.I)
     # 01/10 (Marcos): "…Original Blogueira Promoção Envio Da Coreia" — palavra de anúncio no MEIO também
     t = re.sub(r"\s+(?:blogueira|promo[çc][ãa]o|envio (?:da|do|de) (?:coreia|china|brasil)|envio r[áa]pido|"
-               r"envio imediato|pronta entrega|frete gr[áa]tis|marca de luxo|top de linha)\b", "", t, flags=re.I)
+               r"envio imediato|pronta entrega|frete gr[áa]tis|marca de luxo|top de linha|"
+               r"top marca(?: de)? luxo|marca de topo)\b", "", t, flags=re.I)  # 02/10 (Marcos): CURREN "Top Marca Luxo"
+    t = re.sub(r"\s+[Bb]y\s+[A-Z][\w']+\s*$", "", t).strip(" -–|:,")  # 02/10 (Marcos): "… Body Splash By Amaxxon" (loja)
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     # 01/10 (Nina): ML cola atributos da variação no fim ("… Cor-1 M", "… Padrão", "- Cor Preto Tamanho M")
     t = re.sub(r"(?:\s*[-|/]?\s*(?:\b(?:cor|tamanho|tam|voltagem)\b[\s:\-]+[\w-]+|\bmodelo\b[\s:\-]+\w*\d[\w-]*)"
