@@ -394,7 +394,9 @@ MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|
                        r"cortador de cabelo|groom|trimmer|clipper|"
                        # 30/09: perfumes masculinos famosos que não dizem "masculino" no título (Lattafa Asad caiu no vídeo)
                        r"\basad\b|fakhar black|club de nuit intense man|\bsauvage\b|bleu de chanel|\b1 million\b|"
-                       r"\binvictus\b|\beros\b|\bstronger with you\b|\bpour homme\b|\bfor him\b|\bhomme\b", re.I)
+                       r"\binvictus\b|\beros\b|\bstronger with you\b|\bpour homme\b|\bfor him\b|\bhomme\b|"
+                       # 02/10 (Mila): Azzaro Wanted (masculino; "Wanted Girl" é feminino) passava como grife
+                       r"azzaro wanted(?! girl)|the most wanted|acqua di gi[oò]|\ble male\b", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
@@ -1246,7 +1248,9 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
         probs.append("'de' menor ou igual ao 'por'")
     if "https://" not in texto:
         probs.append("sem link")
-    if "shope.ee/an_redir" in texto:  # 01/10 (dona): link da Shopee sempre curto
+    # 01/10 (dona): link da Shopee sempre curto — exceto na emergência de 02/10 (fila sem link curto: postar com o link
+    # comum é melhor que o grupo parado; o vigia avisa)
+    if "shope.ee/an_redir" in texto and not o.get("_emergencia"):
         probs.append("link da Shopee sem encurtar")
     if re.search(r"\bNone\b|\{[a-z]\}", texto):
         probs.append("texto com campo vazio")
@@ -1454,7 +1458,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     recentes = {chave_produto(r["titulo"]) for r in db.consultar(
-        "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-24 hours')")}
+        # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → 48 h (= a "volta" de 2 dias do pool abaixo)
+        "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-48 hours')")}
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
     # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
     amazon_ok = (datetime.now() - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
