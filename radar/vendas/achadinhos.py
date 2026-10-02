@@ -621,6 +621,10 @@ def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
         return False
+    # 02/10 (Beto, Mila, Marcos e Rafa): loja koksara.kbeauty (Shopee 457864097) — NÃO é oficial, "De" ~70% fixo,
+    # mini com o "De" do tamanho cheio, "71% OFF NÃO É ERRO"; sérum a R$ 150 aqui × R$ 65 no grupo dela → bloqueada
+    if re.search(r"shopee\.com\.br/product/(?:457864097)/", o.get("link_loja") or ""):
+        return False
     # 01/10 (relógio Curren "De R$ 670 por R$ 109,99"; Rita: secador/cinto/cadeira > 4×): "De" acima de 4× o preço é
     # vitrine inflada, não desconto real
     if (o.get("preco_antigo") or 0) > 4 * (o.get("preco") or 0) > 0 and not s.get("oficial"):
