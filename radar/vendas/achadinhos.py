@@ -1328,6 +1328,13 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
         probs.append("link da Shopee sem encurtar")
     if re.search(r"\bNone\b|\{[a-z]\}", texto):
         probs.append("texto com campo vazio")
+    # 03/10 (dona apagou o post): "O pato protetor solar muda de cor quando exposto ao sol, mas não muda…" — título que é
+    # FRASE traduzida (não nome de produto) nunca vai para o grupo
+    t = (o.get("titulo") or "").strip()
+    if (re.search(r"\b(quando|mas n[ãa]o|porque|enquanto|se voc[êe]|voc[êe] (pode|vai)|isso|esse produto)\b", t, re.I)
+            or re.match(r"^(O|A|Os|As|Um|Uma|Este|Esta|Esse|Essa)\s", t)
+            or (t.endswith(".") and len(t.split()) > 8)):
+        probs.append("título parece frase traduzida, não nome de produto")
     return probs
 
 
