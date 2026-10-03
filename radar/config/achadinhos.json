@@ -5,7 +5,7 @@
   "canal_nome": "Achadinhos Bella Lucce",
   "grupo_quem": "nuvem",
   "telegram": "",
-  "posts_por_rodada": 4,
-  "intervalo_entre_posts_s": [45, 75],
+  "posts_por_rodada": 3,
+  "intervalo_entre_posts_s": [15, 30],
   "horario": [8, 22]
 }
