@@ -123,7 +123,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"gloss", ["BRILHINHO QUE TODO MUNDO REPARA 💋"]),
         (r"matte", ["MATTE LINDO PRO DIA A DIA 💋"]),
         (r"hidratante labial|balm|hidrata", ["BOCA MACIA E HIDRATADA 💋"]),
-        (r"chocolate|mel\b|honey|morango|frutas|cereja|melancia", ["CHEIRINHO GOSTOSO NA BOCA 💋"]),
+        (r"chocolate|\bmel\b|honey|morango|frutas|cereja|melancia", ["CHEIRINHO GOSTOSO NA BOCA 💋"]),
         (r"tint", ["COR NATURAL QUE DURA 💋"]),
         (r"rom&?nd|peripera", ["O TINT COREANO QUE TODO MUNDO QUER 💋"]),
         (r"lip sleeping|lip mask|m[áa]scara labial", ["BOCA MACIA ENQUANTO VOCÊ DORME 💋"])],
@@ -141,7 +141,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"sem calor|touca", ["CACHOS SEM CALOR, FIO PRESERVADO 🌀"]),
         (r"autom[áa]tico|girat", ["O MODELADOR FAZ O CACHO SOZINHO 🌀"])],
     "CABELO MACIO DE SALÃO EM CASA 💆‍♀️": [
-        (r"[óo]leo|oil|elixir", ["UMAS GOTINHAS E O FRIZZ VAI EMBORA 💆‍♀️"]),
+        (r"\b[óo]leos?\b|\boils?\b|elixir", ["UMAS GOTINHAS E O FRIZZ VAI EMBORA 💆‍♀️"]),
         (r"leave-?in", ["PENTEIA FÁCIL E SEM FRIZZ 💆‍♀️"]),
         (r"antiqueda|queda", ["CUIDADO EXTRA PRO FIO FRÁGIL 💆‍♀️"]),
         (r"cach", ["CACHOS DEFINIDOS E MACIOS 🌀"]),
@@ -162,12 +162,12 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"col[ôo]nia|\bdeo\b", ["COLÔNIA LEVINHA PRO DIA A DIA 🌸"]),
         (r"carolina herrera|lanc[ôo]me|jean paul|paco rabanne|calvin klein|azzaro|dior|chanel|givenchy|ysl|prada",
          ["PERFUME DE GRIFE COM DESCONTO 🌸"]),
-        (r"natura|botic[áa]rio|eudora|jequiti", ["O CLÁSSICO QUE NUNCA FALHA 🌸"]),
+        (r"\bnatura\b|botic[áa]rio|eudora|jequiti", ["O CLÁSSICO QUE NUNCA FALHA 🌸"]),
         (r"eau de parfum|\bedp\b|intense|extrait", ["PERFUMÃO DE FIXAÇÃO BOA 🌸"])],
     "LOOK DE TREINO QUE VALORIZA TUDO 🍑": [
         (r"transpar|blackout", ["NÃO FICA TRANSPARENTE, UFA 🍑"]),
         (r"cintura alta", ["CINTURA ALTA QUE SEGURA TUDO 🍑"]),
-        (r"sustenta", ["SUSTENTAÇÃO DE VERDADE NO TREINO 💪"]),
+        (r"\bsustenta(?:[çc][ãa]o)?\b", ["SUSTENTAÇÃO DE VERDADE NO TREINO 💪"]),
         (r"sem costura", ["SEM COSTURA, NÃO MARCA NADA 🍑"]),
         (r"plus size", ["PLUS SIZE LINDO NO TREINO 💪"]),
         (r"conjunto", ["CONJUNTINHO FITNESS COMBINANDINHO 💪"])],
@@ -188,15 +188,15 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
     "ORGANIZE SUA BAGUNÇA 🧺": [
         (r"maquiagem|cosm[ée]tic|batom", ["MAQUIAGEM ARRUMADA E À VISTA 💄"]),
         (r"girat[óo]rio", ["GIRA E VOCÊ ACHA TUDO NA HORA 🧺"]),
-        (r"roupa|edredom|cobertor|saco", ["GUARDA-ROUPA ORGANIZADO 🧺"]),
-        (r"cozinha|pote|despensa|arm[áa]rio", ["DESPENSA ORGANIZADA DÁ GOSTO 🧺"]),
+        (r"roupa|edredom|cobertor|\bsacos? (?:a |de )?v[áa]cuo", ["GUARDA-ROUPA ORGANIZADO 🧺"]),
+        (r"cozinha|\bpotes?\b|despensa|arm[áa]rio", ["DESPENSA ORGANIZADA DÁ GOSTO 🧺"]),
         (r"acr[íi]lico|transparente", ["TRANSPARENTE: VOCÊ VÊ TUDO 🧺"])],
     "TOALHA FOFINHA DE HOTEL 🛁": [
-        (r"jogo|kit|pe[çc]as", ["JOGO DE TOALHAS NOVINHO 🛁"]), (r"gigante|toalh[ãa]o|banh[ãa]o", ["TOALHÃO QUE ABRAÇA 🛁"])],
+        (r"\bjogo\b|\bkit\b|pe[çc]as", ["JOGO DE TOALHAS NOVINHO 🛁"]), (r"gigante|toalh[ãa]o|banh[ãa]o", ["TOALHÃO QUE ABRAÇA 🛁"])],
     "COZINHA LINDA GASTANDO POUCO 🍳": [
         (r"oven|forno", ["AIR FRYER QUE VIRA FORNINHO 🍳"]),
         (r"air ?fryer|fritadeira", ["FRITURA SEM ÓLEO E SEM CULPA 🍳"]),
-        (r"press[ãa]o", ["FEIJÃO PRONTO RAPIDINHO 🍳"]),
+        (r"\bpress[ãa]o\b", ["FEIJÃO PRONTO RAPIDINHO 🍳"]),
         (r"pipoca", ["PIPOCA DE CINEMA EM CASA 🍿"]),
         (r"potes? herm", ["COMIDA FRESQUINHA POR MAIS TEMPO 🍳"]),
         (r"mixer|processador|liquidificador", ["PICA, BATE E AGILIZA A COZINHA 🍳"]),
@@ -204,7 +204,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"indu[çc][ãa]o", ["SERVE ATÉ NO FOGÃO DE INDUÇÃO 🍳"]),
         (r"jogo de panelas|conjunto de panelas|panelas", ["JOGO DE PANELAS NOVINHO 🍳"])],
     "MAMÃE, CORRE QUE TÁ BARATO 👶": [
-        (r"fralda", ["FRALDA É SEMPRE BOM ESTOCAR 👶"]), (r"len[çc]o", ["LENCINHO NUNCA É DEMAIS 👶"]),
+        (r"fralda", ["FRALDA É SEMPRE BOM ESTOCAR 👶"]), (r"\blen[çc]os?\b", ["LENCINHO NUNCA É DEMAIS 👶"]),
         (r"shampoo|sabonete|banho", ["BANHO GOSTOSO PRO BEBÊ 👶"]), (r"canguru", ["BEBÊ PERTINHO E MÃOS LIVRES 👶"]),
         (r"copo|prato|alimenta|papinha", ["HORA DA PAPINHA SEM SUJEIRA 👶"]),
         (r"mordedor|chocalho|atividades|m[óo]bile|tapete", ["DIVERSÃO PRO BEBÊ 👶"]),
@@ -236,7 +236,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"antial[ée]rgic", ["ANTIALÉRGICO, PODE USAR SEM MEDO ✨"]),
         (r"rel[óo]gio", ["RELÓGIO LINDO NO PULSO ⌚"]),
         (r"presente|cora[çc][ãa]o", ["PRESENTE QUE ENCANTA 💝"]),
-        (r"kit|conjunto|trio", ["KIT PRA COMBINAR COM TUDO ✨"])],
+        (r"\bkit\b|\bconjunto\b|\btrio\b", ["KIT PRA COMBINAR COM TUDO ✨"])],
     "LOOK NOVO GASTANDO POUCO 👗": [
         (r"festa|casamento|formatura|madrinha", ["PRONTA PRA FESTA 🥂"]),
         (r"plus size", ["PLUS SIZE LINDO E CONFORTÁVEL 👗"]),
@@ -250,7 +250,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"soltinh|ver[ãa]o|regata", ["FRESQUINHO PRO CALOR 👗"]),
         (r"vestido", ["VESTIDO LINDO PRA QUALQUER OCASIÃO 👗"])],
     "PRONTA PRO VERÃO 👙": [
-        (r"mai[ôo]", ["MAIÔ LINDO PRO VERÃO 👙"]), (r"cortininha", ["CORTININHA NUNCA SAI DE MODA 👙"]),
+        (r"\bmai[ôo]s?\b", ["MAIÔ LINDO PRO VERÃO 👙"]), (r"cortininha", ["CORTININHA NUNCA SAI DE MODA 👙"]),
         (r"sa[íi]da de praia", ["SAÍDA DE PRAIA CHIQUE 👙"])],
     "PROTEÇÃO COM ESTILO 😎": [
         (r"uv ?400|\buv\b", ["PROTEÇÃO UV400 PROS OLHOS 😎"]),
@@ -260,23 +260,23 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"areia", ["AREIA DO GATINHO NO PRECINHO 🐱"]), (r"gato", ["PROS GATINHOS 🐱"]),
         (r"c[ãa]es|cachorro|dog", ["PROS CÃOZINHOS 🐶"]), (r"ra[çc][ãa]o", ["RAÇÃO BOA NO PRECINHO 🐾"])],
     "TECNOLOGIA NO PRECINHO 📱": [
-        (r"fone", ["MÚSICA SEM FIO O DIA TODO 🎧"]), (r"caixa de som|caixinha", ["SOM ALTO PRA QUALQUER ROLÊ 🔊"]),
+        (r"\bfones?\b", ["MÚSICA SEM FIO O DIA TODO 🎧"]), (r"caixa de som|caixinha", ["SOM ALTO PRA QUALQUER ROLÊ 🔊"]),
         (r"gps|sa[úu]de|monitor|batimento", ["ACOMPANHA SEU TREINO NO PULSO ⌚"]),
         (r"smart ?watch|inteligente", ["NOTIFICAÇÃO NO PULSO, CELULAR NA BOLSA ⌚"])],
     "GELADINHO OU QUENTINHO O DIA TODO 🧊": [
-        (r"caf[ée]|ch[áa]\b", ["CAFÉ QUENTINHO POR HORAS ☕"]), (r"stanley", ["O FAMOSO STANLEY 🧊"]),
+        (r"caf[ée]|\bch[áa]\b", ["CAFÉ QUENTINHO POR HORAS ☕"]), (r"stanley", ["O FAMOSO STANLEY 🧊"]),
         (r"gigante|1,2 ?l|1200|1\.2 ?l", ["COPÃO GIGANTE PRO DIA TODO 🧊"]),
         (r"academia|esporte|squeeze", ["ÁGUA GELADA NO TREINO 🧊"])],
     "ALÍVIO PRO CORPO CANSADO 💆‍♀️": [
         (r"pistola|muscular", ["ALÍVIO PÓS-TREINO 💆‍♀️"]), (r"facial|rosto|pesco", ["MASSAGEM FACIAL EM CASA ✨"])],
     "DEPILAÇÃO EM CASA, SEM SOFRER ✨": [
         (r"sobrancelha|bu[çc]o|facial|rosto", ["ACABAMENTO NO ROSTO EM SEGUNDOS ✨"]),
-        (r"cera|termocera", ["CERA NO PONTO CERTO, EM CASA ✨"]),
+        (r"\bcera\b|termocera", ["CERA NO PONTO CERTO, EM CASA ✨"]),
         (r"recarreg|usb", ["RECARREGA E LEVA PRA ONDE QUISER ✨"])],
     "PELE MACIA O DIA INTEIRO 🧴": [
         (r"sem perfume|neutr|sens[íi]vel", ["HIDRATA ATÉ PELE SENSÍVEL 🧴"]),
         (r"baunilha|vanilla|frutas|morango|flor|rosa|lavanda|cheir", ["PELE MACIA E CHEIROSA 🌸"]),
-        (r"[óo]leo|bio oil", ["ÓLEO QUE DEIXA A PELE SEDOSA 🧴"])],
+        (r"\b[óo]leos?\b|bio oil", ["ÓLEO QUE DEIXA A PELE SEDOSA 🧴"])],
     "PRESENTE CERTO PRA ELE 🎁": [
         (r"perfume|col[ôo]nia|eau de|body splash", ["PERFUME PRA ELE COM DESCONTO 🎁"]),
         (r"rel[óo]gio", ["RELÓGIO PRA ELE NO PRECINHO ⌚"]), (r"t[êe]nis", ["TÊNIS PRA ELE COM DESCONTO 👟"])],

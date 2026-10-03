@@ -70,14 +70,14 @@ PALAVRAS["eletronicos"] += r"|motorola|samsung|iphone|xiaomi|redmi|galaxy|kindle
 # marca popular. Peso somado ao score — segue uma linha em vez de "aleatório".
 PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6, "infantil": 6, "moda": 5, "pet": 3,
               "eletronicos": 0}
-CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador|chapinha|prancha|babyliss|"
+CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador(?! de (?:lou[çc]a|pratos?))|chapinha|prancha(?! abdominal)|babyliss|"
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
                     r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante", re.I)  # 01/10: Lola Rapunzel
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
                      r"termog[êe]nic|probi[óo]tic|\bprotein\b|isolate", re.I)
-BEBE = re.compile(r"fralda|len[çc]o umedecido|beb[êe]|infantil|mamadeira|chupeta|carrinho de beb|body infantil|"
+BEBE = re.compile(r"fralda|len[çc]o umedecido|\bbeb[êe]s?\b|infantil|mamadeira|chupeta|carrinho de beb|body infantil|"
                   r"banheira|trocador|kit ber[çc]o|brinquedo", re.I)
 # pet: só o que vende muito e serve para qualquer bicho (nada de remédio nem ração específica)
 PET_POPULAR = re.compile(r"whiskas|pedigree|golden|premier|gran plus|special (dog|cat)|friskies|dog chow|cat chow|"
@@ -248,7 +248,7 @@ def _grupo(slug_ou_titulo: str) -> str:
     return "outros"
 
 
-PERFUME = re.compile(r"perfume|col[ôo]nia|body splash|eau de|parfum|deo col|\bed[pt]\b", re.I)
+PERFUME = re.compile(r"perfume|\bcol[ôo]nias?\b|body splash|eau de|parfum|deo col|\bed[pt]\b", re.I)
 
 
 BEM_ESTAR = re.compile(r"vitamin|multivitam|suplement|col[áa]geno|whey|creatina|[ôo]mega ?3", re.I)
@@ -444,7 +444,7 @@ EM_ALTA = re.compile(
     re.I)
 
 
-MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|boxer|barbear|\bbarba|p[óo]s[- ]barba|"
+MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|\bboxer\b|barbear|\bbarbas?\b|p[óo]s[- ]barba|"
                        r"m[áa]quina de (acabamento|corte|cortar)|aparador de pelos|barbeador|testosteron|"
                        r"cortador de cabelo|groom|trimmer|clipper|"
                        # 30/09: perfumes masculinos famosos que não dizem "masculino" no título (Lattafa Asad caiu no vídeo)
@@ -1073,7 +1073,7 @@ BENEFICIOS = [
     (r"paleta de sombras?|sombras?|delineador|l[áa]pis de olho|kajal", "OLHAR PODEROSO NO PRECINHO 👁️"),
     (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
      r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
-    (r"escova secadora|secador|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
+    (r"escova secadora|secador(?! de (?:lou[çc]a|pratos?))|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
     # 01/10 (Rita): "Modelador De Ondas" saiu "CACHOS DE SALÃO" — onda não é cacho
     (r"modelador(?:a)? de ondas|ondulador|modelador(?= ondas)|ondas perfeitas|babyliss de ondas",
@@ -1166,7 +1166,7 @@ BENEFICIOS_BELEZA = 12  # as 12 primeiras frases são de beleza/cabelo/perfume
 SEGREDO = "AMIGAS NÃO GUARDAM SEGREDO! 🤫"  # frase de DICA de cuidado (retinol, protetor, tratamento) — dona, 30/09
 DICAS = ("PELE PROTEGIDA", "CÍLIOS", "PELE LISINHA", "CABELO MACIO")
 # "peças" fora: "Jogo de Lençol 2 Peças"/"Conjunto de Panelas 10 Peças" são partes de UM jogo, não itens → "SÓ R$ X CADA" enganava
-KIT = re.compile(r"(?:kit|combo|pack)\s*(?:com\s*|c/\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|rolos)", re.I)
+KIT = re.compile(r"\b(?:kit|combo|pack)\s*(?:com\s*|c/\s*)?(\d{1,3})\b|\b(\d{1,3})\s*(?:pares|unidades|un\b|rolos)", re.I)
 MARCAS = re.compile(  # marcas que os grupos grandes mais postam (confiança = clique)
     r"la roche|vichy|cetaphil|neutrogena|principia|creamy|sallve|nivea|eudora|botic[áa]rio|natura|avon|dove|"
     r"k[ée]rastase|l.or[ée]al|wella|lola|salon line|elseve|pantene|tresemm|celimax|beauty of joseon|skin1004|"
@@ -1223,7 +1223,7 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
         return "TECNOLOGIA NO PRECINHO 📱"  # smartwatch não é joia
     # 01/10 (Rita): kit "Casal Body Splash Bold Homme E My Sweet Delight" saiu "PERFUME PRA ELE" — kit de casal é dos dois
     if frase in FEMININAS and MASCULINO.search(titulo) and not re.search(
-            r"feminin|unissex|mulher|\bcasal\b|ele e ela|dele e dela|\bdupla\b", titulo, re.I):
+            r"feminin|unissex|mulher|calcinha|\bcasal\b|ele e ela|dele e dela|\bdupla\b", titulo, re.I):
         return PRA_ELE  # perfume/relógio/tênis masculino não é "amiga"
     return frase
 
@@ -1352,7 +1352,7 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         tipo = None  # 01/10 (dona): "ORGANIZE SUA BAGUNÇA" num RELÓGIO ("Curren Portas Relógios…") → frase neutra
     if tipo:
         return ganchos.escolher(ganchos.candidatos(tipo, titulo, preco=preco), n, recentes)
-    if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher", titulo, re.I):
+    if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher|calcinha", titulo, re.I):
         return ganchos.escolher(ganchos.REPERTORIO[PRA_ELE], n, recentes)
     sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
     opcoes = []
@@ -1748,7 +1748,7 @@ NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessair
 
 def eh_masculino(o: dict) -> bool:
     t = o.get("titulo") or ""
-    return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher", t, re.I)
+    return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher|calcinha", t, re.I)
 
 
 def marcar_postado(id_oferta: str) -> None:
