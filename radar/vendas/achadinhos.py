@@ -1634,7 +1634,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     if tema:
         k = datas.vagas_do_tema(pos, len(out), n)
         for o in sorted((o for o in cand if datas.casa(o, tema)),
-                        key=lambda o: (o["score"] or 0) + datas.bonus(o), reverse=True):
+                        key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True):
             if k <= 0 or tentativas > n * 10:
                 break
             if por_vendedor.get(vendedor(o)):
