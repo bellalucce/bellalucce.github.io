@@ -72,7 +72,7 @@ PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6,
               "eletronicos": 0}
 CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador(?! de (?:lou[çc]a|pratos?))|chapinha|prancha(?! abdominal)|babyliss|"
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
-                    r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante", re.I)  # 01/10: Lola Rapunzel
+                    r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante|bif[áa]sic", re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
@@ -1291,6 +1291,10 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     """False quando a frase do gancho é de um tipo e o produto é claramente de outro (whey de tônico capilar com
     frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
     if not familia_confere(gancho, grupo, titulo):
+        return False
+    # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
+    if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
+            r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
         return False
     for no_gancho, no_titulo in NOME_NO_GANCHO:  # 03/10 (dona): mocassim saiu como "TÊNIS DE MARCA"
         if re.search(no_gancho, gancho or "", re.I) and not re.search(no_titulo, titulo or "", re.I):
