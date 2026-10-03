@@ -13,6 +13,7 @@ nosso quando existir (config/segredos.json → "afiliados": {"amazon_tag": "..."
 """
 import html as _html
 import json
+import os
 import re
 import time
 from datetime import date, datetime, timedelta
@@ -1621,7 +1622,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
              "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda"]}
     if datas.chegando():  # data grande chegando (Dia das Crianças, Natal…): o que é ligado a ela sobe na fila
         for f in filas.values():
-            f.sort(key=lambda o: (o["score"] or 0) + datas.bonus(o), reverse=True)
+            f.sort(key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True)
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     # 01/10 (Mila): com 3 por rodada, "1 por rodada" ainda deu 33% de um lojista → 1 por lojista a cada 10 posts
@@ -1736,6 +1737,12 @@ def eh_masculino(o: dict) -> bool:
 def marcar_postado(id_oferta: str) -> None:
     with db.conectar() as con:
         con.execute("UPDATE ofertas SET publicado_em = datetime('now','localtime') WHERE id = ?", (id_oferta,))
+    if os.environ.get("HERMES_MAQUINA") == "nuvem":  # 02/10: o que o SERVIDOR postou (o PC traz e usa no plano B)
+        arq = config.DADOS / "nuvem" / "meus_posts.jsonl"
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        with open(arq, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": id_oferta, "publicado_em": datetime.now().isoformat(sep=" ", timespec="seconds")})
+                    + "\n")
 
 
 def reavaliar() -> int:
