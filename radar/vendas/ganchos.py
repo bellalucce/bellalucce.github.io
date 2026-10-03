@@ -224,7 +224,9 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"pantufa", ["PÉ QUENTINHO EM CASA 🧦"]), (r"chinelo", ["CHINELO GOSTOSO DE USAR 🩴"]),
         (r"corrida|running|caminhada", ["PRA CAMINHAR COM CONFORTO 👟"]),
         (r"academia|treino", ["PRONTO PRO TREINO 👟"]),
-        (r"nike|adidas|puma|asics|mizuno|new balance|fila|olympikus|kappa", ["TÊNIS DE MARCA COM DESCONTO 👟"]),
+        # 03/10: "Espuma" casava com "puma" e um MOCASSIM saiu como "TÊNIS DE MARCA" → palavra inteira + sapato antes
+        (r"mocassim|loafer|oxford|sapatilha|\bsapato", ["SAPATO ELEGANTE PRO DIA A DIA 👞"]),
+        (r"\b(?:nike|adidas|puma|asics|mizuno|new balance|fila|olympikus|kappa)\b", ["TÊNIS DE MARCA COM DESCONTO 👟"]),
         (r"t[êe]nis", ["TÊNIS NOVO NO PRECINHO 👟"])],
     "BRILHO NO LOOK SEM GASTAR MUITO ✨": [
         (r"alian[çc]a|namoro|compromisso", ["PRA SELAR O AMOR 💍"]),

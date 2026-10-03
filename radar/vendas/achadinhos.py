@@ -1275,11 +1275,24 @@ def familia_confere(frase: str, grupo: str | None, titulo: str = "") -> bool:
 GRUPOS_RUIDOSOS = {"esporte", "outros", "mercado"}
 
 
+# frase que NOMEIA o tipo de calçado só vale se o título for desse tipo (gancho, título)
+NOME_NO_GANCHO = [
+    (r"\bT[ÊE]NIS\b", r"t[êe]nis|sneaker"),
+    (r"\bSAND[ÁA]LIA", r"sand[áa]lia|rasteira|papete|slide"),
+    (r"\bSALTO\b", r"salto|scarpin|tamanco|anabela"),
+    (r"\bCHINELO", r"chinelo|slide"),
+    (r"\bSAPATO\b", r"sapato|mocassim|loafer|oxford|sapatilha|scarpin"),
+]
+
+
 def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     """False quando a frase do gancho é de um tipo e o produto é claramente de outro (whey de tônico capilar com
     frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
     if not familia_confere(gancho, grupo, titulo):
         return False
+    for no_gancho, no_titulo in NOME_NO_GANCHO:  # 03/10 (dona): mocassim saiu como "TÊNIS DE MARCA"
+        if re.search(no_gancho, gancho or "", re.I) and not re.search(no_titulo, titulo or "", re.I):
+            return False
     cat = next((c for c, rx in CAT_GANCHO if re.search(rx, gancho or "", re.I)), None)
     t = re.split(r"\bsabor\b", titulo or "", flags=re.I)[0]  # "Whey… Sabor Creme de Avelã": sabor não é cosmético
     if cat == "fitness":
