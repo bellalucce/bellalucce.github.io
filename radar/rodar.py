@@ -7,6 +7,7 @@ O que saiu de promoção não é revisto e some sozinho em até 36 h.
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
@@ -54,6 +55,17 @@ def main() -> None:
         shutil.copytree(REPO / "grupo", SAIDA / "grupo", dirs_exist_ok=True)
     if (REPO / "p").exists():  # 02/10: página nossa de cada produto do Pinterest (scripts/pinterest/pagina_produto.py)
         shutil.copytree(REPO / "p", SAIDA / "p", dirs_exist_ok=True)
+    # 03/10 (dona: "estar onde as pessoas procuram"): Google — robots, mapa do site e arquivo de verificação do Search Console
+    for arq in REPO.glob("google*.html"):
+        shutil.copyfile(arq, SAIDA / arq.name)
+    base = "https://bellalucce.github.io"
+    paginas = ["/", "/grupo/", "/links/"] + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
+    hoje = time.strftime("%Y-%m-%d")
+    (SAIDA / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "".join(f"  <url><loc>{base}{p}</loc><lastmod>{hoje}</lastmod></url>\n" for p in paginas) + "</urlset>\n",
+        encoding="utf-8")
+    (SAIDA / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n", encoding="utf-8")
     novo ={r["id"]: r["link_loja"] for r in db.consultar(
         "SELECT id, link_loja FROM ofertas WHERE fonte = 'promobit' AND link_loja IS NOT NULL "
         "AND atualizado_em >= datetime('now', 'localtime', '-3 days')")}
