@@ -996,11 +996,11 @@ def vitrine(horas: int = 36) -> str:
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce: promoções da Shopee, Amazon e Magalu hoje (maquiagem, perfume, moda)</title>
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta property="og:title" content="Achadinhos Bella Lucce ✨"><meta property="og:type" content="website">
 <meta property="og:description" content="Promoções de beleza, cabelo, perfume, fitness e casa conferidas a cada 20 minutos.">
-<meta name="description" content="Promoções de beleza, cabelo, perfume, fitness e casa conferidas a cada 20 minutos — Achadinhos Bella Lucce.">
+<meta name="description" content="Achadinhos e promoções de hoje: maquiagem, skincare, perfume, cabelo, moda e casa da Shopee, Amazon e Magalu, conferidos a cada 20 minutos. Entre no grupo de achadinhos grátis no WhatsApp ou Telegram.">
 <style>
 :root{{--rosa:#e85d8c;--fundo:#fff6f9;--txt:#222}}*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--fundo);color:var(--txt)}}
 header{{background:var(--rosa);color:#fff;padding:18px 16px;text-align:center}}header h1{{margin:0;font-size:22px}}header p{{margin:6px 0 0;font-size:13px;opacity:.9}}
