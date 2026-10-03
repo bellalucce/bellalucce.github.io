@@ -1670,9 +1670,10 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
         livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
                   and not por_vendedor.get(vendedor(x))]
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
-        quer_h = vez.endswith("h")
+        quer_h, quer_b = vez.endswith("h"), vez.endswith("b")
+        bolsa = lambda x: bool(BOLSA.search(x.get("titulo") or "")) and not NAO_BOLSA.search(x.get("titulo") or "")  # noqa: E731
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
-        for o in sorted(livres, key=lambda x: eh_masculino(x) != quer_h)[:6]:
+        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, quer_b and not bolsa(x)))[:6]:
             fila.remove(o)
             tentativas += 1
             if foto_boa(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
@@ -1739,7 +1740,10 @@ LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
 # 01/10 (dona + estudo do "Ofertas Entre Mulheres": ~58% beleza / 31% moda / 11% resto) → em cada 10: 6 beleza, 3 moda,
 # 1 variado (casa, pet, esporte, infantil, eletrônicos); + a grife que abre a rodada = ~70% beleza
 # 01/10 (dona): também público MASCULINO → 2 das 10 vagas ("Bh" beleza, "Mh" moda) preferem produto masculino
-PADRAO_LINHA = ("B", "M", "B", "Bh", "M", "B", "O", "B", "Mh", "B")
+PADRAO_LINHA = ("B", "Mb", "B", "Bh", "M", "B", "O", "B", "Mh", "B")
+# 03/10 (dona: "sinto necessidade de bolsas no grupo" — 11 bolsas em ~420 posts): a 1ª vaga de moda prefere BOLSA
+BOLSA = re.compile(r"\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete", re.I)
+NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessaire|cosm[ée]tic|maternidade|viagem", re.I)
 
 
 def eh_masculino(o: dict) -> bool:
