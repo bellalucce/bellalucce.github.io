@@ -515,7 +515,30 @@ SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (
                       r"(?:cinta|calcinha|body|bermuda|shorts?|camiseta|regata|faixa|meia|cueca|macac[ãa]o|"
                       r"cal[çc]a|legging|lingerie)\s+(?:\w+\s+)?modeladora|modeladora\s+(?:de\s+)?(?:barriga|cintura|abd)|"
                       r"clareador (?:[íi]ntimo|de virilha)|calv[íi]cie|disfun[çc]")
-INGLES = re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
+# 04/10 (revisora da nuvem: 33 vetos em 2 rodadas; dona: "o grupo não pode cair a qualidade") — o que ela mais vetava
+# vira regra no código, que roda no servidor 24 h sem gastar token e sem depender do PC: suplemento de academia
+# (creatina/whey/barra de proteína) e item técnico/esquisito não é achadinho para "mulher que ama comprar".
+# Cosmético com o nome (tônico capilar "Whey Amino") passa — COSMETICO é conferido em fora_do_perfil.
+FORA_PERFIL = re.compile(r"(?i)creatina|\bwhey\b|pr[ée]-?treino|\bbcaa\b|termog[êe]nic|hipercal[óo]ric|albumina|"
+                         r"barra (?:de )?prote[íi]na|protein bar|bioimped|faqueiro|desafio da corda")
+
+
+def fora_do_perfil(titulo: str) -> bool:
+    return bool(FORA_PERFIL.search(titulo or "")) and not COSMETICO.search(titulo or "")
+
+
+DE_MAX = 2.0  # 04/10 (revisora da nuvem): "De" acima de 2× o "Por" = desconto de vitrine (era 4×)
+
+
+def de_inflado(o: dict) -> bool:
+    """"De" mais de 2× o preço, fora de loja oficial (a oficial tem o "De" de tabela da marca)."""
+    s = o.get("sinais") or {}
+    if isinstance(s, str):
+        s = json.loads(s or "{}")
+    return (o.get("preco_antigo") or 0) > DE_MAX * (o.get("preco") or 0) > 0 and not s.get("oficial")
+
+
+INGLES =re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
                     r"set|pcs|color|natural|matte|face|eye|lip|lips|new|hot|sale|fashion|style|quality|high|"
                     r"portable|wireless|mini|cute|luxury|brand|original|"
                     # 01/10 (verificador): "Boncept Waterproof Eyeliner 2 Colors" saiu às 21h15
@@ -582,6 +605,8 @@ def eh_produto(o: dict) -> bool:
         return False
     if SENSIVEL.search(titulo) or titulo_ruim(titulo) or so_peca(titulo):  # 01/10 (Rita/Nina: 16 de 40 vetadas)
         return False
+    if fora_do_perfil(titulo):
+        return False
     if o.get("grupo") == "pet" and not PET_POPULAR.search(titulo):  # pet: só marca/item popular
         return False
     teto = PRECO_MAX[o["grupo"]] * (1.5 if (o.get("desconto") or 0) >= 50 else 1)
@@ -629,9 +654,9 @@ def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
         return False
-    # 01/10 (relógio Curren "De R$ 670 por R$ 109,99"; Rita: secador/cinto/cadeira > 4×): "De" acima de 4× o preço é
-    # vitrine inflada, não desconto real
-    if (o.get("preco_antigo") or 0) > 4 * (o.get("preco") or 0) > 0 and not s.get("oficial"):
+    # 01/10 (relógio Curren "De R$ 670 por R$ 109,99"; Rita: secador/cinto/cadeira > 4×): "De" muito acima do preço é
+    # vitrine inflada, não desconto real (04/10: limite 2×, DE_MAX)
+    if de_inflado(o):
         return False
     if s.get("ruim", 0) > s.get("otima", 0):
         return False
@@ -1275,6 +1300,11 @@ def familia_confere(frase: str, grupo: str | None, titulo: str = "") -> bool:
 
 
 GRUPOS_RUIDOSOS = {"esporte", "outros", "mercado"}
+BRINQUEDO = re.compile(r"(?i)brinquedo|boneca|reborn|bonec[oa]s?\b|pel[úu]cia|triciclo|motoca|motoquinha|velotrol|"
+                       r"quadriciclo|carrinho (?:de )?(?:controle|brinquedo|passeio)|patinete|bicicleta|jogo\b|"
+                       r"quebra-?cabe[çc]a|lego\b|blocos de montar")
+ROUPA_BEBE = re.compile(r"(?i)\bbody\b|macac[ãa]o|roupa|conjunto|pijama|vestido|camis|cal[çc]a|short|meia|sapat|t[êe]nis|"
+                        r"fralda|len[çc]o")
 
 
 # frase que NOMEIA o tipo de calçado só vale se o título for desse tipo (gancho, título)
@@ -1295,6 +1325,11 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
             r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
+        return False
+    # 04/10 (revisora da nuvem): triciclo/motoquinha com "LOOK FOFO PROS PEQUENOS"; boneca reborn com "ACHADINHO PRA
+    # MAMÃE" → frase de roupa/bebê não vai em brinquedo
+    if re.search(r"LOOK|ROUPINHA|MAM[ÃA]E|BEB[ÊE]", gancho or "", re.I) and BRINQUEDO.search(titulo or "") \
+            and not ROUPA_BEBE.search(titulo or ""):
         return False
     for no_gancho, no_titulo in NOME_NO_GANCHO:  # 03/10 (dona): mocassim saiu como "TÊNIS DE MARCA"
         if re.search(no_gancho, gancho or "", re.I) and not re.search(no_titulo, titulo or "", re.I):
@@ -1577,19 +1612,33 @@ def tipo_repetivel(o: dict) -> str | None:
     return next((nome for rx, nome in TIPO_DIA if re.search(rx, t, re.I)), None)
 
 
-def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
-    """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
-    (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
-    01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
+def barrada_na_hora(o: dict) -> bool:
+    """04/10: regras novas valem também para o que JÁ estava aprovado no banco (o servidor posta da fila antiga)."""
+    return de_inflado(o) or fora_do_perfil(o.get("titulo") or "")
+
+
+POUCO_ESTOQUE = 30
+
+
+def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[dict], set, str]:
+    """Ofertas que PODEM ir ao grupo agora (filtros baratos, sem baixar foto): (candidatas, chaves postadas em 48 h,
+    corte da Amazon). Base de fila_posts e de estoque()."""
     recentes = {chave_produto(r["titulo"]) for r in db.consultar(
         # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → 48 h (= a "volta" de 2 dias do pool abaixo)
         "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-48 hours')")}
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
     # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
     amazon_ok = (datetime.now() - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
-    cand = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto") and not o["publicado_em"]
+    base = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+    cand = [o for o in base if not o["publicado_em"]]
+    if len(cand) < POUCO_ESTOQUE:  # 04/10 (grupo parado com o PC desligado): oferta que o radar AINDA vê em promoção
+        # (preço conferido nas últimas 2 h) e saiu há mais de 3 dias pode voltar — quem entrou depois não viu
+        volta = (datetime.now() - timedelta(days=3)).isoformat(sep=" ", timespec="seconds")
+        fresco = (datetime.now() - timedelta(hours=2)).isoformat(sep=" ", timespec="seconds")
+        cand += [o for o in base if o["publicado_em"] and o["publicado_em"] < volta
+                 and (o.get("atualizado_em") or "") >= fresco]
     if so_com_link_curto:
         cand = [o for o in cand if not shopee_sem_curto(o)]
     # 01/10 (Mila): a vaga do variado testava 6 fotos de 400–500 px JÁ medidas e se perdia → pula de cara quem tem foto
@@ -1602,7 +1651,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     vet = revisao_fila.vetados()
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
-            and not vencendo(o.get("titulo") or "") and o["id"] not in vet]
+            and not vencendo(o.get("titulo") or "") and o["id"] not in vet and not barrada_na_hora(o)]
     cand = [o for o in cand if not acima_do_mercado(o)]
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
@@ -1617,6 +1666,32 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
     cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < MAX_TIPO_DIA]
+    return cand, recentes, amazon_ok
+
+
+def estoque(horas: int = 30) -> int:
+    """04/10 (grupo parou às 8h06 com "0 postadas de 0": o servidor postava 18/h e a fila secou com o PC desligado)
+    → quantas ofertas ainda podem sair (com link curto ou de emergência)."""
+    return len(_candidatos(horas, so_com_link_curto=False)[0])
+
+
+def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, intervalo_min: int = 10) -> int:
+    """Ritmo pelo estoque: divide o que sobrou pelas rodadas que faltam até o fim do horário, para o grupo não
+    secar no meio do dia. Estoque menor que as rodadas → 1 post a cada k rodadas (as outras ficam com 0)."""
+    faltam = max(1, (h_fim * 60 - (agora.hour * 60 + agora.minute)) // intervalo_min)
+    if estoque_atual <= 0:
+        return 0
+    if estoque_atual >= faltam:
+        return min(quantos, -(-estoque_atual // faltam))
+    k = -(-faltam // estoque_atual)  # rodadas por post
+    return 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
+
+
+def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
+    """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
+    (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
+    01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
+    cand, recentes, amazon_ok = _candidatos(horas, so_com_link_curto)
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
@@ -1629,7 +1704,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     volta = (datetime.now() - timedelta(days=2)).isoformat(sep=" ", timespec="seconds")
     pool = cand + [o for o in sem_repetidos(melhores(horas, 3000)) if o["publicado_em"] and o["publicado_em"] < volta
                    and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
-                   and not (so_com_link_curto and shopee_sem_curto(o))]
+                   and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)]
     grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
