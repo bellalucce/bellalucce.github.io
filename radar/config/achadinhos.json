@@ -6,6 +6,12 @@
   "grupo_quem": "nuvem",
   "telegram": "",
   "posts_por_rodada": 3,
-  "intervalo_entre_posts_s": [15, 30],
-  "horario": [8, 22]
+  "intervalo_entre_posts_s": [
+    15,
+    30
+  ],
+  "horario": [
+    8,
+    22
+  ]
 }

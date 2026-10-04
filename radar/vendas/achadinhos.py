@@ -1604,6 +1604,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
             and not vencendo(o.get("titulo") or "") and o["id"] not in vet]
     cand = [o for o in cand if not acima_do_mercado(o)]
+    # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
+    # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
+    permitidos = canais().get("grupos_permitidos")
+    if permitidos:
+        cand = [o for o in cand if o.get("grupo") in permitidos]
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (só fora da linha de beleza/cabelo/perfume, que é o foco do grupo)
     tipos_hoje: dict = {}
