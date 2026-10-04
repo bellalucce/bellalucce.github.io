@@ -520,7 +520,10 @@ SENSIVEL = re.compile(r"(?i)cadeira de rodas|hospitalar|ortop[ée]dic|pulseira (
 # (creatina/whey/barra de proteína) e item técnico/esquisito não é achadinho para "mulher que ama comprar".
 # Cosmético com o nome (tônico capilar "Whey Amino") passa — COSMETICO é conferido em fora_do_perfil.
 FORA_PERFIL = re.compile(r"(?i)creatina|\bwhey\b|pr[ée]-?treino|\bbcaa\b|termog[êe]nic|hipercal[óo]ric|albumina|"
-                         r"barra (?:de )?prote[íi]na|protein bar|bioimped|faqueiro|desafio da corda")
+                         r"barra (?:de )?prote[íi]na|protein bar|bioimped|faqueiro|desafio da corda|"
+                         # 04/10 (dona: "isso não quero" — kit de pentes "+ aleatório"): brinde/cor ALEATÓRIA = produto
+                         # genérico de marketplace; pente/kit de penteado não é achadinho
+                         r"aleat[óo]ri|sortid|\bpentes?\b|penteados?\b")
 
 
 def fora_do_perfil(titulo: str) -> bool:
@@ -1605,11 +1608,53 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
 
 
 def tipo_repetivel(o: dict) -> str | None:
-    """Tipo de produto que não pode se repetir muito no dia (fora da linha principal)."""
-    if o.get("grupo") in LINHA_PRINCIPAL:
-        return None
+    """Tipo de produto que não pode se repetir muito no dia (04/10: a linha de beleza também — "cílios 900 vezes")."""
     t = o.get("titulo") or ""
-    return next((nome for rx, nome in TIPO_DIA if re.search(rx, t, re.I)), None)
+    lista = TIPO_BELEZA if o.get("grupo") in LINHA_PRINCIPAL else TIPO_DIA
+    return next((nome for rx, nome in lista if re.search(rx, t, re.I)), None)
+
+
+# 04/10 (dona: "cílios postiços 900 vezes, tá muito repetitivo") — subtipos da beleza, no máx. TETO_TIPO por dia
+TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r"c[íi]lios", "cílios"),
+               (r"unhas? posti[çc]|tips? de unha|press ?on", "unha postiça"), (r"esmalte", "esmalte"),
+               (r"pinc[ée]is|pincel", "pincel"), (r"esponja", "esponja"), (r"delineador", "delineador"),
+               (r"l[áa]pis", "lápis"), (r"batom", "batom"), (r"gloss|lip ?oil|lip ?tint|tinta labial", "boca"),
+               (r"corretivo", "corretivo"), (r"\bbase\b", "base"), (r"\bp[óo]\b", "pó"), (r"blush", "blush"),
+               (r"paleta", "paleta"), (r"s[ée]rum", "sérum"), (r"protetor solar|fps ?\d", "protetor"),
+               (r"hidratante", "hidratante"), (r"sabonete", "sabonete"), (r"m[áa]scara (?:facial|de argila)|sheet mask", "máscara facial"),
+               (r"shampoo|condicionador", "shampoo"), (r"m[áa]scara (?:capilar|de hidrata)", "máscara capilar"),
+               (r"[óo]leo|finalizador|leave", "finalizador"),
+               (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
+               (r"body splash", "body splash")]
+TETO_TIPO = {"bolsa": 10, **{nome: 4 for _, nome in TIPO_BELEZA}}
+
+# 04/10 (dona: "hoje só o melhor: beleza, cabelo, perfume, bolsa, bem feminino" — saíam barbear, coisa de criança,
+# suplemento, máquina de cortar cabelo, camiseta/regata, relógio masculino, caneta depiladora) → modo FEMININO
+# (só até config/achadinhos.json "so_feminino_ate"; depois volta tudo: moda, calçado, temas, Dia das Crianças)
+MODA_FEMININA = re.compile(r"(?i)\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete|brincos?\b|\bcolar(?:es)?\b|"
+                           # 04/10 (dona tirou um "anel" ridículo): anel só se for JOIA (material/estilo no título)
+                           r"\ban(?:el|[ée]is)\b.*\b(?:prata|ouro|banhad|zirc[ôo]nia|cristal|p[ée]rola|solit[áa]rio|semijoia|"
+                           r"feminino|a[çc]o inox)|bijuteria|semijoia|\bjoias?\b|gargantilha|choker|tornozeleira")
+FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
+                           r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
+                           r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
+                           r"t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|cervical|elizabetano|"
+                           r"an(?:el|[ée]is) (?:de|para) (?:veda|silicone|borracha|cortina|guardanapo|pist|celular|chaveiro)")
+
+
+SO_FEMININO_ATE = "2026-10-04"  # dona 04/10: "só durante hoje; amanhã volta a programação toda normal"
+
+
+def so_feminino_ligado() -> bool:
+    return date.today().isoformat() <= str(canais().get("so_feminino_ate") or SO_FEMININO_ATE)
+
+
+def no_perfil_feminino(o: dict) -> bool:
+    """Beleza, cabelo e perfume femininos + bolsa e bijuteria. Roupa, casa, eletrônico, infantil e masculino ficam fora."""
+    t = o.get("titulo") or ""
+    if FORA_FEMININO.search(t) or eh_masculino(o):
+        return False
+    return o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
 
 
 def barrada_na_hora(o: dict) -> bool:
@@ -1665,7 +1710,15 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
         t = tipo_repetivel(dict(r))
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
-    cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < MAX_TIPO_DIA]
+    cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+    if so_feminino_ligado():
+        cand = [o for o in cand if no_perfil_feminino(o)]
+    try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
+        from vendas import referencia
+        dest = referencia.destaques()
+        cand.sort(key=lambda o: o["id"] not in dest)
+    except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
+        pass
     return cand, recentes, amazon_ok
 
 
@@ -1685,6 +1738,12 @@ def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, in
         return min(quantos, -(-estoque_atual // faltam))
     k = -(-faltam // estoque_atual)  # rodadas por post
     return 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
+
+
+def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
+    """04/10 (dona: "cílios 900 vezes"): 2 do mesmo tipo (cílios, batom, sérum…) na mesma rodada, não."""
+    t = tipo_repetivel(o)
+    return bool(t) and any(tipo_repetivel(x) == t for x in out)
 
 
 def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
@@ -1708,6 +1767,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
+             and (not so_feminino_ligado() or no_perfil_feminino(o))
              and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
     # 01/10 (dona: "segue o ritmo do grupo das mulheres", ~108/dia → 2 por rodada): o padrão de 10 vagas CONTINUA de uma
     # rodada para a outra (pelo nº de posts de hoje) — senão toda rodada começaria em "B, M" e nunca sairia variado,
@@ -1743,7 +1803,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
                         key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True):
             if k <= 0 or tentativas > n * 10:
                 break
-            if por_vendedor.get(vendedor(o)):
+            if por_vendedor.get(vendedor(o)) or tipo_na_rodada(o, out):
                 continue
             tentativas += 1
             for f in filas.values():
@@ -1761,7 +1821,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             break
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
         livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
-                  and not por_vendedor.get(vendedor(x))]
+                  and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out)]
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
         quer_h, quer_b = vez.endswith("h"), vez.endswith("b")
         bolsa = lambda x: bool(BOLSA.search(x.get("titulo") or "")) and not NAO_BOLSA.search(x.get("titulo") or "")  # noqa: E731
