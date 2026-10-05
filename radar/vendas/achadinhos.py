@@ -1650,10 +1650,14 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
                            r"t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|cervical|elizabetano|"
-                           r"an(?:el|[ée]is) (?:de|para) (?:veda|silicone|borracha|cortina|guardanapo|pist|celular|chaveiro)")
+                           r"an(?:el|[ée]is) (?:de|para) (?:veda|silicone|borracha|cortina|guardanapo|pist|celular|chaveiro)|"
+                           # 05/10 (dona: "as promoções estão péssimas"): piercing de mamilo, pescoceira de lavatório,
+                           # cílios de atacado/fio a fio de salão, vitamina e aparador de nariz saíram no grupo
+                           r"piercing|mamilo|pescoceira|lavat[óo]rio|atacado|premade|\bf[ãa]s\b|"
+                           r"extens(?:[ãa]o|[õo]es) d[ae] (?:pestana|c[íi]lios)|vitamina|polivitam|nariz")
 
 
-SO_FEMININO_ATE = "2026-10-04"  # dona 04/10: "só durante hoje; amanhã volta a programação toda normal"
+SO_FEMININO_ATE = "2099-12-31"  # dona 03/10 e 05/10 ("promoções péssimas"): só o público dela; sem infantil/eletrônico/casa
 
 
 def so_feminino_ligado() -> bool:

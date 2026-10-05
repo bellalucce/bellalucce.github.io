@@ -4,9 +4,9 @@
   "grupo_nome": "Achadinhos Bella Lucce",
   "canal_nome": "Achadinhos Bella Lucce",
   "grupo_quem": "nuvem",
-  "so_feminino_ate": "2026-10-04",
+  "so_feminino_ate": "2099-12-31",
   "telegram": "",
-  "posts_por_rodada": 3,
+  "posts_por_rodada": 5,
   "intervalo_entre_posts_s": [
     15,
     30
@@ -14,5 +14,6 @@
   "horario": [
     8,
     22
-  ]
+  ],
+  "intervalo_rodada_min": 20
 }
