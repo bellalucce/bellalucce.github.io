@@ -55,6 +55,8 @@ def main() -> None:
         shutil.copytree(REPO / "grupo", SAIDA / "grupo", dirs_exist_ok=True)
     if (REPO / "p").exists():  # 02/10: página nossa de cada produto do Pinterest (scripts/pinterest/pagina_produto.py)
         shutil.copytree(REPO / "p", SAIDA / "p", dirs_exist_ok=True)
+    if (REPO / "iris").exists():  # 05/10: fotos dos posts da Íris (o Instagram lê daqui) — davam 404, não eram copiadas
+        shutil.copytree(REPO / "iris", SAIDA / "iris", dirs_exist_ok=True)
     # 03/10 (dona: "estar onde as pessoas procuram"): Google — robots, mapa do site e arquivo de verificação do Search Console
     for arq in REPO.glob("google*.html"):
         shutil.copyfile(arq, SAIDA / arq.name)
