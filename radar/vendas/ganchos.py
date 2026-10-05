@@ -352,13 +352,42 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
     out += rep
     out = list(dict.fromkeys(out))  # sem duplicar, mantendo a ordem
     # 01/10 (Rita, revisão antes de postar): emoji/frase que não combina com o produto
+    if re.search(r"diurn", titulo, re.I) and re.search(r"noturn|night", titulo, re.I):  # 05/10: kit dia + noite
+        out = ["CUIDADO DE DIA E DE NOITE 🌙" if "DORME" in f else f for f in out]
+    elif re.search(r"diurn|\bday\b", titulo, re.I):
+        out = [f for f in out if "DORME" not in f] or out
+    if re.search(r"gel de banho|gel douche|sabonete|body wash|shower", titulo, re.I) and tipo == "PELE LISINHA E COM VIÇO, AMIGA ✨":
+        return ["BANHO GOSTOSO E PELE MACIA 🧴", "PELE MACIA DESDE O BANHO 🧴"]  # 05/10: banho não é skincare de rosto
+    if re.search(r"sapatilha|mocassim|loafer|oxford", titulo, re.I):  # 05/10: "Sapatilha … Salto Baixo" saía "SALTO"/"SANDÁLIA"
+        out = [f for f in out if not re.search(r"SALTO|SANDÁLIA", f)] or ["SAPATO ELEGANTE PRO DIA A DIA 👞"]
     if re.search(r"sand[áa]lia|rasteir|chinelo|tamanco|papete|birken", titulo, re.I):
         out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
     if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
         out = [f for f in out if not re.search(r"\bPELE\b", f)] or out  # reparador LABIAL ≠ "sua pele vai agradecer"
     if preco and preco > 120:
         out = [f for f in out if not re.search(r"BARAT|PRECINHO|CENTAVO|BOLSO", f)] or out  # R$ 207 não é "bom e barato"
+    if tipo == "CABELO MACIO DE SALÃO EM CASA 💆‍♀️":
+        # 05/10 (dona, print do grupo): "Tintura Masculina" saiu "CRONOGRAMA CAPILAR SEM GASTAR MUITO" — cor não é
+        # hidratação; e cronograma só para máscara/hidratação/nutrição/reconstrução
+        if TINTURA.search(titulo):
+            return (["COR DE BARBEARIA EM CASA 💈", "CABELO E BARBA EM DIA 💈"]
+                    if re.search(r"mascul|\bmen\b|homem|barba", titulo, re.I) else
+                    ["COR DE SALÃO EM CASA 🎨", "COR NOVA SEM SAIR DE CASA 🎨"])
+        if not re.search(r"m[áa]scara|hidrata|nutri|reconstr|cronograma|kit", titulo, re.I):
+            out = [f for f in out if "CRONOGRAMA" not in f] or out
+        # 05/10: shampoo de oleosidade/volume e tônico de couro cabeludo não são "cabelo macio"
+        if re.search(r"oleosidade|raiz oleosa|oleos[oa]s?\b|antioleos", titulo, re.I):
+            return ["RAIZ LEVE E CABELO SOLTINHO 💆‍♀️", "ADEUS CABELO OLEOSO 💆‍♀️"]
+        if re.search(r"volume|volumizing|encorpa", titulo, re.I):
+            return ["VOLUME DE SALÃO EM CASA 💆‍♀️", "CABELO ENCORPADO NO PRECINHO 💆‍♀️"
+                    if not (preco and preco > 120) else "CABELO ENCORPADO DE VERDADE 💆‍♀️"]
+        if re.search(r"t[ôo]nico|scalp|couro cabeludo|queda|anticaspa|caspa|crescimento", titulo, re.I):
+            return ["COURO CABELUDO EM DIA 💆‍♀️", "CUIDADO DA RAIZ ÀS PONTAS 💆‍♀️"]
     return out
+
+
+TINTURA = re.compile(r"tintura|colora[çc][ãa]o|descolorante|tonalizante|\bhenna\b|p[óo] descolorante|"
+                     r"\bcolor\s*n[º°o]?\s*\d|matizador|retoque de raiz", re.I)
 
 
 SO_BASE = re.compile(r"\bbase\b|corretivo|concealer|cushion|p[óo] compacto|bb cream|cc cream|primer|fixador", re.I)

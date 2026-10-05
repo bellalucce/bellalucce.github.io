@@ -197,6 +197,11 @@ def _tabela() -> None:
         # histórico próprio (30/09, estudo de achadinhos): menor preço visto por dia → "desconto de verdade?" e selo
         # "menor preço em N dias", como Promobit/Keepa mostram
         con.execute("CREATE TABLE IF NOT EXISTS ofertas_precos (id TEXT, dia TEXT, preco REAL, PRIMARY KEY (id, dia))")
+        # 05/10: a tabela passa de dezenas de milhares de linhas (feed da Shopee) e Início/fila/servidor consultam
+        # por data de post, aprovação e fonte a toda hora — sem índice era varredura completa em cada consulta
+        con.execute("CREATE INDEX IF NOT EXISTS ix_ofertas_publicado ON ofertas(publicado_em)")
+        con.execute("CREATE INDEX IF NOT EXISTS ix_ofertas_aprovada ON ofertas(aprovada, atualizado_em)")
+        con.execute("CREATE INDEX IF NOT EXISTS ix_ofertas_fonte ON ofertas(fonte)")
 
 
 def _guardar_precos(con, pares) -> None:
@@ -451,7 +456,9 @@ MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|\bboxer\b|barbear|\bba
                        r"\basad\b|fakhar black|club de nuit intense man|\bsauvage\b|bleu de chanel|\b1 million\b|"
                        r"\binvictus\b|\beros\b|\bstronger with you\b|\bpour homme\b|\bfor him\b|\bhomme\b|"
                        # 02/10 (Mila): Azzaro Wanted (masculino; "Wanted Girl" é feminino) passava como grife
-                       r"azzaro wanted(?! girl)|the most wanted|acqua di gi[oò]|\ble male\b", re.I)
+                       r"azzaro wanted(?! girl)|the most wanted|acqua di gi[oò]|\ble male\b|"
+                       # 05/10 (dona: "corrija todas as frases"): Habit Rouge saiu "CHEIROSA O DIA INTEIRO, AMIGA"
+                       r"habit rouge|\buomo\b|boss bottled|\bphantom\b|\bbad boy\b|\bpolo (black|blue|red|sport)\b", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
@@ -1032,28 +1039,28 @@ def vitrine(horas: int = 36) -> str:
 <meta property="og:description" content="Promoções de beleza, cabelo, perfume, fitness e casa conferidas a cada 20 minutos.">
 <meta name="description" content="Achadinhos e promoções de hoje: maquiagem, skincare, perfume, cabelo, moda e casa da Shopee, Amazon e Magalu, conferidos a cada 20 minutos. Entre no grupo de achadinhos grátis no WhatsApp ou Telegram.">
 <style>
-:root{{--rosa:#e85d8c;--fundo:#fff6f9;--txt:#222}}*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--fundo);color:var(--txt)}}
-header{{background:var(--rosa);color:#fff;padding:18px 16px;text-align:center}}header h1{{margin:0;font-size:22px}}header p{{margin:6px 0 0;font-size:13px;opacity:.9}}
+:root{{--cor:#B9683C;--fundo:#F7F0E4;--txt:#2A231C;--linha:#E6D3B3}}*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--fundo);color:var(--txt)}}
+header{{background:#F4E8D2;color:var(--cor);padding:18px 16px;text-align:center;border-bottom:1px solid var(--linha)}}header h1{{margin:0;font-size:24px;font-family:Georgia,'Times New Roman',serif;font-weight:600;letter-spacing:.3px}}header p{{margin:6px 0 0;font-size:13px;color:#7A6450}}
 nav{{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;position:sticky;top:0;background:var(--fundo);z-index:2}}
-nav button{{border:1px solid var(--rosa);background:#fff;color:var(--rosa);border-radius:20px;padding:7px 14px;font-weight:600;white-space:nowrap}}
-nav button.on{{background:var(--rosa);color:#fff}}
+nav button{{border:1px solid var(--cor);background:#fff;color:var(--cor);border-radius:20px;padding:7px 14px;font-weight:600;white-space:nowrap}}
+nav button.on{{background:var(--cor);color:#fff}}
 main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 30px}}
-.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #0001;display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fafafa}}.img img{{width:100%;height:100%;object-fit:contain}}
-.selo{{position:absolute;top:8px;left:8px;background:var(--rosa);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
-.loja{{font-size:11px;color:#888;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
-.preco{{padding:0 10px;font-size:16px}}.preco s{{color:#999;font-size:12px;margin-right:6px}}.preco b{{color:#1a8a3a}}
-.hist{{margin:4px 10px 0;font-size:12px;font-weight:600;color:#0a7a3f}}
-.cupom{{margin:6px 10px 0;font-size:12px;background:#fff0f5;border:1px dashed var(--rosa);border-radius:8px;padding:4px 6px}}
-.btn{{margin:10px;background:var(--rosa);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
+.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #2a231c14;display:flex;flex-direction:column}}
+.img{{position:relative;aspect-ratio:1;background:#fff}}.img img{{width:100%;height:100%;object-fit:contain}}
+.selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
+.loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
+.preco{{padding:0 10px;font-size:16px}}.preco s{{color:#9A8C7A;font-size:12px;margin-right:6px}}.preco b{{color:#4E7A45}}
+.hist{{margin:4px 10px 0;font-size:12px;font-weight:600;color:#4E7A45}}
+.cupom{{margin:6px 10px 0;font-size:12px;background:#FBF3E6;border:1px dashed var(--cor);border-radius:8px;padding:4px 6px}}
+.btn{{margin:10px;background:var(--cor);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
 .lnk{{display:flex;flex-direction:column;flex:1;text-decoration:none;color:inherit}}
 .share{{margin:-4px 10px 10px;text-align:center;font-size:12px;font-weight:600;color:#1f9d55;text-decoration:none}}
 footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
-.logo{{width:72px;height:72px;border-radius:50%;border:2px solid #fff;display:block;margin:0 auto 8px}}
-.busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid #f1c6d6;border-radius:20px;padding:9px 14px;font-size:14px}}.busca span{{font-size:12px;color:#888;white-space:nowrap}}
-#mais{{display:block;margin:0 auto 24px;border:0;background:var(--rosa);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
+.logo{{width:72px;height:72px;border-radius:50%;border:1px solid var(--linha);display:block;margin:0 auto 8px}}
+.busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid var(--linha);border-radius:20px;padding:9px 14px;font-size:14px;background:#fff}}.busca span{{font-size:12px;color:#8A7A66;white-space:nowrap}}
+#mais{{display:block;margin:0 auto 24px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
 .entrar{{display:block;margin:12px auto 0;max-width:420px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;border-radius:24px;padding:11px 16px}}
-.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:17px;margin:4px 0 10px;color:var(--rosa)}}
+.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:18px;margin:4px 0 10px;color:var(--cor);font-family:Georgia,'Times New Roman',serif;font-weight:600}}
 .trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
 <header><img class="logo" src="logo.png" alt="bella lucce"><h1>Achadinhos Bella Lucce ✨</h1><p>As melhores promoções do dia, conferidas a cada 20 minutos · atualizado {agora}</p>{entrar}</header>
@@ -1062,7 +1069,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
-<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a> · <a href="https://t.me/achadinhosbellalucce" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;text-decoration:none">✈️ Canal no Telegram</a></p>
+<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a> · <a href="https://t.me/achadinhosbellalucce" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✈️ Canal no Telegram</a></p>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
@@ -1382,7 +1389,9 @@ def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     g = _gancho_bruto(o, n, recentes)
     if gancho_confere(g, o.get("titulo") or "", o.get("grupo")):
         return g
-    return ganchos.escolher(ganchos.UNIVERSAL, n, recentes)
+    preco = o.get("preco") or 0  # 05/10: frase neutra também sem "PRECINHO"/"CENTAVO" em produto caro
+    uni = [f for f in ganchos.UNIVERSAL if preco <= 120 or not re.search(r"PRECINHO|CENTAVO", f)]
+    return ganchos.escolher(uni, n, recentes)
 
 
 def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
@@ -1399,6 +1408,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if 2 <= qtd <= 12 and preco and preco / qtd <= 30:  # "60 unidades" de lenço/cápsula: "R$ 0,53 CADA" engana
         return ganchos.escolher([f.format(p=_brl(preco / qtd).upper()) for f in ganchos.KIT], n, recentes)
     tipo = beneficio(titulo, o.get("grupo"))
+    if tipo and "PEQUENOS" in tipo and re.search(r"\bhen[êe]\b|capilar|cabelo|alisa", titulo, re.I):
+        tipo = None  # 05/10: "Henê Pelúcia Forte" (cabelo) saiu "DIA DAS CRIANÇAS TÁ CHEGANDO" por causa de "Pelúcia"
     if tipo and not familia_confere(tipo, o.get("grupo"), titulo):
         tipo = None  # 01/10 (dona): "ORGANIZE SUA BAGUNÇA" num RELÓGIO ("Curren Portas Relógios…") → frase neutra
     if tipo:
@@ -1665,9 +1676,17 @@ def barrada_na_hora(o: dict) -> bool:
 POUCO_ESTOQUE = 30
 
 
-def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[dict], set, str]:
+def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | None = None,
+                permitidos_teste: list | None = None) -> tuple[list[dict], set, str]:
     """Ofertas que PODEM ir ao grupo agora (filtros baratos, sem baixar foto): (candidatas, chaves postadas em 48 h,
-    corte da Amazon). Base de fila_posts e de estoque()."""
+    corte da Amazon). Base de fila_posts e de estoque(). `funil` (lista) recebe (etapa, quantas sobraram, por grupo)
+    a cada filtro — `vendas achadinhos funil` (05/10: achar qual regra seca a fila)."""
+    def marca(etapa: str, lista: list) -> None:
+        if funil is not None:
+            por: dict = {}
+            for o in lista:
+                por[o.get("grupo") or "?"] = por.get(o.get("grupo") or "?", 0) + 1
+            funil.append((etapa, len(lista), por))
     recentes = {chave_produto(r["titulo"]) for r in db.consultar(
         # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → 48 h (= a "volta" de 2 dias do pool abaixo)
         "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-48 hours')")}
@@ -1677,7 +1696,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
     base = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+    marca("aprovadas, com link e foto, sem repetir 48 h", base)
     cand = [o for o in base if not o["publicado_em"]]
+    marca("ainda não postadas", cand)
     if len(cand) < POUCO_ESTOQUE:  # 04/10 (grupo parado com o PC desligado): oferta que o radar AINDA vê em promoção
         # (preço conferido nas últimas 2 h) e saiu há mais de 3 dias pode voltar — quem entrou depois não viu
         volta = (datetime.now() - timedelta(days=3)).isoformat(sep=" ", timespec="seconds")
@@ -1686,6 +1707,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
                  and (o.get("atualizado_em") or "") >= fresco]
     if so_com_link_curto:
         cand = [o for o in cand if not shopee_sem_curto(o)]
+        marca("Shopee só com link curto", cand)
     # 01/10 (Mila): a vaga do variado testava 6 fotos de 400–500 px JÁ medidas e se perdia → pula de cara quem tem foto
     # pequena conhecida (Promobit→ML ainda pode trocar pela foto do ML em foto_boa); e nada de produto vencendo
     try:
@@ -1697,12 +1719,15 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
             and not vencendo(o.get("titulo") or "") and o["id"] not in vet and not barrada_na_hora(o)]
+    marca("foto pequena, vencendo, vetada, barrada", cand)
     cand = [o for o in cand if not acima_do_mercado(o)]
+    marca("acima do mercado", cand)
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
-    permitidos = canais().get("grupos_permitidos")
+    permitidos = permitidos_teste or canais().get("grupos_permitidos")
     if permitidos:
         cand = [o for o in cand if o.get("grupo") in permitidos]
+        marca(f"só {', '.join(permitidos)}", cand)
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (só fora da linha de beleza/cabelo/perfume, que é o foco do grupo)
     tipos_hoje: dict = {}
@@ -1711,8 +1736,10 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
     cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+    marca("teto do mesmo tipo por dia", cand)
     if so_feminino_ligado():
         cand = [o for o in cand if no_perfil_feminino(o)]
+        marca("modo feminino", cand)
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
         dest = referencia.na_frente()
@@ -1726,6 +1753,20 @@ def estoque(horas: int = 30) -> int:
     """04/10 (grupo parou às 8h06 com "0 postadas de 0": o servidor postava 18/h e a fila secou com o PC desligado)
     → quantas ofertas ainda podem sair (com link curto ou de emergência)."""
     return len(_candidatos(horas, so_com_link_curto=False)[0])
+
+
+def funil_fila(horas: int = 30, grupos: list | None = None) -> str:
+    """05/10: quantas ofertas sobram depois de CADA regra da fila (e de que grupo) — responde "qual regra seca o grupo"
+    sem gastar token. `grupos` simula "grupos_permitidos" sem ligar (ex.: só beleza/moda, pedido da dona em 03/10)."""
+    etapas: list = []
+    _candidatos(horas, so_com_link_curto=True, funil=etapas, permitidos_teste=grupos)
+    linhas, antes = [], None
+    for etapa, n, por in etapas:
+        corte = f"  (−{antes - n})" if antes is not None and antes > n else ""
+        grupos_txt = ", ".join(f"{g} {q}" for g, q in sorted(por.items(), key=lambda x: -x[1])[:6])
+        linhas.append(f"{n:6d}{corte:10s} {etapa} · {grupos_txt}")
+        antes = n
+    return "\n".join(linhas) or "sem ofertas"
 
 
 def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, intervalo_min: int = 10) -> int:
@@ -1746,11 +1787,14 @@ def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     return bool(t) and any(tipo_repetivel(x) == t for x in out)
 
 
-def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> list[dict]:
+def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True) -> list[dict]:
     """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     cand, recentes, amazon_ok = _candidatos(horas, so_com_link_curto)
+    # 05/10: a lista da revisora (nuvem._linhas_da_fila) só precisa do TEXTO — sem baixar e medir 40 fotos (prendia a
+    # rodada do servidor). Quem posta continua conferindo a foto de cada uma.
+    foto_ok = foto_boa if conferir_foto else (lambda o: True)
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
@@ -1780,7 +1824,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
     for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if vez_grife else []:
         if top in cand:
             cand.remove(top)
-        if foto_boa(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
+        if foto_ok(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
             out.append(top)
             ultimo.append(top["grupo"])
             break
@@ -1809,7 +1853,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
             for f in filas.values():
                 if o in f:
                     f.remove(o)
-            if foto_boa(o):
+            if foto_ok(o):
                 out.append(o)
                 ultimo.append(o["grupo"])
                 k -= 1
@@ -1829,7 +1873,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True) -> l
         for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, quer_b and not bolsa(x)))[:6]:
             fila.remove(o)
             tentativas += 1
-            if foto_boa(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
+            if foto_ok(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
                 out.append(o)
                 ultimo.append(o["grupo"])
                 if vendedor(o):
@@ -1877,15 +1921,51 @@ def foto_px(url: str) -> int:
     return px
 
 
+# 05/10 (Mila, 02/10: "grife 0 de 106" — Beauty Box/Sephora vinham da Promobit com foto de 400 px e a vaga se perdia):
+# a foto grande vem da própria página do produto (og:image), 1 vez por link (cache em foto_loja.json)
+LOJAS_FOTO = re.compile(r"(beautybox|sephora|epocacosmeticos|belezanaweb|boticario|natura|eudora|quemdisseberenice)"
+                        r"\.com\.br", re.I)
+_FOTO_LOJA_ARQ = config.DADOS / "achadinhos" / "foto_loja.json"
+_OG_IMAGE = (re.compile(r"""<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)""", re.I),
+             re.compile(r"""<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']""", re.I))
+
+
+def foto_da_loja(link: str) -> str | None:
+    """Foto principal (og:image) da página do produto na loja; None se não achar. Cache por link."""
+    try:
+        cache = json.loads(_FOTO_LOJA_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        cache = {}
+    if link not in cache:
+        url = ""
+        try:
+            html = httpx.get(link, timeout=10, follow_redirects=True, headers=UA).text
+            m = next((m for rx in _OG_IMAGE if (m := rx.search(html))), None)
+            url = m.group(1).replace("&amp;", "&") if m and m.group(1).startswith("https://") else ""
+        except Exception:  # noqa: BLE001 — loja fora do ar = fica com a foto que tinha
+            pass
+        cache[link] = url
+        if len(cache) > 3000:
+            cache = dict(list(cache.items())[-2500:])
+        _FOTO_LOJA_ARQ.parent.mkdir(parents=True, exist_ok=True)
+        _FOTO_LOJA_ARQ.write_text(json.dumps(cache), encoding="utf-8")
+    return cache[link] or None
+
+
 def foto_boa(o: dict) -> bool:
     """30/09 (dona: "sempre que for enviar a imagem, verifique"): só vai pro grupo foto com ≥ FOTO_MIN_PX de verdade.
-    Oferta da Promobit que aponta pro ML: usa a foto em alta da coleta do ML do MESMO anúncio, se tivermos."""
+    Oferta da Promobit que aponta pro ML: usa a foto em alta da coleta do ML do MESMO anúncio, se tivermos.
+    05/10: Promobit → Beauty Box/Sephora/Época…: tenta a foto grande da página do produto."""
     f = o.get("foto") or ""
     m = re.search(r"MLB-?(\d{6,})", o.get("link_loja") or "")
     if "promobit.com.br" in f and m:
         alt = db.consultar("SELECT foto FROM ofertas WHERE id = ? AND foto IS NOT NULL", (f"mlaf:MLB{m.group(1)}",))
         if alt:
             o["foto"] = f = alt[0]["foto"]
+    if "promobit.com.br" in f and LOJAS_FOTO.search(o.get("link_loja") or "") and foto_px(f) < FOTO_MIN_PX:
+        alt = foto_da_loja(o["link_loja"])
+        if alt and foto_px(alt) >= FOTO_MIN_PX:
+            o["foto"] = f = alt
     return bool(f) and foto_px(f) >= FOTO_MIN_PX
 
 
@@ -2010,9 +2090,12 @@ def publicar_site() -> str:
         # resumo do histórico de preço (só quem tem 7+ dias) → selo "menor preço" também no site montado na nuvem
         (radar / "dados" / "historico.json").write_text(json.dumps(minimos(), separators=(",", ":")), encoding="utf-8")
     _publicar_loja(pasta, radar)
-    for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):  # logo da marca (dados/marca)
-        if (config.DADOS / "marca" / origem).exists():
-            shutil.copyfile(config.DADOS / "marca" / origem, pasta / destino)
+    # 05/10: logo escolhida pela dona (monograma creme + caramelo, Marca/Achadinhos/site); sem ela, a antiga de dados/marca
+    nova = config.RAIZ / "Marca" / "Achadinhos" / "site"
+    for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):
+        fonte = nova / destino if (nova / destino).exists() else config.DADOS / "marca" / origem
+        if fonte.exists():
+            shutil.copyfile(fonte, pasta / destino)
     git = ["git", "-C", str(pasta), "-c", "user.name=bellalucce", "-c", "user.email=bellalucce@users.noreply.github.com",
            "-c", "credential.helper=", "-c", "credential.helper=manager"]
     subprocess.run(git + ["add", "-A"], check=True)
