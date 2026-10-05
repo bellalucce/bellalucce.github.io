@@ -1715,7 +1715,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True) -> tuple[list[d
         cand = [o for o in cand if no_perfil_feminino(o)]
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
-        dest = referencia.destaques()
+        dest = referencia.na_frente()
         cand.sort(key=lambda o: o["id"] not in dest)
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
