@@ -1645,7 +1645,11 @@ TETO_TIPO = {"bolsa": 10, **{nome: 4 for _, nome in TIPO_BELEZA}}
 MODA_FEMININA = re.compile(r"(?i)\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete|brincos?\b|\bcolar(?:es)?\b|"
                            # 04/10 (dona tirou um "anel" ridículo): anel só se for JOIA (material/estilo no título)
                            r"\ban(?:el|[ée]is)\b.*\b(?:prata|ouro|banhad|zirc[ôo]nia|cristal|p[ée]rola|solit[áa]rio|semijoia|"
-                           r"feminino|a[çc]o inox)|bijuteria|semijoia|\bjoias?\b|gargantilha|choker|tornozeleira")
+                           r"feminino|a[çc]o inox)|bijuteria|semijoia|\bjoias?\b|gargantilha|choker|tornozeleira|"
+                           # 05/10 (dona): acessório de luxo e pijama bonito de seda/cetim (estilo Victoria's Secret)
+                           r"[óo]culos de sol|pulseira|bracelete|piranha de cabelo|presilha|\btiara\b|len[çc]o de seda|"
+                           r"pijama.*\b(?:seda|cetim|satin|renda|luxo)|\b(?:seda|cetim|satin)\b.*pijama|"
+                           r"(?:robe|camisola) de (?:seda|cetim)")
 FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
