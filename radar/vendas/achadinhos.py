@@ -1654,7 +1654,8 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|
                            # 05/10 (dona: "as promoções estão péssimas"): piercing de mamilo, pescoceira de lavatório,
                            # cílios de atacado/fio a fio de salão, vitamina e aparador de nariz saíram no grupo
                            r"piercing|mamilo|pescoceira|lavat[óo]rio|atacado|premade|\bf[ãa]s\b|"
-                           r"extens(?:[ãa]o|[õo]es) d[ae] (?:pestana|c[íi]lios)|vitamina|polivitam|nariz")
+                           r"extens(?:[ãa]o|[õo]es) d[ae] (?:pestana|c[íi]lios)|vitamina|polivitam|nariz|brinquedo|boneca|pel[úu]cia|"
+                           r"lego|massinha|slime")
 
 
 SO_FEMININO_ATE = "2099-12-31"  # dona 03/10 e 05/10 ("promoções péssimas"): só o público dela; sem infantil/eletrônico/casa
@@ -1846,7 +1847,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             por_vendedor[vendedor(dict(r))] = 1
     tentativas = 0
     if tema:
-        k = datas.vagas_do_tema(pos, len(out), n)
+        k = datas.vagas_do_tema(pos, len(out), n, int(tema.get("em_10", datas.FOCO)))
         for o in sorted((o for o in cand if datas.casa(o, tema)),
                         key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True):
             if k <= 0 or tentativas > n * 10:
@@ -1970,14 +1971,56 @@ def foto_boa(o: dict) -> bool:
         alt = foto_da_loja(o["link_loja"])
         if alt and foto_px(alt) >= FOTO_MIN_PX:
             o["foto"] = f = alt
-    return bool(f) and foto_px(f) >= FOTO_MIN_PX
+    if f and not f.startswith("http") and Path(f).exists():  # foto já ampliada (arquivo nosso)
+        return True
+    if bool(f) and foto_px(f) >= FOTO_MIN_PX:
+        return True
+    # 05/10 (dona: "não é pra ficar barrando porque a foto não tá certa — corrija e mande"; Amazon/Sephora sumiam do
+    # grupo pela foto de ~300 px da Promobit) → amplia a foto REAL do produto (sem inventar nada) e manda
+    amp = ampliar_foto(f) if f else None
+    if amp:
+        o["foto"] = amp
+        return True
+    return False
+
+
+_AMPLIADAS = config.DADOS / "achadinhos" / "fotos_ampliadas"
+
+
+def ampliar_foto(url: str, alvo: int = 900, minimo: int = 280) -> str | None:
+    """Foto real pequena (≥ `minimo` px) → mesma foto ampliada para `alvo` px (LANCZOS + nitidez leve), em quadrado
+    branco se não for quadrada. Devolve o caminho do arquivo (dentro do projeto, aceito pelo postar) ou None."""
+    import hashlib
+    import io
+
+    from PIL import Image, ImageFilter
+    destino = _AMPLIADAS / (hashlib.sha1(url.encode()).hexdigest()[:16] + ".jpg")
+    if destino.exists():
+        return str(destino)
+    try:
+        r = httpx.get(url, timeout=20, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+        im = Image.open(io.BytesIO(r.content)).convert("RGB")
+    except Exception:  # noqa: BLE001
+        return None
+    if max(im.size) < minimo:
+        return None
+    esc = alvo / max(im.size)
+    im = im.resize((round(im.width * esc), round(im.height * esc)), Image.LANCZOS)
+    im = im.filter(ImageFilter.UnsharpMask(radius=1.6, percent=60, threshold=2))
+    tela = Image.new("RGB", (alvo, alvo), "white")
+    tela.paste(im, ((alvo - im.width) // 2, (alvo - im.height) // 2))
+    _AMPLIADAS.mkdir(parents=True, exist_ok=True)
+    tela.save(destino, quality=92)
+    return str(destino)
 
 
 LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
 # 01/10 (dona + estudo do "Ofertas Entre Mulheres": ~58% beleza / 31% moda / 11% resto) → em cada 10: 6 beleza, 3 moda,
 # 1 variado (casa, pet, esporte, infantil, eletrônicos); + a grife que abre a rodada = ~70% beleza
 # 01/10 (dona): também público MASCULINO → 2 das 10 vagas ("Bh" beleza, "Mh" moda) preferem produto masculino
-PADRAO_LINHA = ("B", "Mb", "B", "Bh", "M", "B", "O", "B", "Mh", "B")
+# 05/10 (dona: "vamos focar: achadinhos de BELEZA — dermo, make, skincare, cabelo, perfume, bolsa e acessório de luxo;
+# tirar brinquedo e o resto"): sem vaga de variado nem de masculino → 8 beleza/cabelo/perfume + 2 bolsa/joia
+PADRAO_LINHA = ("B", "Mb", "B", "B", "B", "B", "B", "B", "Mb", "B")
 # 03/10 (dona: "sinto necessidade de bolsas no grupo" — 11 bolsas em ~420 posts): a 1ª vaga de moda prefere BOLSA
 BOLSA = re.compile(r"\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete", re.I)
 NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessaire|cosm[ée]tic|maternidade|viagem", re.I)
