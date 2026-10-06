@@ -689,6 +689,8 @@ def aprovada(o: dict) -> bool:
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
     if o["fonte"] == "awin_docebeleza":  # 05/10: conferida à mão (loja de dermo, "de" = tabela das marcas): ≥ 25% off
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
+    if o["fonte"] == "magalu_epoca":  # 06/10 (dona): Época no Magalu, "de" conferido no site da própria Época
+        return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume") and bool(s.get("de_conferido"))
     if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
