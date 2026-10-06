@@ -1030,22 +1030,23 @@ def vitrine(horas: int = 36) -> str:
               if grupo else "")
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
-    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce: promoções da Shopee, Amazon e Magalu hoje (maquiagem, perfume, moda)</title>
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
 <link rel="canonical" href="https://bellalucce.github.io/">
 <meta property="og:title" content="Achadinhos Bella Lucce ✨"><meta property="og:type" content="website">
-<meta property="og:description" content="Promoções de beleza, cabelo, perfume, fitness e casa conferidas a cada 20 minutos.">
-<meta name="description" content="Achadinhos e promoções de hoje: maquiagem, skincare, perfume, cabelo, moda e casa da Shopee, Amazon e Magalu, conferidos a cada 20 minutos. Entre no grupo de achadinhos grátis no WhatsApp ou Telegram.">
+<meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume e cabelo com desconto de verdade.">
+<meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume e cabelo da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
 <style>
-:root{{--cor:#B9683C;--fundo:#F7F0E4;--txt:#2A231C;--linha:#E6D3B3}}*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--fundo);color:var(--txt)}}
-header{{background:#F4E8D2;color:var(--cor);padding:18px 16px;text-align:center;border-bottom:1px solid var(--linha)}}header h1{{margin:0;font-size:24px;font-family:Georgia,'Times New Roman',serif;font-weight:600;letter-spacing:.3px}}header p{{margin:6px 0 0;font-size:13px;color:#7A6450}}
+:root{{--cor:#B9683C;--cor2:#8E4A26;--fundo:#F4E8D2;--claro:#FBF4E6;--txt:#4A2C1A;--linha:#E2CBA6}}*{{box-sizing:border-box}}body{{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;background:var(--fundo);color:var(--txt)}}
+header{{background:var(--fundo);color:var(--cor2);padding:22px 16px 18px;text-align:center;border-bottom:3px double var(--cor)}}header .sobre{{font-size:11px;letter-spacing:.25em;font-weight:700;color:var(--cor);margin:0 0 2px}}header h1{{margin:0;font-size:34px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;line-height:1.05}}header p{{margin:8px 0 0;font-size:13px;color:#7A5A44}}
 nav{{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;position:sticky;top:0;background:var(--fundo);z-index:2}}
-nav button{{border:1px solid var(--cor);background:#fff;color:var(--cor);border-radius:20px;padding:7px 14px;font-weight:600;white-space:nowrap}}
+nav button{{border:1px solid var(--cor);background:var(--claro);color:var(--cor2);border-radius:20px;padding:8px 14px 6px;font-weight:600;white-space:nowrap;font-family:inherit}}
 nav button.on{{background:var(--cor);color:#fff}}
 main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 30px}}
-.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #2a231c14;display:flex;flex-direction:column}}
+.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
 .img{{position:relative;aspect-ratio:1;background:#fff}}.img img{{width:100%;height:100%;object-fit:contain}}
 .selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
 .loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
@@ -1057,19 +1058,19 @@ main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap
 .share{{margin:-4px 10px 10px;text-align:center;font-size:12px;font-weight:600;color:#1f9d55;text-decoration:none}}
 footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 .logo{{width:72px;height:72px;border-radius:50%;border:1px solid var(--linha);display:block;margin:0 auto 8px}}
-.busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid var(--linha);border-radius:20px;padding:9px 14px;font-size:14px;background:#fff}}.busca span{{font-size:12px;color:#8A7A66;white-space:nowrap}}
+.busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid var(--linha);border-radius:20px;padding:9px 14px;font-size:14px;background:var(--claro);font-family:inherit}}.busca span{{font-size:12px;color:#8A7A66;white-space:nowrap}}
 #mais{{display:block;margin:0 auto 24px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
 .entrar{{display:block;margin:12px auto 0;max-width:420px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;border-radius:24px;padding:11px 16px}}
-.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:18px;margin:4px 0 10px;color:var(--cor);font-family:Georgia,'Times New Roman',serif;font-weight:600}}
+.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:24px;margin:4px 0 10px;color:var(--cor2);font-family:'Cormorant Garamond',Georgia,serif;font-weight:700}}
 .trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
-<header><img class="logo" src="logo.png" alt="bella lucce"><h1>Achadinhos Bella Lucce ✨</h1><p>As melhores promoções do dia, conferidas a cada 20 minutos · atualizado {agora}</p>{entrar}</header>
+<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume e cabelo com desconto de verdade · atualizado {agora}</p>{entrar}</header>
 {faixa}
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
-<div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, legging, fralda)"><span id="n"></span></div>
+<div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
-<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a> · <a href="https://t.me/achadinhosbellalucce" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✈️ Canal no Telegram</a></p>
+<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a></p>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
