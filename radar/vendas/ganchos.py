@@ -308,6 +308,35 @@ def frase_ok(f: str, tipo: str = "") -> bool:
     return not (tipo.endswith("PRA ELE 🎁") and re.search(r"AMIGA|LINDA|CHEIROSA", f))  # frase de homem sem "amiga"
 
 
+_DUPE_TIPOS = (("batom", r"batom|gloss|lip"), ("blush", r"blush"), ("sapato", r"sapat|sand[áa]lia|mule|tamanco|rasteir|scarpin"),
+               ("oculos", r"[óo]culos"), ("bolsa", r"bolsa|clutch|necessaire"), ("joia", r"brinco|colar|anel|pulseira|joia|porta.?joias"),
+               ("perfume", r"perfume|body splash|col[ôo]nia"))
+
+
+def dupe(titulo: str) -> list[str]:
+    """06/10 (dona: dupe forte, réplica não): ganchos "parece de grife" da Tati (dados/achadinhos/ganchos_dupe.json),
+    só para achados da Eva (vitrine fiel) — peça parecida com a foto da divulgação, de outra marca. Frases com {marca}
+    ficam de fora (o achado não tem marca de referência)."""
+    try:
+        import json
+
+        from vendas import config
+        d = json.loads((config.DADOS / "achadinhos" / "ganchos_dupe.json").read_text(encoding="utf-8-sig"))
+    except Exception:  # noqa: BLE001
+        return []
+    out = [f for f in d.get("GERAL", []) if isinstance(f, str)]
+    for chave, padrao in _DUPE_TIPOS:
+        if re.search(padrao, titulo or "", re.I):
+            out = [f for f in d.get(chave, []) if isinstance(f, str)] + out
+            break
+    # frase que cita um TIPO de sapato/acessório só vale se o título for desse tipo ("SALTO…" numa sapatilha, não)
+    tipos = {"SAPATILHA": r"sapatilh|bailarin", "SALTO": r"salto|scarpin", "TÊNIS": r"t[êe]nis", "RASTEIRA": r"rasteir",
+             "SANDÁLIA": r"sand[áa]lia", "MULE": r"mule|tamanco", "BRINCO": r"brinco", "COLAR": r"colar",
+             "ANEL": r"anel", "PULSEIRA": r"pulseira"}
+    return [f for f in out if "{" not in f and frase_ok(f)
+            and all(re.search(p, titulo or "", re.I) for t, p in tipos.items() if t in f)]
+
+
 def _carregar_extra() -> int:
     try:
         import json

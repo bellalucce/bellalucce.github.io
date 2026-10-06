@@ -58,7 +58,10 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
               r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash|"
               r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion",  # 01/10: "innisfree… powder pact" caía em outros
     "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni|"
-            r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir",  # 01/10 (Rafa): blazer caía em outros
+            r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir|"  # 01/10 (Rafa): blazer caía em outros
+            # 06/10 (Eva, vitrine fiel): joia/bijuteria e calçado fofo da divulgação caíam em "outros" e nunca entravam no grupo
+            r"\bbrincos?\b|\bcolar(?:es)?\b|bijuteria|semijoia|gargantilha|choker|pulseira|bracelete|\btiara\b|presilha|"
+            r"\bmules?\b|scarpin|tamanco|mary ?jane",
     "casa": r"panela|colchão|colchao|toalha|lençol|lencol|travesseiro|aspirador|air fryer|fritadeira|liquidificador|cafeteira|"
             r"organizador|cortina|tapete|jogo de cama|potes|faqueiro|ventilador|micro-ondas|geladeira|fogão",
     "eletronicos": r"smart ?tv|notebook|(?<!renova[çc][ãa]o )celular|smartphone|fone|headset|monitor|tablet|carregador|ssd|mouse|teclado|caixa de som|câmera|camera",
@@ -276,6 +279,8 @@ def _grupo_final(g: str, titulo: str) -> str:
         return "eletronicos"  # 01/10 (Marcos): smartwatch/Mi Band ocupavam vaga de moda
     if re.search(r"cushion|tocobo", titulo or "", re.I):
         return "beleza"  # 01/10 (Marcos): "Almofada TOCOBO" é base cushion, não almofada de casa
+    if re.search(r"porta[- ]?joias?|caixa de joias|porta[- ]?br?inco|porta[- ]?bijuteria", titulo or "", re.I):
+        return "moda"  # 06/10 (Eva): porta-joias é acessório da vitrine, não "casa" (a regra feminina só deixa moda passar)
     if CABELO.search(titulo or ""):
         return "cabelo"
     if FITNESS.search(titulo or ""):
@@ -688,6 +693,10 @@ def aprovada(o: dict) -> bool:
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
         if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000) and not s.get("oficial"):
             return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
+        if o["fonte"] == "shopee_afiliados" and s.get("origem") == "vitrine_fiel":
+            # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
+            # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
+            return bool(s.get("oficial")) or (nota >= 4.6 and vend >= 30)
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
             return d >= 40 or (d >= 20 and bom) or (d >= 15 and viral)
@@ -948,6 +957,13 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
                                                                      it.get("offer_link") or "") else None}
             if it.get("origem"):
                 sinais["origem"] = it["origem"]  # "referencia" = achado do grupo Ofertas Entre Mulheres
+            else:  # 06/10 (Eva): o ciclo da Open API reabre o mesmo produto — não perde a marca "vitrine_fiel"
+                antes = con.execute("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{it['id']}",)).fetchone()
+                try:
+                    if antes and json.loads(antes[0] or "{}").get("origem") == "vitrine_fiel":
+                        sinais["origem"] = "vitrine_fiel"
+                except ValueError:
+                    pass
             link = it.get("url") if it.get("url") and pagina_de_produto(it["url"]) else None
             foto = it.get("foto") if re.match(r"https://(?:cf|down-br\.img)\.(?:shopee|susercontent)\.com(?:\.br)?/",
                                               it.get("foto") or "") else None
@@ -1408,6 +1424,12 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     (vendas/ganchos.py) → sinal real de venda / frase universal. `recentes` = ganchos dos últimos posts (não repetir)."""
     from vendas import ganchos
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
+    try:  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA QUE É DE GRIFE")
+        s0 = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
+    except ValueError:
+        s0 = {}
+    if s0.get("origem") == "vitrine_fiel" and (frases := ganchos.dupe(titulo)):
+        return ganchos.escolher(frases, n, recentes)
     if not de_confiavel(o):
         d = 0  # 02/10: "De" inflado da loja → nada de gancho "XX% OFF"
     if d >= 70 and n % 3 == 0:  # nos grupos o "% OFF" é tempero, não regra — o que domina é o benefício
@@ -1658,7 +1680,9 @@ MODA_FEMININA = re.compile(r"(?i)\bbolsas?\b|\bclutch\b|\btote\b|transversal|tir
                            # 05/10 (dona): acessório de luxo e pijama bonito de seda/cetim (estilo Victoria's Secret)
                            r"[óo]culos de sol|pulseira|bracelete|piranha de cabelo|presilha|\btiara\b|len[çc]o de seda|"
                            r"pijama.*\b(?:seda|cetim|satin|renda|luxo)|\b(?:seda|cetim|satin)\b.*pijama|"
-                           r"(?:robe|camisola) de (?:seda|cetim)")
+                           r"(?:robe|camisola) de (?:seda|cetim)|"
+                           # 06/10 (Eva, dona: "mostramos sapato lindo e o grupo não tem"): calçado feminino fofo
+                           r"\bsapatilhas?\b|\bsand[áa]lias?\b|\bmules?\b|\btamancos?\b|scarpin|mary ?jane|rasteirinhas?")
 FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
