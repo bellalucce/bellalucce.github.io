@@ -105,7 +105,7 @@
       var p = num(o.p), a = num(o.a);
       if (!(p > 0 && a > p)) continue;
       var d = Math.round((1 - p / a) * 100);
-      if (d < 15 || d > 80) continue;
+      if (d < 20 || d > 60) continue;  // 06/10: acima de 60% o "de" costuma ser inflado (Shopee) — vitrine só com desconto crível
       cand.push({ o: o, d: d });
     }
     cand.sort(function (x, y) { return y.d - x.d; });
