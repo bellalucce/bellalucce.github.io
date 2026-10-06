@@ -502,6 +502,7 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"boticario\.com\.br/[a-z0-9-]+/?$", r"natura\.com\.br/p/", r"epocacosmeticos\.com\.br/[a-z0-9-]+/p",
     r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
     r"farfetch\.com/br/shopping/[a-z]+/[a-z0-9-]+-item-\d+\.aspx",  # luxo (30/09)
+    r"docebeleza\.com\.br/products/[a-z0-9-]+/?$",  # 05/10: Doce Beleza (Awin, aprovada) — link_afiliado põe o link Awin
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
                                r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
@@ -675,6 +676,8 @@ def aprovada(o: dict) -> bool:
     # "só promoções muito boas": desconto alto + algum sinal de qualidade (loja oficial, nota, voto da comunidade)
     if o["fonte"] == "ml_ofertas":
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
+    if o["fonte"] == "awin_docebeleza":  # 05/10: conferida à mão (loja de dermo, "de" = tabela das marcas): ≥ 25% off
+        return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
@@ -748,6 +751,7 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
     return url
 
 
+AWIN_DOCEBELEZA = "https://www.awin1.com/cread.php?awinmid=76888&awinaffid=3111704"  # + &ued=<produto codificado>
 NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", re.I)
 
 
@@ -760,6 +764,9 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         return None
     if canal == "whatsapp" and NAO_PERMITE_WHATSAPP.search(url):
         return url
+    if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
+        from urllib.parse import quote
+        return f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"
     af = config.segredos().get("afiliados") or {}
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
