@@ -1034,6 +1034,7 @@ def vitrine(horas: int = 36) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
+<meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
 <link rel="canonical" href="https://bellalucce.github.io/">
 <meta property="og:title" content="Achadinhos Bella Lucce ✨"><meta property="og:type" content="website">
