@@ -1634,6 +1634,14 @@ NOME_NO_GANCHO = [
     (r"\bSALTO\b", r"salto|scarpin|tamanco|anabela"),
     (r"\bCHINELO", r"chinelo|slide"),
     (r"\bSAPATO\b", r"sapato|mocassim|loafer|oxford|sapatilha|scarpin"),
+    # 06/10 (dona, print 12h31: "BATOM COM CARA DE GRIFE" num tênis "Slip On") — produto citado no gancho tem de estar
+    # no título (palavra inteira: "Slip" não é "lip")
+    (r"\bBATO(M|NS)\b", r"batom|batons|\blip(?:stick)?\b|lip ?tint|labial"),
+    (r"\bGLOSS\b", r"gloss|\blip\b|labial|brilho"),
+    (r"\bBLUSH\b", r"blush|blush|rouge|bochecha"),
+    (r"\bPERFUME\b", r"perfume|parfum|eau de|col[ôo]nia|body splash|fragr"),
+    (r"\bBOLSA\b", r"bolsa|clutch|necessaire|mochila|carteira"),
+    (r"[ÓO]CULOS", r"[óo]culos"),
 ]
 
 

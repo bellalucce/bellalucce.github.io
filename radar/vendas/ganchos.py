@@ -308,7 +308,9 @@ def frase_ok(f: str, tipo: str = "") -> bool:
     return not (tipo.endswith("PRA ELE 🎁") and re.search(r"AMIGA|LINDA|CHEIROSA", f))  # frase de homem sem "amiga"
 
 
-_DUPE_TIPOS = (("batom", r"batom|gloss|lip"), ("blush", r"blush"), ("sapato", r"sapat|sand[áa]lia|mule|tamanco|rasteir|scarpin"),
+# 06/10: sapato ANTES de batom e "lip" só como palavra inteira — "Tênis … Slip On" virou gancho de batom
+_DUPE_TIPOS = (("sapato", r"sapat|t[êe]nis|sand[áa]lia|mule|tamanco|rasteir|scarpin|slip ?on"),
+               ("batom", r"batom|gloss|\blip\b|lip ?(?:oil|tint|balm|gloss)"), ("blush", r"blush"),
                ("oculos", r"[óo]culos"), ("bolsa", r"bolsa|clutch|necessaire"), ("joia", r"brinco|colar|anel|pulseira|joia|porta.?joias"),
                ("perfume", r"perfume|body splash|col[ôo]nia"))
 
