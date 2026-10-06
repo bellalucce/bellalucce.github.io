@@ -2018,6 +2018,9 @@ FORA_NICHO_GRUPO = re.compile(
     r"(?i)escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
     r"clareamento dental|irrigador|lava[- ]?roupas?|sab[ãa]o (?:l[íi]quido|em p[óo]|em barra|de coco)|amaciante|"
     r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
+    # 06/10 (auditoria do crescimento): utilitário não é "achadinho de beleza" — cola de sapato, item de enfermagem,
+    # firmador de seios
+    r"\bcola\b(?! (?:de|para) (?:c[íi]lios|unhas?|peruca|lace))|adesivo (?:de|para) (?:reparo|sapat)|reparo de sapat|enfermagem|firmador de seios|"
     r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
     r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
     r"col[áa]geno (?:hidrolisado|em p[óo]|verisol)|old spice|\baxe\b|for men\b|\bmen\b|"
