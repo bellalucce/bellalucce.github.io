@@ -1912,7 +1912,10 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
             break
     pr = p.get("promo") or {}
     agora_txt = agora.strftime("%Y-%m-%d %H:%M")
-    if pr and pr.get("desde", "") <= agora_txt <= pr.get("ate", ""):
+    # 06/10 (Otto): promo renovada até 31/10, mas 10/10 é só a Oferta Relâmpago (outro preço) → `pausa` = [de, até]
+    pausa = pr.get("pausa") or ["", ""]
+    if (pr and pr.get("desde", "") <= agora_txt <= pr.get("ate", "")
+            and not (pausa[0] and pausa[0] <= agora_txt <= pausa[1])):
         # 01/10 (dona): "lança meus produtos com promoção, sem promoção fica nada a ver" → mesmo modelo das ofertas
         # (De riscado / Por), com a Promoção de Desconto REAL criada na Shopee (config/midia.json → promo)
         linhas = [cabeca, "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
