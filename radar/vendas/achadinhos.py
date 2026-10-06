@@ -75,7 +75,8 @@ PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6,
               "eletronicos": 0}
 CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador(?! de (?:lou[çc]a|pratos?))|chapinha|prancha(?! abdominal)|babyliss|"
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
-                    r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante|bif[áa]sic", re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo
+                    r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante|bif[áa]sic|"
+                   r"k[ée]rastase", re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo; 06/10: Kérastase Masque
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
@@ -256,7 +257,9 @@ def _grupo(slug_ou_titulo: str) -> str:
     return "outros"
 
 
-PERFUME = re.compile(r"perfume|\bcol[ôo]nias?\b|body splash|eau de|parfum|deo col|\bed[pt]\b", re.I)
+PERFUME = re.compile(r"perfume|\bcol[ôo]nias?\b|body splash|"
+                     r"(?<!desodorante )(?<!antitranspirante )body spray|eau de|parfum|deo col|\bed[pt]\b",
+                     re.I)  # 06/10: "212 NYC Body Spray" (perfume) caía em beleza; desodorante body spray não
 
 
 BEM_ESTAR = re.compile(r"vitamin|multivitam|suplement|col[áa]geno|whey|creatina|[ôo]mega ?3", re.I)
@@ -2085,9 +2088,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
     # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
     amazon_ok = (datetime.now() - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
+    # 06/10 (Ana): contrato do Influenciador Magalu veda informação desatualizada (11.4) e a coleta da Época no Magalu só
+    # roda no Chrome → só preço coletado nas últimas 12 h
+    magalu_ok = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
     base = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
-            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
+            and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)]
     marca("aprovadas, com link e foto, sem repetir 48 h", base)
     cand = [o for o in base if not o["publicado_em"]]
     marca("ainda não postadas", cand)
