@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="lomadee" content="2324685">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grupo de Achadinhos de Beleza no WhatsApp | Bella Lucce</title>
-<meta name="description" content="Grupo grátis de achadinhos de beleza no WhatsApp: maquiagem, skincare, dermocosméticos, perfume, cabelo e bolsas com desconto de verdade na Shopee, Amazon, Mercado Livre e mais.">
+<meta name="description" content="Grupo grátis de achadinhos de beleza no WhatsApp: maquiagem, skincare, dermocosméticos, perfume e cabelo com desconto de verdade na Shopee, Amazon, Magalu e mais.">
 <link rel="canonical" href="https://bellalucce.github.io/grupo/">
 <meta property="og:title" content="Grupo de Achadinhos Bella Lucce">
 <meta property="og:description" content="Make, skincare, dermo, perfume e cabelo com desconto de verdade. Entrar é grátis.">
@@ -16,45 +16,155 @@
 <style>
   :root { --caramelo: #B9683C; --caramelo-esc: #8E4A26; --creme: #F4E8D2; --creme-claro: #FBF4E6; --texto: #4A2C1A; }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; font-family: "Josefin Sans", "Segoe UI", system-ui, sans-serif; background: var(--creme);
-         color: var(--texto); }
-  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; text-align: center; }
-  img.logo { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
+         color: var(--texto); overflow-x: hidden; }
+  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 36px; text-align: center; }
+  img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
-  h1 { font-size: 2.1rem; font-weight: 700; margin: 10px 0 6px; line-height: 1.1; }
-  p.sub { margin: 0 0 18px; line-height: 1.5; }
-  img.arte { width: 100%; border-radius: 18px; box-shadow: 0 8px 24px rgba(74, 44, 26, .18); margin: 8px 0 18px; }
-  a.botao { display: block; padding: 16px; margin: 12px 0; border-radius: 40px; font-size: 1.1rem; font-weight: 600;
-            text-decoration: none; color: #fff; background: var(--caramelo); letter-spacing: .02em; }
-  a.botao.claro { background: var(--creme-claro); color: var(--caramelo-esc); border: 2px solid var(--caramelo); }
-  ul { text-align: left; line-height: 1.8; padding-left: 22px; }
-  .faq { text-align: left; line-height: 1.55; }
+  h1 { font-size: 1.95rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.1; }
+  p.sub { margin: 0 0 12px; line-height: 1.4; font-size: 1rem; }
+  a.botao { display: block; padding: 16px 12px; margin: 10px 0 8px; border-radius: 40px; font-size: 1.15rem; font-weight: 600;
+            text-decoration: none; color: #fff; background: var(--caramelo); letter-spacing: .02em;
+            box-shadow: 0 6px 16px rgba(142, 74, 38, .28); }
+  a.botao:active { background: var(--caramelo-esc); }
+  p.confianca { margin: 0 0 14px; font-size: .82rem; line-height: 1.45; color: #6b4a33; }
+  #achados h2 { font-size: 1.45rem; margin: 6px 0 2px; }
+  #achados .data { margin: 0 0 10px; font-size: .78rem; color: #7a5a44; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+  a.card { display: flex; flex-direction: column; min-width: 0; background: var(--creme-claro); border: 1.5px solid var(--caramelo);
+           border-radius: 14px; overflow: hidden; text-decoration: none; color: var(--texto); position: relative; }
+  a.card .foto { aspect-ratio: 1 / 1; background: #fff; display: flex; align-items: center; justify-content: center; }
+  a.card img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  a.card .pct { position: absolute; top: 8px; left: 8px; background: var(--caramelo); color: #fff; font-weight: 600;
+                font-size: .8rem; padding: 4px 7px 3px; border-radius: 20px; }
+  a.card .info { padding: 8px 9px 10px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  a.card .nome { font-size: .8rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+                 overflow: hidden; overflow-wrap: anywhere; min-height: 2.1em; }
+  a.card .de { font-size: .75rem; color: #8a6a54; text-decoration: line-through; }
+  a.card .por { font-size: 1.05rem; font-weight: 600; color: var(--caramelo-esc); }
+  a.card .loja { font-size: .72rem; color: #7a5a44; text-transform: uppercase; letter-spacing: .06em; margin-top: auto; }
+  p.canal { margin: 14px 0 0; font-size: .9rem; }
+  p.canal a { color: var(--caramelo-esc); }
+  .faq { text-align: left; line-height: 1.55; font-size: .95rem; }
   small { display: block; margin-top: 18px; color: #7a5a44; line-height: 1.4; }
 </style>
 </head>
 <body>
 <main>
-  <img class="logo" src="../logo.png" alt="Bella Lucce">
-  <h1>Achadinhos de Beleza</h1>
-  <p class="sub">Make, skincare, dermocosméticos, perfume, cabelo e bolsas com <b>desconto de verdade</b>.
-    Entrar é grátis.</p>
-  <a class="botao" href="https://chat.whatsapp.com/Lke8sWLwldOBxzhgEWTwfF">Entrar no grupo do WhatsApp</a>
-  <a class="botao claro" href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q">Prefiro o canal do WhatsApp (só ofertas)</a>
-  <img class="arte" src="convite.jpg" alt="Convite para o grupo de achadinhos de beleza Bella Lucce">
-  <ul>
-    <li>Ofertas novas o dia todo, das 8h às 22h</li>
-    <li>Só beleza: make, skincare, dermo, perfume, cabelo</li>
-    <li>Só a loja posta: sem bagunça, sem corrente</li>
-  </ul>
-  <a class="botao claro" href="../">Ver as ofertas de hoje no site</a>
-  <h2 style="font-size:1.5rem;margin-top:28px">Perguntas frequentes</h2>
+  <img class="logo" src="../logo.png" alt="Bella Lucce" width="56" height="56">
+  <h1>Achadinhos Bella Lucce</h1>
+  <p class="sub">Achadinhos de beleza com <b>desconto de verdade</b>, todo dia.</p>
+  <a class="botao" href="https://chat.whatsapp.com/Lke8sWLwldOBxzhgEWTwfF">Entrar no grupo grátis</a>
+  <p class="confianca">Só a loja posta · links oficiais Shopee, Amazon e Magalu · você sai quando quiser</p>
+
+  <section id="achados" hidden>
+    <h2>Achados de hoje</h2>
+    <p class="data" id="data-precos" hidden></p>
+    <div class="grade" id="grade"></div>
+    <a class="botao" href="https://chat.whatsapp.com/Lke8sWLwldOBxzhgEWTwfF">Entrar no grupo grátis</a>
+  </section>
+
+  <p class="canal">Prefere não mostrar seu número? <a href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q">Siga o canal</a></p>
+
+  <h2 style="font-size:1.4rem;margin-top:28px">Perguntas frequentes</h2>
   <div class="faq">
-    <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo do WhatsApp" acima. É grátis e você pode sair quando quiser.</p>
-    <p><b>Que tipo de promoção aparece?</b><br>Achadinhos de beleza da Shopee, Amazon, Mercado Livre e outras lojas: maquiagem, skincare, dermocosméticos, perfume, cabelo, bolsas e acessórios.</p>
-    <p><b>Prefere não mostrar o número?</b><br>Use o canal do WhatsApp: só ofertas, ninguém vê o seu número.</p>
-    <p><b>Quantas mensagens por dia?</b><br>Ofertas novas das 8h às 22h. Dá para silenciar o grupo e olhar quando quiser.</p>
+    <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo grátis" acima. É grátis e você sai quando quiser.</p>
+    <p><b>Que tipo de promoção aparece?</b><br>Achadinhos de beleza da Shopee, Amazon, Magalu e outras lojas: maquiagem, skincare, dermocosméticos, perfume e cabelo.</p>
+    <p><b>Prefere não mostrar o número?</b><br>Siga o canal do WhatsApp: as mesmas ofertas e ninguém vê o seu número.</p>
+    <p><b>Quantas mensagens por dia?</b><br>Várias ofertas por hora, das 8h às 22h. Você olha quando quiser.</p>
   </div>
-  <small>Os preços são os da hora do post e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
+  <small>Os preços são os da hora em que foram conferidos e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
 </main>
+<script>
+(function () {
+  var CONVITE = "https://chat.whatsapp.com/Lke8sWLwldOBxzhgEWTwfF";
+  var GRUPOS = { beleza: 1, perfume: 1, cabelo: 1 };
+  var RUIM = /infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|primeira linha|1ª linha|\btipo /i;
+  var MAX = 6, MIN = 3, POR_LOJA = 4, POR_TIPO = 2;
+
+  function num(s) {
+    var n = parseFloat(String(s || "").replace(/[^\d,]/g, "").replace(",", "."));
+    return isFinite(n) ? n : 0;
+  }
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt) e.textContent = txt;
+    return e;
+  }
+  function escolher(lista) {
+    var cand = [];
+    for (var i = 0; i < lista.length; i++) {
+      var o = lista[i] || {};
+      var loja = String(o.l || "");
+      if (!loja || /mercado\s*livre/i.test(loja)) continue;
+      if (!GRUPOS[o.g]) continue;
+      if (!/^https:\/\//.test(o.f || "") || /i\.promobit\.com\.br/.test(o.f)) continue;
+      if (!o.t || RUIM.test(o.t)) continue;
+      var p = num(o.p), a = num(o.a);
+      if (!(p > 0 && a > p)) continue;
+      var d = Math.round((1 - p / a) * 100);
+      if (d < 15 || d > 80) continue;
+      cand.push({ o: o, d: d });
+    }
+    cand.sort(function (x, y) { return y.d - x.d; });
+    var porLoja = {}, porTipo = {}, marcas = {}, sel = [];
+    for (var j = 0; j < cand.length && sel.length < MAX; j++) {
+      var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
+      var marca = c.o.t.toLowerCase().split(/\s+/).slice(0, 2).join(" ");
+      if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca]) continue;
+      porLoja[lj] = (porLoja[lj] || 0) + 1;
+      porTipo[tipo] = (porTipo[tipo] || 0) + 1;
+      marcas[marca] = 1;
+      sel.push(c);
+    }
+    return sel;
+  }
+  function cartao(c) {
+    var o = c.o, a = el("a", "card");
+    a.href = CONVITE;
+    var foto = el("div", "foto"), img = el("img");
+    img.src = o.f; img.alt = o.t; img.loading = "lazy"; img.decoding = "async";
+    img.referrerPolicy = "no-referrer";
+    img.onerror = function () { if (a.parentNode) a.parentNode.removeChild(a); };
+    foto.appendChild(img);
+    a.appendChild(foto);
+    a.appendChild(el("span", "pct", "-" + c.d + "%"));
+    var info = el("div", "info");
+    var nome = o.t.charAt(0).toUpperCase() + o.t.slice(1);
+    info.appendChild(el("span", "nome", nome));
+    info.appendChild(el("span", "de", "de " + o.a));
+    info.appendChild(el("span", "por", "por " + o.p));
+    info.appendChild(el("span", "loja", o.l));
+    a.appendChild(info);
+    return a;
+  }
+  try {
+    fetch("/ofertas.json", { cache: "no-cache" }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      var lm = r.headers.get("last-modified");
+      return r.json().then(function (j) { return { j: j, lm: lm }; });
+    }).then(function (res) {
+      var lista = Array.isArray(res.j) ? res.j : (res.j && Array.isArray(res.j.ofertas) ? res.j.ofertas : []);
+      var sel = escolher(lista);
+      if (sel.length < MIN) return;
+      var grade = document.getElementById("grade");
+      for (var i = 0; i < sel.length; i++) grade.appendChild(cartao(sel[i]));
+      var quando = (res.j && !Array.isArray(res.j) && (res.j.atualizado || res.j.data)) || res.lm;
+      var dt = quando ? new Date(quando) : null;
+      if (dt && !isNaN(dt)) {
+        var tz = { timeZone: "America/Sao_Paulo" };
+        var dia = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: tz.timeZone });
+        var hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: tz.timeZone });
+        var p = document.getElementById("data-precos");
+        p.textContent = "Preços conferidos em " + dia + " às " + hora;
+        p.hidden = false;
+      }
+      document.getElementById("achados").hidden = false;
+    }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>
