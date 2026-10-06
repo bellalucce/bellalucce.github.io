@@ -105,14 +105,16 @@
       var p = num(o.p), a = num(o.a);
       if (!(p > 0 && a > p)) continue;
       var d = Math.round((1 - p / a) * 100);
-      if (d < 20 || d > 60) continue;  // 06/10: acima de 60% o "de" costuma ser inflado (Shopee) — vitrine só com desconto crível
+      // 06/10 (Vitória): desconto crível (20–50%), preço de achadinho (até R$ 150) e nada de título com várias versões
+      // ("Mini/Original", "30ml / 50ml") — o preço mostrado pode ser o da versão menor
+      if (d < 20 || d > 50 || p > 150 || /\w\s*\/\s*\w/.test(o.t)) continue;
       cand.push({ o: o, d: d });
     }
     cand.sort(function (x, y) { return y.d - x.d; });
     var porLoja = {}, porTipo = {}, marcas = {}, sel = [];
     for (var j = 0; j < cand.length && sel.length < MAX; j++) {
       var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
-      var marca = c.o.t.toLowerCase().split(/\s+/).slice(0, 2).join(" ");
+      var marca = c.o.t.toLowerCase().split(/\s+/)[0];  // 06/10: 1 por marca (2 palavras deixava passar 2 Lancôme)
       if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca]) continue;
       porLoja[lj] = (porLoja[lj] || 0) + 1;
       porTipo[tipo] = (porTipo[tipo] || 0) + 1;
@@ -158,7 +160,7 @@
         var dia = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: tz.timeZone });
         var hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: tz.timeZone });
         var p = document.getElementById("data-precos");
-        p.textContent = "Preços conferidos em " + dia + " às " + hora;
+        p.textContent = "Ofertas atualizadas em " + dia + " às " + hora + " · os preços mudam rápido nas lojas";
         p.hidden = false;
       }
       document.getElementById("achados").hidden = false;
