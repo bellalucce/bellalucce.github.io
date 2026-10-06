@@ -1019,23 +1019,297 @@ def _brl_zap(v) -> str:
     return _brl(v).replace(",", ",⁠")
 
 
+# ---- 06/10 (dona: "muita oferta repetida, muita que não é do nosso nicho, mal enquadrada, mal otimizada"): a vitrine do
+# site usa os MESMOS filtros do grupo (no_perfil_feminino, fora_do_perfil, de_inflado, acima_do_mercado, TETO_TIPO) +
+# o que só fazia falta no site: higiene/casa disfarçada de beleza, 1 por produto de verdade, foto boa, ordem boa.
+FORA_SITE = re.compile(
+    r"(?i)escova dental|creme dental|pasta de dente|fio dental|irrigador|l[íi]ngua|bacia|lava[- ]?roupas|amaciante|"
+    r"guaran[áa]|comprimidos?|c[áa]psulas?|aspirador|antitranspirante|desodorante(?! col[ôo]nia)|massageador|"
+    r"ventilador|liquidificador|panela|cortina|tapete|\bpet\b|cachorro|\bgato\b|ra[çc][ãa]o|celular|capinha|fones?\b|"
+    r"carregador|lanterna|ferramenta|porta[- ]joias|organizador|necessaire|porta[- ]maquiagem|expositor|"
+    r"fertilizante|inseticida|detergente|desinfetante|sab[ãa]o em (?:p[óo]|barra)|papel higi[êe]nico|absorvente|fralda|"
+    r"\b[íi]nt[íi]m[oa]s?\b|bebida|alimento|col[áa]geno (?:hidrolisado|em p[óo])|\bch[áa] (?:de|para)\b|penteadeira|"
+    r"camarim|\bmesa\b|cadeira|arm[áa]rio|prateleira")
+SAPATO_FEM = re.compile(r"(?i)\b(?:sapato|sapatilha|sand[áa]lia|rasteira|tamanco|mule|scarpin|papete|anabela|t[êe]nis|bota|"
+                        r"mocassim|salto|slide|chinelo)s?\b")
+SAPATO_DE_MULHER = re.compile(r"(?i)feminin|mulher|dama|moleca|vizzano|anacapri|arezzo|schutz|santa lolla|capodarte|"
+                              r"piccadilly|bottero|beira rio|modare")
+PIJAMA_SEDA = re.compile(r"(?i)pijama|camisola|\brobe\b")
+DERMO = re.compile(r"(?i)la roche|vichy|bioderma|cetaphil|av[èe]ne|eucerin|isdin|dermachem|cerave|uriage|ducray|sesderma|"
+                   r"mantecorp|skinceuticals|neutrogena|dermage|adcos|dermatol|dermocosm|sensibio|effaclar|cicaplast|"
+                   r"anthelios|dermo|biretix|episol|nupill")
+PERFUME_RX = re.compile(r"(?i)(?<!sem )perfume|eau de|parfum|body splash|body mist|\bsplash\b|col[ôo]nia|deo col[ôo]nia|"
+                        r"\bedp\b|\bedt\b|[áa]rabe|lattafa|armaf|fragr[âa]ncia")
+CABELO_RX = re.compile(r"(?i)shampoo|condicionador|capilar|cabelo|leave-?in|secador|chapinha|prancha|escova (?:secadora|"
+                       r"modeladora|rotativa|alisadora)|modelador|babyliss|cachos|\bfios\b|tintura|selagem|progressiva|"
+                       r"finalizador|reconstru|ampola de tratamento|hair|\bkerastase\b|k[ée]rastase|wella|truss|cadiveu")
+LIMPEZA_RX = re.compile(r"(?i)remov|demaquil|micelar|limpeza|sabonete|cleanser|cleansing|espuma de limpeza")
+MAKE_RX = re.compile(r"(?i)batom|gloss|\bbase\b|corretivo|r[íi]mel|c[íi]lios|sombra|paleta|blush|iluminador|delineador|"
+                     r"l[áa]pis|pinc[ée]is|pincel|esponja|primer|fixador|p[óo] (?:compacto|solto|transl|facial)|translúcido|"
+                     r"esmalte|unhas?\b|sobrancelha|maquiagem|contorno|bronzer|\blip\b|lip ?(?:oil|tint|balm)|labial|tint\b|cushion|"
+                     r"m[áa]scara de c[íi]lios|make")
+MARCA_EXTRA = re.compile(r"(?i)vnox|rommanel|bamoer|curren|bio extratus|cadiveu|acquaflora|jacques janine|truss|lowell|amend|"
+                         r"revlon|bra[ée]\b|itallian|trivitt|laikou|natura|botic[áa]rio|vizzano|moleca|anacapri|"
+                         r"granado|phebo|nyx|maybelline|vult|kafurux|isoi|lizz|britânia|philco|taiff|mondial")
+JOIA_TIPO = [(r"brincos?\b", "brinco"), (r"\bcolar(?:es)?\b|gargantilha|choker", "colar"), (r"pulseira|bracelete", "pulseira"),
+             (r"\ban(?:el|[ée]is)\b", "anel"), (r"tornozeleira", "tornozeleira"), (r"presilha|piranha|tiara", "presilha")]
+ABAS_SITE = [("make", "Make"), ("skincare", "Skincare"), ("dermo", "Dermo"), ("perfume", "Perfume"), ("cabelo", "Cabelo"),
+             ("bolsas", "Bolsas & acessórios"), ("sapatos", "Sapatos"), ("pijama", "Pijama de seda")]
+BONUS_ABA = {"dermo": 6, "skincare": 4, "make": 3, "perfume": 3, "cabelo": 2, "pijama": 0, "bolsas": 0, "sapatos": 0}
+SITE_MAX, SITE_MAX_MODA, SITE_MAX_FOTO_PEQUENA = 300, 66, 24
+SITE_MARCA_MAX, SITE_TIPO_MAX = 4, 8
+_FOTO_SITE_ARQ = config.DADOS / "achadinhos" / "foto_site_px.json"
+FOTO_SITE_MIN = 280  # abaixo disso a foto fica borrada mesmo num card pequeno → a oferta nem entra
+
+
+def no_nicho_site(o: dict) -> bool:
+    """Nicho do site = o do grupo: beleza (make, skincare, dermo), cabelo, perfume, bolsa/joia/óculos/sapato feminino e
+    pijama de seda. Casa, eletrônico, infantil, esporte, masculino, ferramenta e alimento ficam de fora."""
+    t, g = o.get("titulo") or "", o.get("grupo")
+    if FORA_SITE.search(t) or fora_do_perfil(t) or eh_masculino(o):
+        return False
+    m = FORA_FEMININO.search(t)
+    # vitamina C em sérum/creme é skincare (o filtro do grupo só queria barrar suplemento)
+    if m and not (m.group(0).lower() == "vitamina" and re.search(r"(?i)s[ée]rum|facial|creme|ampola|booster|pele|rosto", t)):
+        return False
+    if g in LINHA_PRINCIPAL:
+        return True
+    if g == "moda":
+        return bool(MODA_FEMININA.search(t) or (SAPATO_FEM.search(t) and SAPATO_DE_MULHER.search(t)))
+    return False
+
+
+def aba_site(o: dict) -> str:
+    """Aba do site: make · skincare · dermo · perfume · cabelo · bolsas · sapatos · pijama."""
+    t, g = o.get("titulo") or "", o.get("grupo")
+    if g == "moda":
+        if PIJAMA_SEDA.search(t):
+            return "pijama"
+        if SAPATO_FEM.search(t) and not BOLSA.search(t):
+            return "sapatos"
+        return "bolsas"
+    if g == "perfume" or PERFUME_RX.search(t):
+        return "perfume"
+    if CABELO_RX.search(t) or g == "cabelo":
+        return "cabelo"
+    if DERMO.search(t):
+        return "dermo"
+    if LIMPEZA_RX.search(t):
+        return "skincare"
+    return "make" if MAKE_RX.search(t) else "skincare"
+
+
+def marca_site(titulo: str) -> str | None:
+    m = MARCAS.search(titulo) or MARCAS_SKINCARE.search(titulo) or MARCA_EXTRA.search(titulo)
+    return re.sub(r"\W+", "", m.group(0).lower()) if m else None
+
+
+def tipo_site(o: dict) -> str | None:
+    """Tipo que não pode lotar o site: os do grupo (TIPO_BELEZA/TIPO_DIA) + joia (brinco, colar, pulseira, anel…)."""
+    t = o.get("titulo") or ""
+    return tipo_repetivel(o) or next((nome for rx, nome in JOIA_TIPO if re.search(rx, t, re.I)), None)
+
+
+def _tokens_de_produto(titulo: str) -> set[str]:
+    """Palavras que IDENTIFICAM o produto: sem tamanho, número, cor ou palavra de vitrine (para achar o mesmo produto em
+    outra loja/anúncio com o título reescrito)."""
+    ruido = {"feminino", "feminina", "mulher", "mulheres", "profissional", "premium", "original", "kit", "conjunto",
+             "unidades", "unidade", "mini", "rosa", "preto", "preta", "branco", "nude", "dourado", "prata", "novo", "nova",
+             "promocao", "oferta", "tamanho", "frete", "gratis", "pronta", "entrega", "importado", "cores", "varias"}
+    return {p for p in _tokens_produto(titulo) if p not in ruido and not re.fullmatch(r"\d+(?:x\d+)?[a-z]{0,3}", p)}
+
+
+def _mesmo_produto(a_: set[str], b_: set[str]) -> bool:
+    inter = len(a_ & b_)
+    if not inter:
+        return False
+    return inter / len(a_ | b_) >= 0.65 or (min(len(a_), len(b_)) >= 3 and inter / min(len(a_), len(b_)) >= 0.85)
+
+
+def _dimensoes_imagem(b: bytes) -> tuple[int, int] | None:
+    """(largura, altura) lendo só o cabeçalho de PNG/JPEG/WebP — sem Pillow (o radar da nuvem só tem o httpx)."""
+    import struct
+    if b[:8] == b"\x89PNG\r\n\x1a\n" and len(b) >= 24:
+        return struct.unpack(">II", b[16:24])
+    if b[:2] == b"\xff\xd8":
+        i = 2
+        while i + 9 < len(b):
+            if b[i] != 0xFF:
+                i += 1
+                continue
+            m = b[i + 1]
+            if m == 0xFF or m in (0xD8, 0x01) or 0xD0 <= m <= 0xD7:
+                i += 1 if m == 0xFF else 2
+                continue
+            if 0xC0 <= m <= 0xCF and m not in (0xC4, 0xC8, 0xCC):
+                h, w = struct.unpack(">HH", b[i + 5:i + 9])
+                return w, h
+            i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
+        return None
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        k = b[12:16]
+        if k == b"VP8 " and len(b) >= 30:
+            w, h = struct.unpack("<HH", b[26:30])
+            return w & 0x3FFF, h & 0x3FFF
+        if k == b"VP8L" and len(b) >= 25:
+            bits = int.from_bytes(b[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+        if k == b"VP8X" and len(b) >= 30:
+            return 1 + int.from_bytes(b[24:27], "little"), 1 + int.from_bytes(b[27:30], "little")
+    return None
+
+
+def _foto_maior(url: str) -> str:
+    """Versão grande da MESMA foto (Promobit '/400/' → original; ML '-AB.webp' 448 px → '-F.webp' ~1200 px)."""
+    if "i.promobit.com.br/400/" in url:
+        return url.replace("/400/", "/", 1)
+    return re.sub(r"(mlstatic\.com/)D_Q_NP_2X_(.+)-AB\.webp$", r"\1D_NQ_NP_2X_\2-F.webp", url)
+
+
+def px_fotos(urls) -> dict[str, int | None]:
+    """Maior lado, em px, de cada foto (0 = não abre / 404; None = não deu para saber agora, ex.: sem internet).
+    Lê só os primeiros 64 KB; cache em dados/achadinhos/foto_site_px.json (a nuvem guarda no cache do Actions)."""
+    urls = [u for u in dict.fromkeys(urls) if u and u.startswith("https://")]
+    try:
+        cache = json.loads(_FOTO_SITE_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        cache = {}
+    falta = [u for u in urls if u not in cache]
+    if falta:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def medir(cli, u):
+            try:
+                r = cli.get(u, headers={"Range": "bytes=0-65535"})
+                if r.status_code in (403, 404, 410):
+                    return 0
+                if r.status_code not in (200, 206):
+                    return None
+                d = _dimensoes_imagem(r.content)
+                if not d and r.status_code == 206:  # cabeçalho além dos 64 KB (JPEG com muito EXIF)
+                    d = _dimensoes_imagem(cli.get(u).content)
+                return max(d) if d else None
+            except Exception:  # noqa: BLE001 — sem rede: fica "não sei", não "ruim"
+                return None
+        with httpx.Client(timeout=12, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as cli, \
+                ThreadPoolExecutor(12) as ex:
+            for u, px in zip(falta, ex.map(lambda x: medir(cli, x), falta)):
+                if px is not None:
+                    cache[u] = px
+        _FOTO_SITE_ARQ.parent.mkdir(parents=True, exist_ok=True)
+        if len(cache) > 6000:  # o mais novo fica (dict mantém a ordem de entrada)
+            cache = dict(list(cache.items())[-4500:])
+        _FOTO_SITE_ARQ.write_text(json.dumps(cache), encoding="utf-8")
+    return {u: cache.get(u) for u in urls}
+
+
+def _escolher_foto(o: dict, px: dict) -> int | None:
+    """Põe em o["foto"] a melhor versão da foto e devolve os px dela (None = não sei). Foto pequena da Promobit tenta a do
+    mesmo anúncio no ML ou a da página da loja (og:image) antes de desistir."""
+    f = o.get("foto") or ""
+    achadas = [(px.get(u), u) for u in dict.fromkeys((_foto_maior(f), f)) if u]
+    ok = next((x for x in achadas if x[0] and x[0] >= FOTO_MIN_PX), None)
+    if ok:
+        o["foto"] = ok[1]
+        return ok[0]
+    melhor = max(achadas, key=lambda x: x[0] or 0) if achadas else (None, f)
+    o["foto"] = melhor[1]
+    return melhor[0]
+
+
+def _trocar_foto_pequena(o: dict, tentativas: list) -> int | None:
+    """Foto < 600 px: procura a grande (mesmo anúncio no ML; og:image da loja). Devolve px da nova ou None."""
+    m = re.search(r"MLB-?(\d{6,})", o.get("link_loja") or "")
+    novas = []
+    if m:
+        novas += [r["foto"] for r in db.consultar("SELECT foto FROM ofertas WHERE id = ? AND foto IS NOT NULL",
+                                                  (f"mlaf:MLB{m.group(1)}",))]
+    if LOJAS_FOTO.search(o.get("link_loja") or "") and len(tentativas) < 40:
+        tentativas.append(1)
+        alt = foto_da_loja(o["link_loja"])
+        if alt:
+            novas.append(alt)
+    if not novas:
+        return None
+    px = px_fotos(novas)
+    for u in novas:
+        if (px.get(u) or 0) >= FOTO_MIN_PX:
+            o["foto"] = u
+            return px[u]
+    return None
+
+
+def selecionar_vitrine(horas: int = 36) -> list[dict]:
+    """As ofertas do site, já na ordem da página: só nicho, 1 por produto (a melhor), foto boa, beleza/dermo na frente."""
+    base = [o for o in melhores(horas, 20000) if o["link_loja"] and o.get("foto") and no_nicho_site(o) and not de_inflado(o)]
+    try:
+        base = [o for o in base if not acima_do_mercado(o)]
+    except Exception:  # noqa: BLE001 — sem base de preços para comparar: segue
+        pass
+    px = px_fotos(u for o in base for u in (_foto_maior(o["foto"]), o["foto"]))
+    tentativas: list = []
+    for o in base:
+        o["_px"] = _escolher_foto(o, px)
+        if o["_px"] is not None and o["_px"] < FOTO_MIN_PX and "promobit" in o["foto"]:
+            o["_px"] = _trocar_foto_pequena(o, tentativas) or o["_px"]
+    base = [o for o in base if o["_px"] is None or o["_px"] >= FOTO_SITE_MIN]  # foto borrada/quebrada: fora
+    for o in base:
+        o["_aba"] = aba_site(o)
+        # rank = score do radar (desconto real, nota, vendidos, marca) + ajuste da aba; foto pequena desce
+        o["_rank"] = (o.get("score") or 0) + BONUS_ABA[o["_aba"]] - (0 if o["_px"] is None or o["_px"] >= FOTO_MIN_PX else 40)
+    base.sort(key=lambda o: -o["_rank"])
+    sel, toks, marcas, tipos = [], [], {}, {}
+    n_moda = n_peq = 0
+    for o in base:
+        if len(sel) >= SITE_MAX:
+            break
+        moda = o["grupo"] == "moda"
+        pequena = o["_px"] is not None and o["_px"] < FOTO_MIN_PX
+        marca, tipo, tk = marca_site(o["titulo"]), tipo_site(o), _tokens_de_produto(o["titulo"])
+        teto_tipo = 20 if tipo == "bolsa" else SITE_TIPO_MAX
+        if (moda and n_moda >= SITE_MAX_MODA) or (pequena and n_peq >= SITE_MAX_FOTO_PEQUENA):
+            continue
+        if marca and marcas.get(marca, 0) >= SITE_MARCA_MAX or tipo and tipos.get(tipo, 0) >= teto_tipo:
+            continue
+        if any(_mesmo_produto(tk, t2) for t2, a2 in toks if a2 == o["_aba"]):
+            continue  # o mesmo produto (outra loja/anúncio): já entrou o melhor
+        sel.append(o)
+        toks.append((tk, o["_aba"]))
+        n_moda += moda
+        n_peq += pequena
+        if marca:
+            marcas[marca] = marcas.get(marca, 0) + 1
+        if tipo:
+            tipos[tipo] = tipos.get(tipo, 0) + 1
+    # ordem da página: beleza/dermo/cabelo/perfume na frente (4 para cada 1 de bolsa/joia/sapato, para não virar só moda)
+    bel = [o for o in sel if o["grupo"] != "moda"]
+    mod = [o for o in sel if o["grupo"] == "moda"]
+    out = []
+    while bel or mod:
+        out += bel[:4]
+        bel = bel[4:]
+        out += mod[:1]
+        mod = mod[1:]
+    return out
+
+
 def vitrine(horas: int = 36) -> str:
-    """Gera dados/achadinhos/site/index.html (celular primeiro). Só ofertas aprovadas e com link."""
-    # todas as ofertas ativas (o que saiu de promoção não é revisto na coleta e some em até `horas`), o melhor de cada tipo
-    ofs = sem_repetidos([o for o in melhores(horas, 20000) if o["link_loja"] and o.get("grupo") in NOMES])
-    grupos = [g for g in NOMES if any(o["grupo"] == g for o in ofs)]
+    """Gera dados/achadinhos/site/index.html (celular primeiro). Só ofertas aprovadas, com link, do nosso nicho."""
+    ofs = selecionar_vitrine(horas)
+    abas_ok = [(k, n) for k, n in ABAS_SITE if any(o["_aba"] == k for o in ofs)]
     e = _html.escape
-    dados = [{"g": o["grupo"], "l": o.get("loja") or "", "t": cortar(limpar_titulo(o["titulo"]), 90), "p": _brl(o["preco"]),
-              "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "", "d": o.get("desconto") or 0,
-              "c": o.get("cupom") or "", "f": o.get("foto") or "", "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
+    dados = [{"g": o["grupo"], "k": o["_aba"], "l": o.get("loja") or "", "t": cortar(limpar_titulo(o["titulo"]), 90),
+              "p": _brl(o["preco"]), "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "",
+              "d": o.get("desconto") or 0, "c": o.get("cupom") or "", "f": o.get("foto") or "",
+              "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
     mins = minimos()
     for o, x in zip(ofs, dados):  # selo "menor preço em N dias" (só quando vale: 7+ dias e abaixo do menor anterior)
         if o["id"] in mins and o["preco"] < mins[o["id"]][1]:
             x["h"] = mins[o["id"]][0]
     (SITE).mkdir(parents=True, exist_ok=True)
     (SITE / "ofertas.json").write_text(json.dumps(dados, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    # a página desenha os cards a partir de ofertas.json (60 por vez)
-    abas ="".join(f'<button data-g="{g}">{NOMES[g]}</button>' for g in grupos)
+    # a página desenha os cards a partir de ofertas.json (60 por vez); só abas do nicho e só as que têm oferta
+    abas = "".join(f'<button data-g="{k}">{n} <i>{sum(1 for o in ofs if o["_aba"] == k)}</i></button>' for k, n in abas_ok)
     agora = datetime.now().strftime("%d/%m %H:%M")
     # faixa "Da nossa loja": produtos da Bella Lucce com estoque (config/loja.json — o PC gera e manda para a nuvem)
     arq_loja = config.CONFIG / "loja.json"
@@ -1071,10 +1345,12 @@ nav button{{border:1px solid var(--cor);background:var(--claro);color:var(--cor2
 nav button.on{{background:var(--cor);color:#fff}}
 main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 30px}}
 .card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fff}}.img img{{width:100%;height:100%;object-fit:contain}}
+.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
+nav button i{{font-style:normal;font-size:11px;opacity:.7;margin-left:3px}}
+.tit{{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
 .selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
 .loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
-.preco{{padding:0 10px;font-size:16px}}.preco s{{color:#9A8C7A;font-size:12px;margin-right:6px}}.preco b{{color:#4E7A45}}
+.preco{{padding:0 10px;font-size:17px;font-weight:700}}.preco s{{color:#8A7A66;font-size:12px;font-weight:400;margin-right:6px}}.preco b{{color:#3F6B38}}
 .hist{{margin:4px 10px 0;font-size:12px;font-weight:600;color:#4E7A45}}
 .cupom{{margin:6px 10px 0;font-size:12px;background:#FBF3E6;border:1px dashed var(--cor);border-radius:8px;padding:4px 6px}}
 .btn{{margin:10px;background:var(--cor);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
@@ -1088,7 +1364,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 .nossa{{padding:12px 16px 0}}.nossa h2{{font-size:24px;margin:4px 0 10px;color:var(--cor2);font-family:'Cormorant Garamond',Georgia,serif;font-weight:700}}
 .trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
-<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume e cabelo com desconto de verdade · atualizado {agora}</p>{entrar}</header>
+<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}</header>
 {faixa}
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
@@ -1100,9 +1376,9 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
 const semAf=u=>/mercadolivre\\.com\\.br\\//.test(u)?u.replace(/[?&]matt_(word|tool)=[^&]*/g,'').replace(/[?&]$/,''):u;  // ML Afiliados proíbe WhatsApp
 const zap=o=>'https://wa.me/?text='+encodeURIComponent(o.t+' por '+o.p+' 👉 '+semAf(o.u)+'\\n\\nMais achadinhos: {SITE_URL}');
-const card=o=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="lazy" src="${{E(o.f)}}" alt="">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.h?`<div class="hist">📉 menor preço em ${{o.h}} dias</div>`:''}}${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
-const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();F=T.filter(o=>(!G||o.g===G)&&(!q||o.t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().includes(q)));N=0;document.getElementById('lista').innerHTML='';mais();document.getElementById('n').textContent=F.length+' ofertas'}};
-const mais=()=>{{document.getElementById('lista').insertAdjacentHTML('beforeend',F.slice(N,N+P).map(card).join('')||(N?'':'<p>Nenhuma oferta aqui agora.</p>'));N+=P;document.getElementById('mais').style.display=N<F.length?'':'none'}};
+const card=(o,i)=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="${{i<8?'eager':'lazy'}}" decoding="async" width="300" height="300" src="${{E(o.f)}}" alt="${{E(o.t)}}" onerror="this.style.visibility='hidden'">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.h?`<div class="hist">📉 menor preço em ${{o.h}} dias</div>`:''}}${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
+const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();F=T.filter(o=>(!G||o.k===G)&&(!q||o.t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().includes(q)));N=0;document.getElementById('lista').innerHTML='';mais();document.getElementById('n').textContent=F.length+' ofertas'}};
+const mais=()=>{{document.getElementById('lista').insertAdjacentHTML('beforeend',F.slice(N,N+P).map((o,j)=>card(o,N+j)).join('')||(N?'':'<p>Nenhuma oferta aqui agora.</p>'));N+=P;document.getElementById('mais').style.display=N<F.length?'':'none'}};
 document.getElementById('mais').onclick=mais;document.getElementById('q').oninput=e=>{{Q=e.target.value;filtrar()}};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));G=b.dataset.g;filtrar()}});
 fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}});

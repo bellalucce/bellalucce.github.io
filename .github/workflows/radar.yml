@@ -34,7 +34,10 @@ jobs:
       - run: pip install "httpx==0.28.1"  # versão fixa (segurança: cadeia de suprimentos)
       - uses: actions/cache@v4
         with:
-          path: radar/dados/cache_links.json
+          path: |
+            radar/dados/cache_links.json
+            radar/dados/achadinhos/foto_site_px.json
+            radar/dados/achadinhos/foto_loja.json
           key: links-${{ github.run_id }}
           restore-keys: links-
       - run: python radar/rodar.py
