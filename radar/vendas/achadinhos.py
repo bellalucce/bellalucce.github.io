@@ -2034,6 +2034,11 @@ FORA_NICHO_GRUPO = re.compile(
     # 06/10 (auditoria do crescimento): utilitário não é "achadinho de beleza" — cola de sapato, item de enfermagem,
     # firmador de seios
     r"\bcola\b(?! (?:de|para) (?:c[íi]lios|unhas?|peruca|lace))|adesivo (?:de|para) (?:reparo|sapat)|reparo de sapat|enfermagem|firmador de seios|"
+    # 06/10 tarde (Rita/Beto): passaram como beleza/cabelo — aspirador "antiqueda", estetoscópio, Gillette, fralda/Tena,
+    # íntimo, foot spa, kit/cadeira de banho, cadeira de camping, massageador de corpo, paçoca, absorvente, magnésio
+    r"aspirador|estetosc[óo]p|otosc[óo]p|gillette|\btena\b|fraldas?\b|sabonete [íi]ntimo|foot ?spa|kit (?:de )?banheiro|"
+    r"cadeira (?:de )?(?:banho|camping|praia)|massageador(?! (?:facial|de rosto|gua ?sha|de couro cabeludo))|pa[çc]oc|"
+    r"absorvente|anabolic|magn[ée]sio|suporte (?:de|para) shampoo|"
     r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
     r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
     r"col[áa]geno (?:hidrolisado|em p[óo]|verisol)|old spice|\baxe\b|for men\b|\bmen\b|"
