@@ -289,9 +289,9 @@ SAZONAIS = [  # (tipo, frase, início (mês, dia), fim (mês, dia))
 ]
 
 UNIVERSAL = ["OLHA ESSE PRECINHO 😍", "ACHADO DO DIA 🔎", "VALE CADA CENTAVO 💸", "ACHEI E VIM CONTAR 🏃‍♀️",
-             "ESSE EU LEVARIA 😍", "DESCONTO QUE VALE A PENA 💸"]
+             "ESSE EU LEVARIA 😍"]  # 06/10 (Beto): "DESCONTO QUE VALE A PENA" saía sem preço De → só no OFF
 KIT = ["SÓ {p} CADA 😱", "SAI {p} CADA 😱", "{p} CADA, ACREDITA? 😱"]
-OFF = ["{d}% OFF, NÃO É ERRO! 😱", "{d}% OFF DE VERDADE 😱", "CAIU {d}%, OLHA ISSO 😱"]
+OFF = ["{d}% OFF, NÃO É ERRO! 😱", "{d}% OFF DE VERDADE 😱", "CAIU {d}%, OLHA ISSO 😱", "DESCONTO QUE VALE A PENA 💸"]
 
 # 01/10 (dona): "um agente que todo dia vai atualizar o repertório de legendas, sempre criando novos, pra não ficar
 # repetitivo" → a Tati (agente) escreve frases NOVAS em dados/achadinhos/ganchos_extra.json {tipo: [frases]}; aqui só
@@ -351,6 +351,8 @@ def _carregar_extra() -> int:
         if lista is None:
             continue
         for f in frases:
+            if tipo == "UNIVERSAL" and isinstance(f, str) and re.search(r"DESCONTO|\bOFF\b|%", f):
+                continue  # 06/10 (Beto): frase universal vai até em oferta sem preço De — desconto só no OFF
             if isinstance(f, str) and f not in lista and frase_ok(f, tipo):
                 lista.append(f)
                 n += 1

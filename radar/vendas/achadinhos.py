@@ -305,7 +305,8 @@ def _grupo_final(g: str, titulo: str) -> str:
 LINK_OU_FONE = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|ly|io|me|to|br|co|gl|app|link|"
                           r"site|xyz|info|shop|store)(?:\.br)?(?:/\S*)?\b|(?<![\w.])(?:\+?55\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]\d{4}(?!\d)|"
                           r"[\w.+-]+@[\w-]+\.[\w.]+")
-PRECO_NO_TITULO = re.compile(r"\s+De:?\s*R\$\s*[\d.,]+\s*Por:?\s*R\$\s*[\d.,]*.*$|\s+Selo:?\s*\d*\s*$", re.I)
+# 06/10 (revisora da nuvem): "212 VIP Black … De: R$ 1048,90 Por" (sem o preço do "Por") ficava no título
+PRECO_NO_TITULO = re.compile(r"\s+De:?\s*R\$\s*[\d.,]+(?:\s*Por:?.*)?$|\s+Selo:?\s*\d*\s*$", re.I)
 
 
 CORES = (r"(?:preto|preta|branco|branca|marrom|nude|bege|rosa|azul|vermelho|vermelha|verde|amarelo|cinza|caramelo|"
@@ -329,6 +330,9 @@ def limpar_titulo(t: str) -> str:
                r"envio imediato|pronta entrega|frete gr[áa]tis|marca de luxo|top de linha|"
                r"top marca(?: de)? luxo|marca de topo)\b", "", t, flags=re.I)  # 02/10 (Marcos): CURREN "Top Marca Luxo"
     t = re.sub(r"\s+[Bb]y\s+[A-Z][\w']+\s*$", "", t).strip(" -–|:,")  # 02/10 (Marcos): "… Body Splash By Amaxxon" (loja)
+    # 06/10 (Rita): código de variação no começo/fim ("006 Gloss…", "… Vult 1/2/3") e letra solta de tradução ("g Fosco…")
+    t = re.sub(r"^(?:0\d{1,2}|[a-z])\s+(?=[A-Za-zÀ-ÿ])", "", t)
+    t = re.sub(r"\s+\d{1,2}(?:/\d{1,2})+\s*$", "", t).strip(" -–|:,")
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     # 01/10 (Nina): ML cola atributos da variação no fim ("… Cor-1 M", "… Padrão", "- Cor Preto Tamanho M")
     t = re.sub(r"(?:\s*[-|/]?\s*(?:\b(?:cor|tamanho|tam|voltagem)\b[\s:\-]+[\w-]+|\bmodelo\b[\s:\-]+\w*\d[\w-]*)"
@@ -359,6 +363,8 @@ def cortar(t: str, n: int) -> str:
     if len(t) <= n:
         return t
     t = t[:n + 1].rsplit(" ", 1)[0] if " " in t[:n + 1] else t[:n]
+    if t.count("(") > t.count(")"):  # 06/10 (Rita): "… Kit (3" — parêntese aberto pelo corte
+        t = t[:t.rfind("(")]
     return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|em|no|na|a|o|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
 
 
@@ -815,7 +821,10 @@ def _shopee_curto(url: str) -> str | None:
     if not sa.credenciais():
         return None
     arq = config.DADOS / "achadinhos" / "shopee_links.json"
-    cache = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+    try:  # 06/10 (Beto): arquivo vazio/pela metade derrubou a prévia das 21h de 05/10 (JSONDecodeError)
+        cache = json.loads(arq.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
     if url not in cache:
         try:
             curto = sa.link_curto(url)
@@ -1637,6 +1646,14 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
             r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
         return False
+    # 06/10 (Beto): "Spray Gloss" de pontas (cabelo) saiu com frase de boca 💋 — "gloss" em cabelo não é lábio
+    if re.search(r"BOCA|BATOM|TINT|💋", gancho or "") and (CABELO.search(titulo or "") or re.search(
+            r"pontas (?:duplas|secas)|\bfios\b", titulo or "", re.I)) and not re.search(
+            r"l[áa]bi|\bboca\b|batom|\blip", titulo or "", re.I):
+        return False
+    # 06/10 (Rita): lava-roupas "Perfume" com frase de cheirinho — frase de perfume só em perfume de gente
+    if re.search(r"CHEIROS|PERFUME|CHEIRO DE GRIFE|FRAGR", gancho or "", re.I) and FORA_NICHO_GRUPO.search(titulo or ""):
+        return False
     # 04/10 (revisora da nuvem): triciclo/motoquinha com "LOOK FOFO PROS PEQUENOS"; boneca reborn com "ACHADINHO PRA
     # MAMÃE" → frase de roupa/bebê não vai em brinquedo
     if re.search(r"LOOK|ROUPINHA|MAM[ÃA]E|BEB[ÊE]", gancho or "", re.I) and BRINQUEDO.search(titulo or "") \
@@ -1855,8 +1872,28 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     agora = agora or datetime.now()
     if agora.hour not in HORAS_LOJA or agora.minute >= 15:
         return None
-    prods = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))["produtos"]
-    ok = [(k, p) for k, p in prods.items() if p.get("links") and midia.tem_estoque(k) and (config.RAIZ / p["foto"]).exists()]
+    cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
+    prods = cfg["produtos"]
+
+    def _so_shopee(p: dict) -> dict:
+        # 06/10 (Kátia): link do ML NUNCA no WhatsApp/Telegram → o grupo só leva o link da Shopee; 'foto_grupo' = foto
+        # de UMA unidade (a 'foto' dos vídeos mostra todas as cores); preço só da Shopee
+        links = {c: u for c, u in (p.get("links") or {}).items() if not NAO_PERMITE_WHATSAPP.search(u)}
+        preco = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "ML" not in x and "Mercado" not in x)
+        return {**p, "links": links, "foto": p.get("foto_grupo") or p.get("foto"), "preco": preco}
+
+    def _tem(prefixos: list[str]) -> bool:
+        from vendas import estoque
+        itens = estoque.itens()
+        return all(any(i["sku"].startswith(pre) and i["qtd"] > 0 for i in itens) for pre in prefixos)
+
+    ok = [(k, q) for k, p in prods.items() if (q := _so_shopee(p))["links"] and midia.tem_estoque(k)
+          and (config.RAIZ / q["foto"]).exists()]
+    # 06/10 (Kátia, dona: "impulsiona os KITS"): kit montado na Shopee pelo Leve Mais por Menos entra no rodízio
+    # (config/midia.json → kits_grupo; só com estoque de TODOS os componentes e a foto com as mesmas unidades do kit)
+    ok += [(f"kit:{k.get('id', i)}", q) for i, k in enumerate(cfg.get("kits_grupo") or [])
+           if k.get("ativo") and (q := _so_shopee(k))["links"] and _tem(k.get("estoque") or [])
+           and (config.RAIZ / q["foto"]).exists()]
     if not ok:
         return None
     vez = agora.timetuple().tm_yday * len(HORAS_LOJA) + HORAS_LOJA.index(agora.hour)
@@ -1868,7 +1905,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     from vendas import datas
     for c in datas.chegando(agora.date()):
         alvo = dict(ok).get(c.get("loja_sku"))
-        if alvo and HORAS_LOJA.index(agora.hour) < 2:
+        if alvo and HORAS_LOJA.index(agora.hour) < 1:  # 06/10 (Kátia): 1×/dia — 2× repetia o MESMO texto às 10h e 13h
             sku, p = c["loja_sku"], alvo
             legenda = c.get("loja_legenda") or legenda
             cabeca = f"*{c.get('loja_chamada', 'PRESENTE DA NOSSA LOJINHA 🎁')}*"
@@ -1883,8 +1920,10 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
         linhas += ["", f"🛒 *Compre aqui:* {url}"]
     else:
-        linhas = ["*DA NOSSA LOJINHA 💖*", "", legenda, "", f"💰 {p.get('preco', '')}"]
-        linhas += [f"👉 {canal}: {url}" for canal, url in p["links"].items()]
+        linhas = [f"*{p['chamada']}*" if p.get("chamada") else "*DA NOSSA LOJINHA 💖*", "", f"🛍️ {legenda}"]
+        if p.get("preco"):
+            linhas += ["", f"💰 {p['preco']}"]
+        linhas += ["", f"🛒 *Compre aqui:* {next(iter(p['links'].values()))}"]
     linhas += ["", "_Produto da loja Bella Lucce, notificado na ANVISA._"]
     return "\n".join(linhas), str(config.RAIZ / p["foto"])
 
@@ -1969,6 +2008,21 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|
                            r"piercing|mamilo|pescoceira|lavat[óo]rio|atacado|premade|\bf[ãa]s\b|"
                            r"extens(?:[ãa]o|[õo]es) d[ae] (?:pestana|c[íi]lios)|vitamina|polivitam|nariz|brinquedo|boneca|pel[úu]cia|"
                            r"lego|massinha|slime")
+# 06/10 (Beto, Rita e revisora da nuvem, 05–06/10): passavam no grupo com categoria "beleza"/"perfume" — suplemento e
+# alimento (L-Arginina, pré-treino, ômega 3, fibras P&P FIT, bebida de amêndoa), higiene bucal (creme dental, escovas
+# Colgate, enxaguante), lava-roupas/sabão "Perfume", desodorante masculino e PROMESSA de tratamento ("remove melasma").
+FORA_NICHO_GRUPO = re.compile(
+    r"(?i)escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
+    r"clareamento dental|irrigador|lava[- ]?roupas?|sab[ãa]o (?:l[íi]quido|em p[óo]|em barra|de coco)|amaciante|"
+    r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
+    r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
+    r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
+    r"col[áa]geno (?:hidrolisado|em p[óo]|verisol)|old spice|\baxe\b|for men\b|\bmen\b|"
+    r"\b(?:remove|remover|removedor de|elimina|eliminar|acaba com|some com|cura|curar)\b\s+(?:\w+\s+){0,3}?"
+    r"(?:melasma|manchas?|cicatriz(?:es)?|estrias?|acne|espinhas?|celulite|olheiras?|verrugas?|pintas?)")
+# vitamina C/E em sérum, creme ou ampola é skincare (dermo = nicho); "vitamina" em cápsula/goma é suplemento (fica fora)
+VITAMINA_SKINCARE = re.compile(r"(?i)s[ée]rum|facial|creme|ampola|booster|\bpele\b|rosto|t[ôo]nico|\bgel\b|"
+                               r"hidratante|antioxidante|skin ?care")
 
 
 SO_FEMININO_ATE = "2099-12-31"  # dona 03/10 e 05/10 ("promoções péssimas"): só o público dela; sem infantil/eletrônico/casa
@@ -1981,7 +2035,11 @@ def so_feminino_ligado() -> bool:
 def no_perfil_feminino(o: dict) -> bool:
     """Beleza, cabelo e perfume femininos + bolsa e bijuteria. Roupa, casa, eletrônico, infantil e masculino ficam fora."""
     t = o.get("titulo") or ""
-    if FORA_FEMININO.search(t) or eh_masculino(o):
+    m = FORA_FEMININO.search(t)
+    # 06/10 (coordenação): "vitamina" barrava sérum/creme de vitamina C (dermo, nosso nicho) — o site já liberava
+    if m and m.group(0).lower() == "vitamina" and VITAMINA_SKINCARE.search(t) and not FORA_FEMININO.search(t, m.end()):
+        m = None
+    if m or FORA_NICHO_GRUPO.search(t) or eh_masculino(o):
         return False
     return o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
 
@@ -2415,6 +2473,24 @@ def _publicar_loja(pasta, radar) -> None:
             im.thumbnail((500, 500))
             im.save(destino, quality=85)
         lista.append({"nome": p["nome"], "preco": p.get("preco", ""), "links": p["links"], "foto": f"loja/{sku}.jpg"})
+    # 06/10 (Kátia, dona: "impulsiona os KITS no ML"): os kits do ML entram na vitrine do SITE (não é WhatsApp/Telegram;
+    # anúncio próprio, sem etiqueta de afiliado) — só os ativos com estoque disponível no Hermes
+    try:
+        from vendas import estoque
+        disp = {a["id_externo"]: a["disponivel"] for a in estoque.anuncios() if a["canal"] == "ml" and a["ativo"]}
+    except Exception:  # noqa: BLE001 — vitrine é secundária
+        disp = {}
+    for k in json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8")).get("kits_ml") or []:
+        foto = config.RAIZ / k.get("foto", "")
+        if k.get("ativo") is False or not (foto.is_file() and disp.get(k["mlb"], 0) > 0):  # 06/10: Íngrid reprovou
+            continue
+        destino = pasta / "loja" / f"kit_{k['mlb']}.jpg"
+        if not destino.exists() or destino.stat().st_mtime < foto.stat().st_mtime:
+            im = Image.open(foto).convert("RGB")
+            im.thumbnail((500, 500))
+            im.save(destino, quality=85)
+        lista.append({"nome": k["nome"], "preco": k.get("preco", ""), "foto": f"loja/kit_{k['mlb']}.jpg",
+                      "links": {"Mercado Livre": f"https://produto.mercadolivre.com.br/{k['mlb'][:3]}-{k['mlb'][3:]}"}})
     (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
 
 

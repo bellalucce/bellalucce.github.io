@@ -32,5 +32,53 @@
    "Shopee": "https://shopee.com.br/product/254425847/23893980551"
   },
   "foto": "loja/blush.jpg"
+ },
+ {
+  "nome": "Kit Presente Blush + Batom Mágico + Gloss Ursinho",
+  "preco": "R$ 49,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5328490887.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5328490887"
+  }
+ },
+ {
+  "nome": "Kit Presente Batom Mágico + Gloss Ursinho",
+  "preco": "R$ 39,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5325882855.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5325882855"
+  }
+ },
+ {
+  "nome": "Kit Batom Mágico de Flor + Gloss Gold",
+  "preco": "R$ 39,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB7743258374.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-7743258374"
+  }
+ },
+ {
+  "nome": "Kit 2 Batom Mágico de Flor",
+  "preco": "R$ 44,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5325815011.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5325815011"
+  }
+ },
+ {
+  "nome": "Kit 2 Gloss Ursinho Chaveiro",
+  "preco": "R$ 39,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5328512197.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5328512197"
+  }
+ },
+ {
+  "nome": "Kit Blush Vivai + Gloss Ursinho",
+  "preco": "R$ 34,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5328513651.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5328513651"
+  }
  }
 ]
