@@ -17,6 +17,7 @@ import os
 import re
 import time
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import httpx
 
@@ -842,11 +843,9 @@ def _shopee_curto(url: str) -> str | None:
         return None
     if not sa.credenciais():
         return None
-    arq = config.DADOS / "achadinhos" / "shopee_links.json"
-    try:  # 06/10 (Beto): arquivo vazio/pela metade derrubou a prévia das 21h de 05/10 (JSONDecodeError)
-        cache = json.loads(arq.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        cache = {}
+    from vendas.integracoes import shopee_links
+    # 06/10 (Beto): arquivo vazio/pela metade derrubou a prévia das 21h de 05/10 (JSONDecodeError) → cache() devolve {}
+    cache = shopee_links.cache()
     if url not in cache:
         try:
             curto = sa.link_curto(url)
@@ -854,8 +853,10 @@ def _shopee_curto(url: str) -> str | None:
             return None
         if not (curto and re.match(r"https://s\.shopee\.com\.br/\w+$", curto)):
             return None
-        cache[url] = curto
-        arq.write_text(json.dumps(cache, indent=0), encoding="utf-8")
+        # 07/10 (revisão): junta ao cache relido e grava atômico — antes o {} da leitura pela metade era gravado por
+        # cima e o cache inteiro de links curtos sumia
+        shopee_links.gravar_pares({url: curto})
+        return curto
     return cache[url]
 
 
@@ -1055,9 +1056,14 @@ def _brl_zap(v) -> str:
 # o que só fazia falta no site: higiene/casa disfarçada de beleza, 1 por produto de verdade, foto boa, ordem boa.
 FORA_SITE = re.compile(
     r"(?i)escova dental|creme dental|pasta de dente|fio dental|irrigador|l[íi]ngua|bacia|lava[- ]?roupas|amaciante|"
-    r"guaran[áa]|comprimidos?|c[áa]psulas?|aspirador|antitranspirante|desodorante(?! col[ôo]nia)|massageador|"
-    r"ventilador|liquidificador|panela|cortina|tapete|\bpet\b|cachorro|\bgato\b|ra[çc][ãa]o|celular|capinha|fones?\b|"
-    r"carregador|lanterna|ferramenta|porta[- ]joias|organizador|necessaire|porta[- ]maquiagem|expositor|"
+    # 07/10 (revisão): "ração" sem fronteira tirava do site "Longa Duração", "Reparação", "Coloração" (70 em 72 h);
+    # "desodorante" tirava o hidratante/splash da Natura ("Desodorante Hidratante Corporal", "Desodorante Perfume") →
+    # só o de axila (aerosol/roll-on/bastão/masculino); "necessaire" de BRINDE ("Corretivo… + Necessaire") fica
+    r"guaran[áa]|comprimidos?|c[áa]psulas?|aspirador|antitranspirante|"
+    r"desodorante(?=.*(?:aeross?ol|roll[- ]?on|\bstick\b|bast[ãa]o|masculin|\bmen\b))|massageador|"
+    r"ventilador|liquidificador|panela|cortina|tapete|\bpet\b|cachorro|\bgato\b|\bra[çc][ãa]o\b|celular|capinha|fones?\b|"
+    r"carregador|lanterna|ferramenta|porta[- ]joias|organizador|(?<!\+ )(?<!com )(?<!brinde )necessaire|"
+    r"porta[- ]maquiagem|expositor|"
     r"fertilizante|inseticida|detergente|desinfetante|sab[ãa]o em (?:p[óo]|barra)|papel higi[êe]nico|absorvente|fralda|"
     r"\b[íi]nt[íi]m[oa]s?\b|bebida|alimento|col[áa]geno (?:hidrolisado|em p[óo])|\bch[áa] (?:de|para)\b|penteadeira|"
     r"camarim|\bmesa\b|cadeira|arm[áa]rio|prateleira")
@@ -1706,7 +1712,7 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
             r"l[áa]bi|\bboca\b|batom|\blip", titulo or "", re.I):
         return False
     # 06/10 (Rita): lava-roupas "Perfume" com frase de cheirinho — frase de perfume só em perfume de gente
-    if re.search(r"CHEIROS|PERFUME|CHEIRO DE GRIFE|FRAGR", gancho or "", re.I) and FORA_NICHO_GRUPO.search(titulo or ""):
+    if re.search(r"CHEIROS|PERFUME|CHEIRO DE GRIFE|FRAGR", gancho or "", re.I) and fora_do_nicho_grupo(titulo or ""):
         return False
     # 04/10 (revisora da nuvem): triciclo/motoquinha com "LOOK FOFO PROS PEQUENOS"; boneca reborn com "ACHADINHO PRA
     # MAMÃE" → frase de roupa/bebê não vai em brinquedo
@@ -1828,10 +1834,17 @@ LUXO = re.compile(  # marcas "caras" que fazem a pessoa parar o dedo (vídeo de 
 
 def ofertas_luxo(horas: int = 36, n: int = 8, preco_de_min: float = 200) -> list[dict]:
     """Ofertas de MARCA com desconto real e preço cheio alto (a vitrine do vídeo de divulgação): aprovadas, com foto e
-    link, 'de' ≥ preco_de_min e ≥ 25% off; a melhor de cada tipo de produto, das mais impressionantes para as menos."""
+    link, 'de' ≥ preco_de_min e ≥ 25% off; a melhor de cada tipo de produto, das mais impressionantes para as menos.
+    07/10 (revisão): as MESMAS barreiras do grupo — vetada pelas revisoras (pelo produto), perfume de grife sem ml,
+    "De" inflado e Vivara (sem preço). Antes o vídeo "destaque" diário (luxo_acervo --novas) podia anunciar "My Way COM
+    46% OFF" que o Beto barrou no grupo."""
+    from vendas import revisao_fila
+    vet = revisao_fila.vetados()
+    chaves_vet = revisao_fila.chaves_vetadas(vet)
     ofs = [o for o in sem_repetidos(melhores(horas, 20000)) if o["link_loja"] and o.get("foto")
            and LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= preco_de_min
-           and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")]
+           and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
+           and not barrada_na_hora(o) and not revisao_fila.vetada(o, vet, chaves_vet)]
     return sorted(ofs, key=lambda o: ((o["preco_antigo"] or 0) - o["preco"]), reverse=True)[:n]
 
 
@@ -2080,7 +2093,10 @@ FORA_NICHO_GRUPO = re.compile(
     r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
     # 06/10 (auditoria do crescimento): utilitário não é "achadinho de beleza" — cola de sapato, item de enfermagem,
     # firmador de seios
-    r"\bcola\b(?! (?:de|para) (?:c[íi]lios|unhas?|peruca|lace))|adesivo (?:de|para) (?:reparo|sapat)|reparo de sapat|enfermagem|firmador de seios|"
+    # 07/10 (revisão): "Coca-Cola" (batom/hidratante labial da Carmed/Bruna Tavares) não é cola; cola de cílios/unha/
+    # peruca escrita de outro jeito ("+ 1 Cola", "Cola Alongamento de Cílios") passa em fora_do_nicho_grupo()
+    r"(?<!coca-)(?<!coca )\bcola\b(?! (?:de|para) (?:c[íi]lios|unhas?|peruca|lace))|adesivo (?:de|para) (?:reparo|sapat)|"
+    r"reparo de sapat|enfermagem|firmador de seios|"
     # 06/10 tarde (Rita/Beto): passaram como beleza/cabelo — aspirador "antiqueda", estetoscópio, Gillette, fralda/Tena,
     # íntimo, foot spa, kit/cadeira de banho, cadeira de camping, massageador de corpo, paçoca, absorvente, magnésio
     r"aspirador|estetosc[óo]p|otosc[óo]p|gillette|\btena\b|fraldas?\b|sabonete [íi]ntimo|foot ?spa|kit (?:de )?banheiro|"
@@ -2103,6 +2119,14 @@ FORA_NICHO_GRUPO = re.compile(
 # vitamina C/E em sérum, creme ou ampola é skincare (dermo = nicho); "vitamina" em cápsula/goma é suplemento (fica fora)
 VITAMINA_SKINCARE = re.compile(r"(?i)s[ée]rum|facial|creme|ampola|booster|\bpele\b|rosto|t[ôo]nico|\bgel\b|"
                                r"hidratante|antioxidante|skin ?care")
+COLA_DE_BELEZA = re.compile(r"(?i)c[íi]lios|\bunhas?\b|peruca|\blace\b|\bwig\b|\btips?\b|posti[çc]")
+
+
+def fora_do_nicho_grupo(titulo: str) -> bool:
+    """FORA_NICHO_GRUPO, menos a cola de cílios/unha/peruca (07/10: "New Show Cílios… + 1 Cola", "Cola Alongamento de
+    Cílios", "Cola Ultra Hold Lace Wig" eram barradas como cola de sapato)."""
+    return any(not (m.group(0).lower() == "cola" and COLA_DE_BELEZA.search(titulo))
+               for m in FORA_NICHO_GRUPO.finditer(titulo or ""))
 
 
 SO_FEMININO_ATE = "2099-12-31"  # dona 03/10 e 05/10 ("promoções péssimas"): só o público dela; sem infantil/eletrônico/casa
@@ -2119,7 +2143,7 @@ def no_perfil_feminino(o: dict) -> bool:
     # 06/10 (coordenação): "vitamina" barrava sérum/creme de vitamina C (dermo, nosso nicho) — o site já liberava
     if m and m.group(0).lower() == "vitamina" and VITAMINA_SKINCARE.search(t) and not FORA_FEMININO.search(t, m.end()):
         m = None
-    if m or FORA_NICHO_GRUPO.search(t) or eh_masculino(o):
+    if m or fora_do_nicho_grupo(t) or eh_masculino(o):
         return False
     return o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
 
@@ -2210,8 +2234,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     from vendas import revisao_fila  # 01/10 (dona): revisoras vetam ANTES de postar → o robô pula o vetado
     vet = revisao_fila.vetados()
     chaves_vet = revisao_fila.chaves_vetadas(vet)  # 06/10 (Beto): veto vale pelo produto (ASIN/item/MLB), não só pelo id
+    # 07/10: Promobit com foto pequena só segue se der para TROCAR pela foto real do mesmo produto (coleta do ML/Amazon
+    # ou página da loja) — senão já sai aqui (antes passava toda e, sem troca no servidor, ia com 400 px)
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
-                                    and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
+                                    and px[o["foto"]] < FOTO_MIN_PX
+                                    and not ("promobit.com.br" in o["foto"]
+                                             and (LOJAS_FOTO.search(o.get("link_loja") or "")
+                                                  or foto_do_mesmo_produto(o))))
             and not vencendo(o.get("titulo") or "") and not revisao_fila.vetada(o, vet, chaves_vet)
             and not barrada_na_hora(o)]
     marca("foto pequena, vencendo, vetada, barrada", cand)
@@ -2465,26 +2494,42 @@ def foto_boa(o: dict) -> bool:
     Oferta da Promobit que aponta pro ML: usa a foto em alta da coleta do ML do MESMO anúncio, se tivermos.
     05/10: Promobit → Beauty Box/Sephora/Época…: tenta a foto grande da página do produto."""
     f = o.get("foto") or ""
-    m = re.search(r"MLB-?(\d{6,})", o.get("link_loja") or "")
-    if "promobit.com.br" in f and m:
-        alt = db.consultar("SELECT foto FROM ofertas WHERE id = ? AND foto IS NOT NULL", (f"mlaf:MLB{m.group(1)}",))
-        if alt:
-            o["foto"] = f = alt[0]["foto"]
+    # 05/10 (dona: "não é pra ficar barrando — corrija e mande"): CORRIGE trocando pela foto REAL grande do mesmo
+    # produto — a da coleta do ML/Amazon (mesmo MLB/ASIN) ou a da página da loja (Beauty Box, Natura, Beleza na Web…)
+    if "promobit.com.br" in f and (alt := foto_do_mesmo_produto(o)) and foto_px(alt) >= FOTO_MIN_PX:
+        o["foto"] = f = alt
     if "promobit.com.br" in f and LOJAS_FOTO.search(o.get("link_loja") or "") and foto_px(f) < FOTO_MIN_PX:
         alt = foto_da_loja(o["link_loja"])
         if alt and foto_px(alt) >= FOTO_MIN_PX:
             o["foto"] = f = alt
-    if f and not f.startswith("http") and Path(f).exists():  # foto já ampliada (arquivo nosso)
-        return True
-    if bool(f) and foto_px(f) >= FOTO_MIN_PX:
-        return True
-    # 05/10 (dona: "não é pra ficar barrando porque a foto não tá certa — corrija e mande"; Amazon/Sephora sumiam do
-    # grupo pela foto de ~300 px da Promobit) → amplia a foto REAL do produto (sem inventar nada) e manda
-    amp = ampliar_foto(f) if f else None
-    if amp:
-        o["foto"] = amp
-        return True
-    return False
+    if f and not f.startswith("http") and Path(f).exists() and _AMPLIADAS not in Path(f).parents:
+        return True  # arquivo nosso já pronto (kit da loja etc.)
+    # 07/10 (verificador do servidor 68%: 7 fotos de 400 px da Promobit e 1 de 442 px da Shopee saíram entre 18h e 21h,
+    # com a fila curta): só foto REAL com ≥ 600 px — sem foto boa do mesmo produto, a oferta é PULADA (a ampliação de
+    # 05/10 esticava 400 px para 900 e ia borrada; ampliar_foto ficou fora do grupo)
+    return bool(f) and foto_px(f) >= FOTO_MIN_PX
+
+
+def foto_do_mesmo_produto(o: dict, fotos: dict | None = None) -> str | None:
+    """07/10: foto do MESMO produto (mesmo MLB do ML ou ASIN da Amazon) já coletada por outra fonte do radar — a
+    Promobit guarda ~400 px; a coleta do ML/Amazon tem a foto grande. Só olha o banco (nada de internet).
+    `fotos` = {id: foto} já lido (fotos_de_outras_fontes) para muitas ofertas de uma vez."""
+    from vendas.revisao_fila import chave_item
+    c = chave_item("", o.get("link_loja")) or ""
+    pre, _, num = c.partition(":")
+    alvo = {"mlb": f"mlaf:MLB{num}", "amz": f"amzref:{num}"}.get(pre)
+    if not alvo or alvo == o.get("id"):
+        return None
+    if fotos is not None:
+        return fotos.get(alvo)
+    r = db.consultar("SELECT foto FROM ofertas WHERE id = ? AND foto LIKE 'http%'", (alvo,))
+    return r[0]["foto"] if r else None
+
+
+def fotos_de_outras_fontes() -> dict:
+    """{id: foto} das coletas do ML e da Amazon (para foto_do_mesmo_produto em lote)."""
+    return {r["id"]: r["foto"] for r in db.consultar(
+        "SELECT id, foto FROM ofertas WHERE (id LIKE 'mlaf:%' OR id LIKE 'amzref:%') AND foto LIKE 'http%'")}
 
 
 _AMPLIADAS = config.DADOS / "achadinhos" / "fotos_ampliadas"
