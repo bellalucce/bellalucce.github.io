@@ -2209,6 +2209,42 @@ def preco_proibido(o: dict) -> bool:
 
 
 POUCO_ESTOQUE = 30
+# 07/10 (dona: "quero essas ofertas no nosso… pode por o fone… o pote não foi errado" e "acha oferta boa que foi sem
+# minha etiqueta e põe de novo"): oferta que a DONA pediu passa por cima das regras de GOSTO (aprovação/desconto,
+# perfil feminino, teto por tipo, tema do dia) e vai na frente; as de SEGURANÇA continuam (link e foto ≥ 600 px, veto,
+# vencendo, preço proibido, Amazon com preço ≤ 6 h). Vale 24 h; a que já tinha saído ANTES do pedido volta uma vez.
+# Arquivo {id: {"quando": iso, "grupo"?: "moda", "motivo"?: "..."}} — viaja ao servidor com o estado (nuvem.ARQS_ESTADO).
+PEDIDOS_DONA = config.DADOS / "achadinhos" / "pedidos_dona.json"
+
+
+def pedidos_dona(horas: int = 24) -> dict:
+    try:
+        d = json.loads(PEDIDOS_DONA.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    corte = (datetime.now() - timedelta(hours=horas)).isoformat(timespec="seconds")
+    return {k: v for k, v in d.items() if isinstance(v, dict) and str(v.get("quando", "")) >= corte}
+
+
+def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
+    ped = pedidos_dona()
+    if not ped:
+        return []
+    from vendas import revisao_fila
+    vet = revisao_fila.vetados()
+    chaves_vet = revisao_fila.chaves_vetadas(vet)
+    out = []
+    for r in db.consultar(f"SELECT * FROM ofertas WHERE id IN ({','.join('?' * len(ped))})", tuple(ped)):
+        o, p = dict(r), ped[r["id"]]
+        if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
+            continue  # já saiu depois do pedido
+        if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
+                or revisao_fila.vetada(o, vet, chaves_vet)
+                or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)):
+            continue
+        o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
+        out.append(o)
+    return out
 
 
 def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | None = None,
@@ -2304,6 +2340,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         cand.sort(key=lambda o: o["id"] not in dest)
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
+    ped = _pedidos_da_dona(amazon_ok)  # 07/10: pedido da dona na frente de tudo (ver PEDIDOS_DONA)
+    if ped:
+        ids = {o["id"] for o in ped}
+        cand = ped + [o for o in cand if o["id"] not in ids]
+        marca("+ pedidos da dona (na frente)", cand)
     return cand, recentes, amazon_ok
 
 
@@ -2356,6 +2397,13 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
+    for o in [x for x in cand if x.get("pedido_dona")]:  # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada)
+        if len(out) >= n:
+            break
+        if not tipo_na_rodada(o, out) and foto_ok(o):
+            out.append(o)
+            ultimo.append(o["grupo"])
+        cand.remove(o)
     # 30/09: 1 oferta de GRIFE abre cada rodada (o vídeo de divulgação promete "itens de marca por preço de verdade" no
     # grupo — tem que ser verdade quando a pessoa entra): a de maior desconto em reais, 'de' ≥ R$ 200, ≥ 25% off
     fresco = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
