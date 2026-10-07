@@ -665,7 +665,9 @@ def pagina_de_produto(link: str) -> bool:
     return any(re.match(r"https?://(?:[\w-]+\.)*(?:" + p + ")", link) for p in PAGINA_PRODUTO)
 
 
-FALSIFICAVEL = re.compile(rf"k[ée]rastase|{ganchos.KB}", re.I)  # 30/09: marcas muito falsificadas no marketplace
+# 30/09: marcas muito falsificadas no marketplace. 07/10: + marcas do Acervo da dona — "Rare Beauty" a R$ 25 em loja comum
+# da Shopee foi ao grupo 06/10 (réplica: o original só vende na Sephora, Soft Pinch R$ 149+); SHEGLAM e rhode idem
+FALSIFICAVEL = re.compile(rf"k[ée]rastase|rare\s*beauty|\brhode\b|she\s?glam|{ganchos.KB}", re.I)
 
 
 VALIDADE = re.compile(r"(?i)(?:exp|val(?:idade)?|venc\w*)\.?\s*[:.]?\s*(?:(20\d\d)[./-](\d{1,2})[./-](\d{1,2})|"
@@ -1819,6 +1821,7 @@ LUXO = re.compile(  # marcas "caras" que fazem a pessoa parar o dedo (vídeo de 
     r"victoria.?s secret|jean paul gaultier|paco rabanne|azzaro|montblanc|hugo boss|armani|versace|"
     r"dolce\s*(?:&|e|and)\s*gabbana|d&g|burberry|gucci|fendi|valentino|bvlgari|bulgari|tiffany|cartier|swarovski|"
     r"jimmy choo|marc jacobs|kate spade|longchamp|furla|victor hugo|mont blanc|"
+    r"miu miu|rare beauty|rhode|"  # 07/10: marcas do Acervo da dona (vitrine/artes do anúncio)
     r"shiseido|too faced|laneige|fossil|mac cosmetics|kiko|la roche-?posay|sephora collection|lattafa|stanley)(?!\w)",
     re.I)
 
