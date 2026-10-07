@@ -335,6 +335,12 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s+[Bb]y\s+[A-Z][\w']+\s*$", "", t).strip(" -–|:,")  # 02/10 (Marcos): "… Body Splash By Amaxxon" (loja)
     # 06/10 (Rita): código de variação no começo/fim ("006 Gloss…", "… Vult 1/2/3") e letra solta de tradução ("g Fosco…")
     t = re.sub(r"^(?:0\d{1,2}|[a-z])\s+(?=[A-Za-zÀ-ÿ])", "", t)
+    # 06/10 noite (Rita): código da loja/SKU no começo ("ANA1108 Kit…", "ANA1108-12 Kits…", "42741 Creme…"), medida
+    # americana colada ("30g/1.0FL.OZ| Clareamento…", "150mL/5.07 Fl.Oz") e palavra cortada pela fonte ("Aço Ino")
+    t = re.sub(r"^(?:[A-Z]{2,5}\d{3,}(?:\s*-\s*\d{1,3})?|\d{5,})\s+(?=[A-Za-zÀ-ÿ])", "", t)
+    t = re.sub(r"\s*[/,]?\s*\d+(?:[.,]\d+)?\s*fl\.?\s*oz\b\.?\s*\|?", " ", t, flags=re.I)
+    t = re.sub(r"\s+([,)])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" -–|:,")
+    t = re.sub(r"(?i)\b(a[çc]o) ino\b", r"\1 Inox", t)
     t = re.sub(r"\s+\d{1,2}(?:/\d{1,2})+\s*$", "", t).strip(" -–|:,")
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
     # 01/10 (Nina): ML cola atributos da variação no fim ("… Cor-1 M", "… Padrão", "- Cor Preto Tamanho M")
@@ -352,9 +358,11 @@ def limpar_titulo(t: str) -> str:
     if t.count("|") >= 2 and len(t.split("|")[0].split()) >= 3:
         t = t.split("|")[0].strip(" -–|:/")
     t = sem_lista_de_palavras(t)
-    # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior
+    # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior — 06/10 (Rita): a IGUAL com
+    # maiúscula é parte do nome ("Amor Amor" virava "Amor Cacharel"; "Bora Bora") → fica
     ps = t.split()
-    t = " ".join(p for i, p in enumerate(ps) if i == 0 or re.sub(r"(.)\1", r"\1", p.lower()) != re.sub(r"(.)\1", r"\1", ps[i - 1].lower()))
+    t = " ".join(p for i, p in enumerate(ps) if i == 0 or (p == ps[i - 1] and p[:1].isupper())
+                 or re.sub(r"(.)\1", r"\1", p.lower()) != re.sub(r"(.)\1", r"\1", ps[i - 1].lower()))
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
@@ -368,7 +376,14 @@ def cortar(t: str, n: int) -> str:
     t = t[:n + 1].rsplit(" ", 1)[0] if " " in t[:n + 1] else t[:n]
     if t.count("(") > t.count(")"):  # 06/10 (Rita): "… Kit (3" — parêntese aberto pelo corte
         t = t[:t.rfind("(")]
-    return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|em|no|na|a|o|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
+    # 06/10 noite (Rita): cortar onde a frase fecha — no último separador (", " " - " " | " " + ") se ele está na 2ª
+    # metade ("… Para Mulheres Meninas , Conjunto" → "… Para Mulheres Meninas")
+    seps = [m.start() for m in re.finditer(r"\s*(?:,|\s[-–|+])\s", t)]
+    if seps and seps[-1] >= n * 0.5:
+        t = t[:seps[-1]]
+    # … e sem palavra que pede continuação no fim ("Delicado Não" [Escurece], "… Sem" [Acetona], "… Tipo")
+    return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|pra|em|no|na|nos|nas|ao|aos|à|às|a|o|os|as|um|uma|que|n[ãa]o|"
+                  r"sem|muito|mais|super|tipo|estilo|ou|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
 
 
 SIGLAS = {"edp", "edt", "edc", "fps", "uv", "led", "usb", "tv", "hd", "pc", "ph", "bb", "cc"}
@@ -1080,7 +1095,7 @@ def no_nicho_site(o: dict) -> bool:
     """Nicho do site = o do grupo: beleza (make, skincare, dermo), cabelo, perfume, bolsa/joia/óculos/sapato feminino e
     pijama de seda. Casa, eletrônico, infantil, esporte, masculino, ferramenta e alimento ficam de fora."""
     t, g = o.get("titulo") or "", o.get("grupo")
-    if FORA_SITE.search(t) or fora_do_perfil(t) or eh_masculino(o):
+    if FORA_SITE.search(t) or fora_do_perfil(t) or eh_masculino(o) or preco_proibido(o):  # 06/10: Vivara sem preço
         return False
     m = FORA_FEMININO.search(t)
     # vitamina C em sérum/creme é skincare (o filtro do grupo só queria barrar suplemento)
@@ -1545,13 +1560,31 @@ def cabeca_do_titulo(titulo: str) -> str:
     return " ".join(out)
 
 
+# 06/10 noite (Rita): perfume "Una Blush" saiu com "BOCHECHA CORADINHA" — o tipo vem da CATEGORIA da oferta (perfume) e
+# do que o título diz que o produto É (Deo Parfum, EDP…), não de uma palavra do nome. Make nunca em perfume e vice-versa.
+FRASES_MAKE = {"PELE DE FILTRO NA VIDA REAL 💄", "OLHAR PODEROSO NO PRECINHO 👁️", "BOCA LINDA GASTANDO POUCO 💋",
+               "CÍLIOS DE BONECA POR ESSE PREÇO? 👀"}
+GANCHO_MAKE = re.compile(r"BOCHECHA|CORADINH|BLUSH|\bBOCA\b|BATO[MN]|💋|💄|OLHAR|C[ÍI]LIOS|PELE DE FILTRO|\bMAKE\b|"
+                         r"L[ÁA]BIO|GLOSS|DELINEAD|SOMBRA|ILUMINAD|BRILHO DE PELE|PELE UNIFORME|ACABAMENTO", re.I)
+GANCHO_PERFUME = re.compile(r"CHEIR|PERFUM|[ÁA]RABE|FRAGR|FIXA DE VERDADE", re.I)
+PERFUME_E = re.compile(r"(?i)(?<!sem )perfume\b|eau de (?:parfum|toilette|cologne)|\bparfum\b|deo ?col[ôo]nia|"
+                       r"\bcol[ôo]nia\b|body splash|body mist|\bedp\b|\bedt\b|perfume [áa]rabe")
+
+
+def eh_perfume(titulo: str, grupo: str | None) -> bool:
+    return grupo == "perfume" or bool(PERFUME_E.search(titulo or ""))
+
+
 def beneficio(titulo: str, grupo: str | None) -> str | None:
     """Frase de benefício do TIPO do produto (ou None): o termo que aparece primeiro na cabeça do título vence."""
     cabeca = cabeca_do_titulo(titulo)
     melhor: tuple[int, int, str | None] | None = None  # (posição, ordem na lista, frase)
+    perfume = eh_perfume(titulo, grupo)
     for i, (rx, frase) in enumerate(_BENEF):
         if i < BENEFICIOS_BELEZA and grupo not in (None, "beleza", "cabelo", "perfume"):
             continue  # frase de maquiagem/cabelo só em produto de beleza (cama de cachorro "com base" virava "PELE DE FILTRO")
+        if perfume and frase in FRASES_MAKE:
+            continue  # 06/10 (Rita): perfume "Una Blush" virava frase de blush pelo NOME
         for m in rx.finditer(cabeca):
             antes = [p.lower().strip(",") for p in cabeca[:m.start()].split()[-2:]]
             if antes and antes[-1] in PARA_ALGO and not (len(antes) == 2 and antes[0] in COLETIVOS):
@@ -1655,6 +1688,12 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
     if not familia_confere(gancho, grupo, titulo):
         return False
+    # 06/10 noite (Rita): frase de make em perfume ("Una Blush" → "BOCHECHA CORADINHA") e de perfume em make, não
+    perfume = eh_perfume(titulo, grupo)
+    if perfume and GANCHO_MAKE.search(gancho or ""):
+        return False
+    if not perfume and GANCHO_PERFUME.search(gancho or "") and MAKE_RX.search(titulo or ""):
+        return False
     # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
             r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
@@ -1692,6 +1731,10 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
     linhas = (texto or "").replace("⁠", "").split("\n")
     if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo")):
         probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
+    if not ganchos.economia_ok(linhas[0].strip("* "), o.get("preco")):  # 06/10 (Rita)
+        probs.append(f"frase de economia em produto acima de R$ {ganchos.PRECO_ECONOMIA}")
+    if preco_proibido(o):  # 06/10 (Beto): programa da Vivara proíbe preço
+        probs.append("Vivara não pode sair com preço")
     if o.get("preco") and _brl(o["preco"]) not in "\n".join(linhas):
         probs.append("preço do texto diferente do preço da oferta")
     if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
@@ -1718,10 +1761,12 @@ def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho conferido: se a frase escolhida não combina com o tipo do produto, vai uma frase neutra."""
     from vendas import ganchos
     g = _gancho_bruto(o, n, recentes)
-    if gancho_confere(g, o.get("titulo") or "", o.get("grupo")):
+    preco = o.get("preco") or 0
+    # 06/10 (Rita): frase de economia ("SEM GASTAR MUITO", "GASTANDO POUCO") só até R$ 120
+    if gancho_confere(g, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(g, preco):
         return g
-    preco = o.get("preco") or 0  # 05/10: frase neutra também sem "PRECINHO"/"CENTAVO" em produto caro
-    uni = [f for f in ganchos.UNIVERSAL if preco <= 120 or not re.search(r"PRECINHO|CENTAVO", f)]
+    # 05/10: frase neutra também sem "PRECINHO"/"CENTAVO" em produto caro
+    uni = [f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)]
     return ganchos.escolher(uni, n, recentes)
 
 
@@ -1734,7 +1779,7 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         s0 = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
     except ValueError:
         s0 = {}
-    if s0.get("origem") == "vitrine_fiel" and (frases := ganchos.dupe(titulo)):
+    if s0.get("origem") == "vitrine_fiel" and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)]):
         return ganchos.escolher(frases, n, recentes)
     if not de_confiavel(o):
         d = 0  # 02/10: "De" inflado da loja → nada de gancho "XX% OFF"
@@ -1749,8 +1794,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         tipo = None  # 05/10: "Henê Pelúcia Forte" (cabelo) saiu "DIA DAS CRIANÇAS TÁ CHEGANDO" por causa de "Pelúcia"
     if tipo and not familia_confere(tipo, o.get("grupo"), titulo):
         tipo = None  # 01/10 (dona): "ORGANIZE SUA BAGUNÇA" num RELÓGIO ("Curren Portas Relógios…") → frase neutra
-    if tipo:
-        return ganchos.escolher(ganchos.candidatos(tipo, titulo, preco=preco), n, recentes)
+    if tipo and (frases := ganchos.candidatos(tipo, titulo, preco=preco)):  # vazia = só frase de economia em produto caro
+        return ganchos.escolher(frases, n, recentes)
     if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher|calcinha", titulo, re.I):
         return ganchos.escolher(ganchos.REPERTORIO[PRA_ELE], n, recentes)
     sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
@@ -1763,8 +1808,7 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if d >= 60:
         # 01/10 (dona): "PRECINHO DE BUG 🐞" — bug virou joaninha, sem sentido → frase clara
         opcoes.append("PREÇO QUE PARECE ERRO 😱")
-    uni = ganchos.UNIVERSAL if preco <= 120 else [f for f in ganchos.UNIVERSAL  # R$ 207 não é "precinho"
-                                                    if not re.search(r"BARAT|PRECINHO|CENTAVO", f)]
+    uni = [f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)]  # R$ 207 não é "precinho"
     return ganchos.escolher(opcoes + uni, n, recentes)
 
 
@@ -2037,13 +2081,22 @@ FORA_NICHO_GRUPO = re.compile(
     # 06/10 tarde (Rita/Beto): passaram como beleza/cabelo — aspirador "antiqueda", estetoscópio, Gillette, fralda/Tena,
     # íntimo, foot spa, kit/cadeira de banho, cadeira de camping, massageador de corpo, paçoca, absorvente, magnésio
     r"aspirador|estetosc[óo]p|otosc[óo]p|gillette|\btena\b|fraldas?\b|sabonete [íi]ntimo|foot ?spa|kit (?:de )?banheiro|"
-    r"cadeira (?:de )?(?:banho|camping|praia)|massageador(?! (?:facial|de rosto|gua ?sha|de couro cabeludo))|pa[çc]oc|"
+    r"cadeira (?:de )?(?:banho|camping|praia)|massageador(?! (?:facial|de rosto|gua ?sha|de couro cabeludo))|pa[çc]o(?:c|qu)|"
     r"absorvente|anabolic|magn[ée]sio|suporte (?:de|para) shampoo|"
     r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
     r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
     r"col[áa]geno (?:hidrolisado|em p[óo]|verisol)|old spice|\baxe\b|for men\b|\bmen\b|"
-    r"\b(?:remove|remover|removedor de|elimina|eliminar|acaba com|some com|cura|curar)\b\s+(?:\w+\s+){0,3}?"
-    r"(?:melasma|manchas?|cicatriz(?:es)?|estrias?|acne|espinhas?|celulite|olheiras?|verrugas?|pintas?)")
+    # 06/10 noite (Rita/Beto): ainda passavam — lancheira, gel/creme dental e escova interdental, pomada de assadura,
+    # lâmina de barbear/de reposição, íntimo (sabonete, protetor diário Intimus) e kit de REVENDA ("+ tag Mimo para cliente")
+    r"lancheira|bolsa t[ée]rmica|dental|dentek|assaduras?|"
+    r"l[âa]minas? (?:de )?(?:barbear|reposi[çc][ãa]o|corte|acabamento|depila\w*)|l[âa]minas? (?:philips|wahl|kemei|\d+ ?mm)|"
+    r"oneblade|(?<!moda )\b[íi]ntim[oa]s?\b|intimus|protetor di[áa]rio|"
+    r"mimos? (?:para|pra|p/) (?:clientes?|revenda)|\brevenda\b|\btags? (?:mimo|para (?:clientes?|bijuteria|brincos?))|"
+    r"\bkit \d+\s*,\s*\d+|"
+    r"\b(?:remove|remover|removedor de|remo[çc][ãa]o d[eao]s?|elimina|eliminar|acaba com|some com|cura|curar)\b\s+"
+    r"(?:\w+\s+){0,3}?"
+    r"(?:melasma|manchas?|cicatriz(?:es)?|estrias?|acne|espinhas?|celulite|olheiras?|verrugas?|pintas?|rugas?|poros?)|"
+    r"clareamento (?:intenso|de manchas|[íi]ntimo|de axila|de virilha)")
 # vitamina C/E em sérum, creme ou ampola é skincare (dermo = nicho); "vitamina" em cápsula/goma é suplemento (fica fora)
 VITAMINA_SKINCARE = re.compile(r"(?i)s[ée]rum|facial|creme|ampola|booster|\bpele\b|rosto|t[ôo]nico|\bgel\b|"
                                r"hidratante|antioxidante|skin ?care")
@@ -2070,7 +2123,40 @@ def no_perfil_feminino(o: dict) -> bool:
 
 def barrada_na_hora(o: dict) -> bool:
     """04/10: regras novas valem também para o que JÁ estava aprovado no banco (o servidor posta da fila antiga)."""
-    return de_inflado(o) or fora_do_perfil(o.get("titulo") or "")
+    return (de_inflado(o) or fora_do_perfil(o.get("titulo") or "") or titulo_ruim(o.get("titulo") or "")
+            or perfume_grife_sem_ml(o) or preco_proibido(o))
+
+
+# 06/10 (Beto): perfume de GRIFE sem o tamanho no título (My Way 305/De 569, Idôle, La Vie Est Belle, Chloé, Light Blue
+# da Amazon/Promobit/Magalu/Época) com mais de 40% OFF — sem o ml não dá para comparar o "De" com o mercado (o "De" pode
+# ser do frasco grande e o "Por" do pequeno) → não sai
+PERFUME_GRIFE = re.compile(
+    r"(?i)(?<!\w)(?:lanc[ôo]me|armani|dior|chanel|carolina herrera|givenchy|ysl|yves saint|prada|paco rabanne|rabanne|"
+    r"jean paul gaultier|azzaro|hugo boss|versace|dolce\s*(?:&|e|and)\s*gabbana|d&g|burberry|gucci|valentino|bvlgari|"
+    r"bulgari|tiffany|cartier|montblanc|mont blanc|chlo[ée]|marc jacobs|calvin klein|tommy hilfiger|lacoste|kenzo|"
+    r"narciso rodriguez|issey miyake|mugler|tom ford|jo malone|guerlain|herm[èe]s|cacharel|nina ricci|ralph lauren|"
+    r"michael kors|victoria.?s secret|id[ôo]le|my way|la vie est belle|la nuit tr[ée]sor|light blue|good girl|212|"
+    r"olymp[ée]a|black opium|libre|j'?adore|miss dior|coco mademoiselle|flowerbomb|scandal|invictus|1 million|"
+    r"lady million|acqua di gi[oò]i?a?|si passione|alien|daisy|euphoria|sauvage|amor amor)(?!\w)")
+TEM_TAMANHO = re.compile(r"(?i)\d+(?:[.,]\d+)?\s*(?:ml|l)\b|\d+(?:[.,]\d+)?\s*fl\.?\s*oz")
+
+
+def perfume_grife_sem_ml(o: dict) -> bool:
+    t = o.get("titulo") or ""
+    if not (o.get("grupo") == "perfume" or PERFUME_RX.search(t)) or not PERFUME_GRIFE.search(t) or TEM_TAMANHO.search(t):
+        return False
+    p, de = o.get("preco") or 0, o.get("preco_antigo") or 0
+    d = o.get("desconto") or (round(100 * (1 - p / de)) if de > p > 0 else 0)
+    return d > 40
+
+
+# 06/10 (Beto): o programa da Vivara (Awin) PROÍBE divulgar preço/parcela, "promoção" e % OFF — e todo post do grupo e
+# card do site tem "Por R$" → oferta Vivara (a Promobit traz o link da vivara.com.br) não sai em lugar nenhum
+SEM_PRECO = re.compile(r"(?i)vivara")
+
+
+def preco_proibido(o: dict) -> bool:
+    return bool(SEM_PRECO.search(" ".join(str(o.get(k) or "") for k in ("loja", "link_loja", "titulo"))))
 
 
 POUCO_ESTOQUE = 30
@@ -2120,9 +2206,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         px = {}
     from vendas import revisao_fila  # 01/10 (dona): revisoras vetam ANTES de postar → o robô pula o vetado
     vet = revisao_fila.vetados()
+    chaves_vet = revisao_fila.chaves_vetadas(vet)  # 06/10 (Beto): veto vale pelo produto (ASIN/item/MLB), não só pelo id
     cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
                                     and px[o["foto"]] < FOTO_MIN_PX and "promobit.com.br" not in o["foto"])
-            and not vencendo(o.get("titulo") or "") and o["id"] not in vet and not barrada_na_hora(o)]
+            and not vencendo(o.get("titulo") or "") and not revisao_fila.vetada(o, vet, chaves_vet)
+            and not barrada_na_hora(o)]
     marca("foto pequena, vencendo, vetada, barrada", cand)
     cand = [o for o in cand if not acima_do_mercado(o)]
     marca("acima do mercado", cand)
@@ -2139,7 +2227,16 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         t = tipo_repetivel(dict(r))
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
-    cand = [o for o in cand if tipos_hoje.get(tipo_repetivel(o) or "", 0) < TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+    base_teto = cand
+
+    def _teto(fator: int) -> list:
+        return [o for o in base_teto
+                if tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+    cand = _teto(1)
+    # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por rodada):
+    # se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx. 8/dia)
+    if so_feminino_ligado() and sum(1 for o in cand if no_perfil_feminino(o)) < 20:
+        cand = _teto(2)
     marca("teto do mesmo tipo por dia", cand)
     if so_feminino_ligado():
         cand = [o for o in cand if no_perfil_feminino(o)]
@@ -2209,9 +2306,13 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # depois de 2 dias (quem entrou no grupo nesse meio tempo não viu; chegam só ~13 grifes boas por dia) e "de" a
     # partir de R$ 150
     volta = (datetime.now() - timedelta(days=2)).isoformat(sep=" ", timespec="seconds")
+    from vendas import revisao_fila
+    vet = revisao_fila.vetados()  # 06/10: a grife que VOLTA também respeita o veto (pelo produto)
+    chaves_vet = revisao_fila.chaves_vetadas(vet)
     pool = cand + [o for o in sem_repetidos(melhores(horas, 3000)) if o["publicado_em"] and o["publicado_em"] < volta
                    and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
-                   and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)]
+                   and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)
+                   and not revisao_fila.vetada(o, vet, chaves_vet)]
     grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)

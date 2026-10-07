@@ -296,6 +296,18 @@ OFF = ["{d}% OFF, NÃO É ERRO! 😱", "{d}% OFF DE VERDADE 😱", "CAIU {d}%, O
 # 01/10 (dona): "um agente que todo dia vai atualizar o repertório de legendas, sempre criando novos, pra não ficar
 # repetitivo" → a Tati (agente) escreve frases NOVAS em dados/achadinhos/ganchos_extra.json {tipo: [frases]}; aqui só
 # entram as que passam na checagem (sem promessa milagrosa, sem link/grupo/@, maiúsculas, curta, com emoji)
+# 06/10 (Rita, 3 casos no dia: Kérastase R$ 206 "SEM GASTAR MUITO", Lattafa R$ 135 "CHEIRO DE RICA GASTANDO POUCO",
+# máscara R$ 270): frase de ECONOMIA só em produto de até R$ 120 — acima disso vai outra frase do tipo (ou neutra)
+PRECO_ECONOMIA = 120
+ECONOMIA = re.compile(r"(?i)BARAT|PRECINHO|CENTAVO|BOLSO|GASTAR MUITO|GASTANDO POUCO|POR POUCO|ECONOM|"
+                      r"PRE[ÇC]O DE (?:ACHADINHO|AMIGA)|PRE[ÇC]O BAIXO|PAGANDO POUCO")
+
+
+def economia_ok(frase: str, preco: float | None) -> bool:
+    """False quando a frase fala de economia e o produto passa de R$ 120."""
+    return not (preco and preco > PRECO_ECONOMIA and ECONOMIA.search(frase or ""))
+
+
 PROIBIDAS = re.compile(r"(?i)\b(?:cura|curar|elimina\w*|acaba com|garantid\w*|milagr\w*|link|grupo|clique|whatsapp|"
                        r"http|www|definitiv\w*|100%)|@")
 
@@ -397,8 +409,8 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
         out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
     if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
         out = [f for f in out if not re.search(r"\bPELE\b", f)] or out  # reparador LABIAL ≠ "sua pele vai agradecer"
-    if preco and preco > 120:
-        out = [f for f in out if not re.search(r"BARAT|PRECINHO|CENTAVO|BOLSO", f)] or out  # R$ 207 não é "bom e barato"
+    if preco and preco > PRECO_ECONOMIA:  # R$ 207 não é "bom e barato" (06/10: nem "sem gastar muito"/"gastando pouco")
+        out = [f for f in out if economia_ok(f, preco)]  # lista vazia → o robô vai de frase neutra
     if tipo == "CABELO MACIO DE SALÃO EM CASA 💆‍♀️":
         # 05/10 (dona, print do grupo): "Tintura Masculina" saiu "CRONOGRAMA CAPILAR SEM GASTAR MUITO" — cor não é
         # hidratação; e cronograma só para máscara/hidratação/nutrição/reconstrução
