@@ -794,16 +794,19 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
 
 AWIN_DOCEBELEZA = "https://www.awin1.com/cread.php?awinmid=76888&awinaffid=3111704"  # + &ued=<produto codificado>
 NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", re.I)
+# 07/10 (DONA, por escrito no chat, depois de avisada do risco: "Pode por, já deveria por em tudo… Aceito o risco"):
+# o ML Afiliados proíbe WhatsApp/Telegram, mas os grupos de referência usam o link de afiliado do ML e ela decidiu fazer
+# igual → o grupo passa a levar o NOSSO link do ML. Para voltar ao link comum (sem etiqueta): False.
+ML_AFILIADO_NO_WHATSAPP = True
 
 
 def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados).
-    canal="whatsapp": programas que PROÍBEM WhatsApp/Telegram (ML Afiliados — página oficial
-    mercadolivre.com.br/l/afiliados-pode-compartilhar, conferida 30/09) saem como link comum, SEM a nossa etiqueta
-    (a conta de afiliada é a mesma da loja no ML: não arriscar)."""
+    canal="whatsapp": até 07/10 o ML (que PROÍBE WhatsApp/Telegram — mercadolivre.com.br/l/afiliados-pode-compartilhar)
+    saía como link comum, SEM a nossa etiqueta; desde 07/10 a dona aceitou o risco (ML_AFILIADO_NO_WHATSAPP)."""
     if not url:
         return None
-    if canal == "whatsapp" and NAO_PERMITE_WHATSAPP.search(url):
+    if canal == "whatsapp" and NAO_PERMITE_WHATSAPP.search(url) and not ML_AFILIADO_NO_WHATSAPP:
         return url
     if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
         from urllib.parse import quote
@@ -1414,7 +1417,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
-const semAf=u=>/mercadolivre\\.com\\.br\\//.test(u)?u.replace(/[?&]matt_(word|tool)=[^&]*/g,'').replace(/[?&]$/,''):u;  // ML Afiliados proíbe WhatsApp
+const semAf=u=>u;  // 07/10: a dona aceitou o risco do link de afiliado do ML no WhatsApp (ML_AFILIADO_NO_WHATSAPP)
 const zap=o=>'https://wa.me/?text='+encodeURIComponent(o.t+' por '+o.p+' 👉 '+semAf(o.u)+'\\n\\nMais achadinhos: {SITE_URL}');
 const card=(o,i)=>`<div class="card"><a class="lnk" href="${{E(o.u)}}" target="_blank" rel="nofollow sponsored noopener"><div class="img">${{o.f?`<img loading="${{i<8?'eager':'lazy'}}" decoding="async" width="300" height="300" src="${{E(o.f)}}" alt="${{E(o.t)}}" onerror="this.style.visibility='hidden'">`:''}}${{o.d?`<span class="selo">-${{o.d}}%</span>`:''}}</div><div class="loja">${{E(o.l)}}</div><div class="tit">${{E(o.t)}}</div><div class="preco">${{o.a?`<s>${{o.a}}</s>`:''}}<b>${{o.p}}</b></div>${{o.h?`<div class="hist">📉 menor preço em ${{o.h}} dias</div>`:''}}${{o.c?`<div class="cupom">Cupom: <b>${{E(o.c)}}</b></div>`:''}}<div class="btn">Pegar oferta</div></a><a class="share" href="${{E(zap(o))}}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a></div>`;
 const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();F=T.filter(o=>(!G||o.k===G)&&(!q||o.t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().includes(q)));N=0;document.getElementById('lista').innerHTML='';mais();document.getElementById('n').textContent=F.length+' ofertas'}};
@@ -2198,6 +2201,9 @@ def perfume_grife_sem_ml(o: dict) -> bool:
 SEM_PRECO = re.compile(r"(?i)vivara")
 
 
+LIMITE_CANDIDATOS = 8000  # quantas aprovadas (por score) entram no funil do grupo
+
+
 def preco_proibido(o: dict) -> bool:
     return bool(SEM_PRECO.search(" ".join(str(o.get(k) or "") for k in ("loja", "link_loja", "titulo"))))
 
@@ -2225,7 +2231,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 06/10 (Ana): contrato do Influenciador Magalu veda informação desatualizada (11.4) e a coleta da Época no Magalu só
     # roda no Chrome → só preço coletado nas últimas 12 h
     magalu_ok = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
-    base = [o for o in sem_repetidos(melhores(horas, 3000)) if o["link_loja"] and o.get("foto")
+    # 07/10 (Bia, Quarta do Perfume): com o feed novo da Shopee (+2 mil) o corte das 3.000 de maior score deixava de
+    # fora 19 perfumes aprovados (Época/Amazon) → 8.000
+    base = [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)]
@@ -2358,7 +2366,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     from vendas import revisao_fila
     vet = revisao_fila.vetados()  # 06/10: a grife que VOLTA também respeita o veto (pelo produto)
     chaves_vet = revisao_fila.chaves_vetadas(vet)
-    pool = cand + [o for o in sem_repetidos(melhores(horas, 3000)) if o["publicado_em"] and o["publicado_em"] < volta
+    pool = cand + [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["publicado_em"] and o["publicado_em"] < volta
                    and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
                    and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)
                    and not revisao_fila.vetada(o, vet, chaves_vet)]
