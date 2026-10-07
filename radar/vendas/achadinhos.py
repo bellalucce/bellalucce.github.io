@@ -2074,6 +2074,18 @@ MODA_FEMININA = re.compile(r"(?i)\bbolsas?\b|\bclutch\b|\btote\b|transversal|tir
                            r"(?:robe|camisola) de (?:seda|cetim)|"
                            # 06/10 (Eva, dona: "mostramos sapato lindo e o grupo não tem"): calçado feminino fofo
                            r"\bsapatilhas?\b|\bsand[áa]lias?\b|\bmules?\b|\btamancos?\b|scarpin|mary ?jane|rasteirinhas?")
+# 07/10 (dona: "pode incluir coisas de casa bonito"): casa só o que ENFEITA — aroma, penteadeira, decoração, cama e banho,
+# mesa posta (nada de ferramenta, limpeza, eletro ou cozinha de trabalho)
+CASA_BONITA = re.compile(
+    r"(?i)\bvelas? (?:arom[áa]ticas?|perfumadas?|decorativas?)|difusor(?:es)? (?:de (?:ambiente|aromas?|varetas)|arom)|"
+    r"aromatizador|home spray|sach[êe]s? perfumados?|porta[- ]?j[óo]ias|"
+    r"organizador(?:es)? (?:de )?(?:maquiagem|acr[íi]lico|penteadeira|cosm[ée]ticos|j[óo]ias|bijuterias?)|"
+    r"espelho (?:de (?:mesa|maquiagem|parede|camarim)|decorativo|com (?:led|luz))|lumin[áa]ria|abajur|cord[ãa]o de luz|"
+    r"fio de fada|\bvasos? (?:decorativos?|de cer[âa]mica|de vidro)|flores? (?:artificia|permanente)|\balmofadas?\b|"
+    r"\bmanta\b|jogo de (?:cama|len[çc]ol|banho|toalhas?|ta[çc]as|x[íi]caras)|len[çc]ol (?:de )?(?:cetim|seda|percal)|"
+    r"toalhas? (?:de banho|felpudas?|de rosto)|roup[ãa]o|\bcanecas?\b|\bx[íi]caras?\b|\bta[çc]as?\b|"
+    r"bandeja (?:espelhada|decorativa)|quadros? decorativ|porta[- ]?retratos?|tapete (?:felpudo|shaggy|decorativo)|"
+    r"cabides? de veludo|kit lavabo")
 FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
@@ -2145,7 +2157,8 @@ def no_perfil_feminino(o: dict) -> bool:
         m = None
     if m or fora_do_nicho_grupo(t) or eh_masculino(o):
         return False
-    return o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
+    return (o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
+            or (o.get("grupo") == "casa" and bool(CASA_BONITA.search(t))))
 
 
 def barrada_na_hora(o: dict) -> bool:
@@ -2267,7 +2280,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     cand = _teto(1)
     # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por rodada):
     # se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx. 8/dia)
-    if so_feminino_ligado() and sum(1 for o in cand if no_perfil_feminino(o)) < 20:
+    # 07/10 (dona: "por que parou de postar?" — de manhã eram 38 no perfil e saía 0–1 por rodada): limite 20 → 60
+    if so_feminino_ligado() and sum(1 for o in cand if no_perfil_feminino(o)) < 60:
         cand = _teto(2)
     marca("teto do mesmo tipo por dia", cand)
     if so_feminino_ligado():
@@ -2365,8 +2379,10 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             out.append(top)
             ultimo.append(top["grupo"])
             break
+    casa_bonita = lambda o: o["grupo"] == "casa" and bool(CASA_BONITA.search(o.get("titulo") or ""))  # noqa: E731
     filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "M": [o for o in cand if o["grupo"] == "moda"],
-             "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda"]}
+             "C": [o for o in cand if casa_bonita(o)],  # 07/10: vaga de casa bonita
+             "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda" and not casa_bonita(o)]}
     if datas.chegando():  # data grande chegando (Dia das Crianças, Natal…): o que é ligado a ela sobe na fila
         for f in filas.values():
             f.sort(key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True)
@@ -2400,7 +2416,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
             break
-        fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "O") if filas[k]), [])
+        fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "C", "O") if filas[k]), [])
         livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
                   and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out)]
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
@@ -2568,7 +2584,9 @@ LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
 # 01/10 (dona): também público MASCULINO → 2 das 10 vagas ("Bh" beleza, "Mh" moda) preferem produto masculino
 # 05/10 (dona: "vamos focar: achadinhos de BELEZA — dermo, make, skincare, cabelo, perfume, bolsa e acessório de luxo;
 # tirar brinquedo e o resto"): sem vaga de variado nem de masculino → 8 beleza/cabelo/perfume + 2 bolsa/joia
-PADRAO_LINHA = ("B", "Mb", "B", "B", "B", "B", "B", "B", "Mb", "B")
+# 07/10 (dona: "pode incluir coisas de casa bonito"): 1 vaga "C" de casa bonita (decoração, aroma, penteadeira, cama e
+# banho); sem casa bonita na fila, a vaga volta para beleza/moda
+PADRAO_LINHA = ("B", "Mb", "B", "B", "C", "B", "B", "B", "Mb", "B")
 # 03/10 (dona: "sinto necessidade de bolsas no grupo" — 11 bolsas em ~420 posts): a 1ª vaga de moda prefere BOLSA
 BOLSA = re.compile(r"\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete", re.I)
 NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessaire|cosm[ée]tic|maternidade|viagem", re.I)
