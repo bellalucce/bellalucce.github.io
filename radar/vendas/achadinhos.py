@@ -727,6 +727,9 @@ def aprovada(o: dict) -> bool:
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
             return bool(s.get("oficial")) or (nota >= 4.6 and vend >= 30)
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
+        # 07/10 (dona: "cadê as maquiagens?" — Rafa: Maybelline Sky High da loja oficial, nota 5, -24%, barrada só por ter
+        # menos de 1.000 vendidos): loja OFICIAL bem avaliada já é confiável → conta como "bom"
+        bom = bom or (bool(s.get("oficial")) and nota >= 4.5)
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
             return d >= 40 or (d >= 20 and bom) or (d >= 15 and viral)
         if o.get("grupo") == "eletronicos":
