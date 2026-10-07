@@ -2109,6 +2109,8 @@ FORA_NICHO_GRUPO = re.compile(
     r"(?i)escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
     r"clareamento dental|irrigador|lava[- ]?roupas?|sab[ãa]o (?:l[íi]quido|em p[óo]|em barra|de coco)|amaciante|"
     r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
+    # 07/10 (Rita): suplemento esportivo entrava como "beleza" (gel energético, beta alanina)
+    r"gel energ[ée]tico|beta[- ]?alanina|creatina|\bwhey\b|pr[ée][- ]?treino|\bbcaa\b|termog[êe]nico|"
     # 06/10 (auditoria do crescimento): utilitário não é "achadinho de beleza" — cola de sapato, item de enfermagem,
     # firmador de seios
     # 07/10 (revisão): "Coca-Cola" (batom/hidratante labial da Carmed/Bruna Tavares) não é cola; cola de cílios/unha/
@@ -2306,6 +2308,10 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     marca("foto pequena, vencendo, vetada, barrada", cand)
     cand = [o for o in cand if not acima_do_mercado(o)]
     marca("acima do mercado", cand)
+    # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
+    # "De" maior que o "Por" não vai (os pedidos da dona entram depois, por cima)
+    cand = [o for o in cand if not (o.get("preco") and (o.get("preco_antigo") or 0) <= o["preco"])]
+    marca("sem preço 'De'", cand)
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
     permitidos = permitidos_teste or canais().get("grupos_permitidos")
@@ -2320,10 +2326,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
     base_teto = cand
+    from vendas import datas as _datas
+    tema = _datas.tema_do_dia()  # 07/10 (dona: "hoje é dia do perfume… precisa ter muitos perfumes"): o tema não tem teto
 
     def _teto(fator: int) -> list:
         return [o for o in base_teto
-                if tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+                if (tema and _datas.casa(o, tema))
+                or tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
     cand = _teto(1)
     # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por rodada):
     # se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx. 8/dia)
