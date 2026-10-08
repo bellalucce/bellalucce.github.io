@@ -1780,7 +1780,7 @@ def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     if gancho_confere(g, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(g, preco):
         return g
     # 05/10: frase neutra também sem "PRECINHO"/"CENTAVO" em produto caro
-    uni = [f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)]
+    uni = _girar([f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)], n)
     return ganchos.escolher(uni, n, recentes)
 
 
@@ -1822,8 +1822,17 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     if d >= 60:
         # 01/10 (dona): "PRECINHO DE BUG 🐞" — bug virou joaninha, sem sentido → frase clara
         opcoes.append("PREÇO QUE PARECE ERRO 😱")
-    uni = [f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)]  # R$ 207 não é "precinho"
+    uni = _girar([f for f in ganchos.UNIVERSAL if ganchos.economia_ok(f, preco)], n)  # R$ 207 não é "precinho"
     return ganchos.escolher(opcoes + uni, n, recentes)
+
+
+def _girar(lista: list, n: int) -> list:
+    """08/10 (Tati: "ACHADO DO DIA" 12×, "VALE CADA CENTAVO" 11× em ~400 posts): o escolher pega a 1ª frase livre, e
+    as universais saíam sempre na mesma ordem → começa a lista num ponto diferente a cada post."""
+    if not lista:
+        return lista
+    k = (n * 7) % len(lista)
+    return lista[k:] + lista[:k]
 
 
 LUXO = re.compile(  # marcas "caras" que fazem a pessoa parar o dedo (vídeo de divulgação do grupo, 30/09)
