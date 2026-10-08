@@ -2418,6 +2418,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             out.append(o)
             ultimo.append(o["grupo"])
         cand.remove(o)
+    # o pedido que ficou de fora pelo limite espera a PRÓXIMA rodada (não entra por outra vaga nesta)
+    cand = [x for x in cand if not x.get("pedido_dona")]
     # 30/09: 1 oferta de GRIFE abre cada rodada (o vídeo de divulgação promete "itens de marca por preço de verdade" no
     # grupo — tem que ser verdade quando a pessoa entra): a de maior desconto em reais, 'de' ≥ R$ 200, ≥ 25% off
     fresco = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
