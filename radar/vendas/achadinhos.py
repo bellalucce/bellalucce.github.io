@@ -1940,6 +1940,11 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
+    s = o.get("sinais") or {}
+    if isinstance(s, str):
+        s = json.loads(s or "{}")
+    if s.get("oficial"):  # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar
+        linhas.append("✔️ Loja oficial")
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
@@ -1947,7 +1952,20 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
+    elif n % 5 == 2 and not o.get("cupom") and (c := _cupom_shopee_manha(o)):
+        linhas += ["", f"🎟️ Resgate os cupons do dia: {c}"]
     return "\n".join(linhas)
+
+
+def _cupom_shopee_manha(o: dict, agora: datetime | None = None) -> str | None:
+    """08/10 (Vitória, 20 líderes: modelo Promos da Ca): de manhã, 1 a cada 5 posts da Shopee lembra de resgatar os
+    cupons do dia — com o NOSSO link curto que a Cora conferiu em cupons_dia.json (sem cupom do dia, não sai)."""
+    agora = agora or datetime.now()
+    if agora.hour >= 12 or "shopee" not in (o.get("link_loja") or "").lower():
+        return None
+    from vendas import datas
+    return next((c["link"] for c in datas.cupons_do_dia(agora.date())
+                 if c.get("loja") == "Shopee" and "s.shopee.com.br/" in c["link"]), None)
 
 
 SITE_URL = "https://bellalucce.github.io"
