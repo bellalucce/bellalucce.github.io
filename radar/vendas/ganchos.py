@@ -101,7 +101,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"hialur", ["HIDRATAÇÃO QUE A PELE SENTE ✨"]),
         (r"limpeza|sabonete|espuma|micelar", ["PELE LIMPINHA SEM REPUXAR ✨"]),
         (r"noturn|creme (?:de )?noite|\bnight\b", ["CUIDA DA PELE ENQUANTO VOCÊ DORME 🌙"]),  # não "Dia/Noite"
-        (r"olheira|[áa]rea dos olhos", ["OLHAR COM CARA DE DESCANSADO 👀"]),
+        (r"olheira|[áa]rea dos olhos|contorno (?:d[oa]s? |de )?olhos|eye cream", ["OLHAR COM CARA DE DESCANSADO 👀"]),
         (r"manchas|clareador|uniform", ["PELE MAIS UNIFORME NO DIA A DIA ✨"]),
         (r"antissinais|anti-?idade|rugas|linhas", ["CUIDADO ANTISSINAIS NO PRECINHO ✨"]),
         (r"snail|mucin|caracol", ["A FAMOSA MUCINA DE CARACOL 🐌"]),

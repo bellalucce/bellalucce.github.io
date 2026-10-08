@@ -344,7 +344,9 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s+([,)])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" -–|:,")
     t = re.sub(r"(?i)\b(a[çc]o) ino\b", r"\1 Inox", t)
     t = re.sub(r"\s+\d{1,2}(?:/\d{1,2})+\s*$", "", t).strip(" -–|:,")
-    t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top))+\s*$", "", t, flags=re.I).strip(" -–|:")
+    # 08/10 (Beto: Yara Moi "… 100ml Lipx" vetado e de volta): "Lipx"/"Com Nf" = etiqueta do vendedor do ML, não nome
+    t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top|lipx|(?:com|c/)\s*nf(?:-?e)?|nota fiscal))+\s*$", "", t,
+               flags=re.I).strip(" -–|:")
     # 01/10 (Nina): ML cola atributos da variação no fim ("… Cor-1 M", "… Padrão", "- Cor Preto Tamanho M")
     t = re.sub(r"(?:\s*[-|/]?\s*(?:\b(?:cor|tamanho|tam|voltagem)\b[\s:\-]+[\w-]+|\bmodelo\b[\s:\-]+\w*\d[\w-]*)"
                r"(?:\s+(?:PP|P|M|G|GG|XG|\d{2}))?)+\s*$", "", t, flags=re.I)  # "Modelo Ciganinha" fica; "Modelo X12" sai
@@ -375,6 +377,21 @@ def cortar(t: str, n: int) -> str:
     """01/10 (Marcos): "…Natu", "…Cravej" — corta no fim da palavra (e sem "de/com/para" sobrando no fim)."""
     if len(t) <= n:
         return t
+    # 08/10 (Rita: Eucerin "… 200ml, Anti-Pigment, Clareador Joelho, Coxa…"): título longo com LISTA de atributos depois
+    # de vírgula (Amazon/ML) → fica o nome até a 1ª vírgula que fecha o produto (≥ 4 palavras; "Lancôme, La Vie est
+    # Belle EDP, …" junta a marca), + o tamanho se ele só aparece depois
+    partes = re.split(r"\s*,\s+", t)
+    if len(partes) >= 2:
+        nome = partes[0]
+        for p in partes[1:-1]:
+            if len(nome.split()) >= 4:
+                break
+            nome += ", " + p
+        if len(nome.split()) >= 4 and len(nome) >= 25 and len(nome) <= n:
+            if not TAMANHO_TITULO.search(nome) and (tam := TAMANHO_TITULO.search(t[len(nome):])) \
+                    and len(nome) + len(tam.group(0)) < n:
+                nome += " " + tam.group(0)
+            return _fim_limpo(nome)
     t = t[:n + 1].rsplit(" ", 1)[0] if " " in t[:n + 1] else t[:n]
     if t.count("(") > t.count(")"):  # 06/10 (Rita): "… Kit (3" — parêntese aberto pelo corte
         t = t[:t.rfind("(")]
@@ -383,7 +400,20 @@ def cortar(t: str, n: int) -> str:
     seps = [m.start() for m in re.finditer(r"\s*(?:,|\s[-–|+])\s", t)]
     if seps and seps[-1] >= n * 0.5:
         t = t[:seps[-1]]
-    # … e sem palavra que pede continuação no fim ("Delicado Não" [Escurece], "… Sem" [Acetona], "… Tipo")
+    else:
+        # 08/10 (Rita: óleo de banho "… 200ml Nutrição Intensa Rosa Mosqueta Vitamina E Pele"): título-sopa sem
+        # separador → fecha logo depois do TAMANHO ("… Beleza Brasileira 200ml"), se ele não está no comecinho
+        tams = [m for m in TAMANHO_TITULO.finditer(t) if m.end() >= n * 0.35]
+        if tams and len(t[tams[-1].end():].split()) >= 2:
+            t = t[:tams[-1].end()]
+    return _fim_limpo(t)
+
+
+TAMANHO_TITULO = re.compile(r"(?i)(?<![\w,.])\d+(?:[.,]\d+)?\s?(?:ml|g|kg|l|oz)(?!\w)")
+
+
+def _fim_limpo(t: str) -> str:
+    """Sem palavra que pede continuação no fim ("Delicado Não" [Escurece], "… Sem" [Acetona], "… Tipo")."""
     return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|pra|em|no|na|nos|nas|ao|aos|à|às|a|o|os|as|um|uma|que|n[ãa]o|"
                   r"sem|muito|mais|super|tipo|estilo|ou|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
 
@@ -1138,6 +1168,8 @@ SAPATO_FEM = re.compile(r"(?i)\b(?:sapato|sapatilha|sand[áa]lia|rasteira|tamanc
 SAPATO_DE_MULHER = re.compile(r"(?i)feminin|mulher|dama|moleca|vizzano|anacapri|arezzo|schutz|santa lolla|capodarte|"
                               r"piccadilly|bottero|beira rio|modare")
 PIJAMA_SEDA = re.compile(r"(?i)pijama|camisola|\brobe\b")
+JOIA_RX = re.compile(r"(?i)\bcorrentes?\b|pulseiras?|bracelete|\bcolar(?:es)?\b|gargantilha|choker|\ban(?:el|[ée]is)\b|"
+                     r"brincos?\b|tornozeleira|pingente|semijoia|\bjoias?\b")
 DERMO = re.compile(r"(?i)la roche|vichy|bioderma|cetaphil|av[èe]ne|eucerin|isdin|dermachem|cerave|uriage|ducray|sesderma|"
                    r"mantecorp|skinceuticals|neutrogena|dermage|adcos|dermatol|dermocosm|sensibio|effaclar|cicaplast|"
                    r"anthelios|dermo|biretix|episol|nupill")
@@ -1188,7 +1220,10 @@ def aba_site(o: dict) -> str:
     if g == "moda":
         if PIJAMA_SEDA.search(t):
             return "pijama"
-        if SAPATO_FEM.search(t) and not BOLSA.search(t):
+        # 08/10 (Rita): "Corrente De Tênis"/"Pulseiras De Tênis" (joia tipo tênis) iam para Sapatos
+        # (joia ANTES do calçado no título; "Sandália Rasteira com Pingente" continua sapato)
+        sap, joia = SAPATO_FEM.search(t), JOIA_RX.search(t)
+        if sap and not BOLSA.search(t) and not (joia and joia.start() < sap.start()):
             return "sapatos"
         return "bolsas"
     if g == "perfume" or PERFUME_RX.search(t):
@@ -1507,10 +1542,12 @@ BENEFICIOS = [
      # 30/09: coreanas (toner/máscara facial/cleansing balm); toner de impressora fora ("Toner HP 85A", "CF283A")
      r"t[ôo]nico facial|toner(?!\s*(?:hp|brother|samsung|lexmark|xerox|ricoh|kyocera|canon|epson|compat|p/|para imp|"
      r"de imp|tn-?\d|[a-z]{1,3}\d{2,}))|m[áa]scara facial|sheet mask|deep mask|cleansing balm|balm de limpeza|"
-     r"[óo]leo de limpeza",  # "Creamy Skincare" = marca
+     r"[óo]leo de limpeza|"  # "Creamy Skincare" = marca
+     # 07/10 (Beto): "Contorno dos Olhos Revitalift" (creme) saía "ROSTO MAIS DESENHADO NA MAKE" — é skincare
+     r"contorno (?:d[oa]s? |de )?olhos|creme (?:para |de )?(?:a )?(?:[áa]rea d[oa]s )?olhos|eye cream|[áa]rea dos olhos",
      "PELE LISINHA E COM VIÇO, AMIGA ✨"),
-    (r"base|corretivo|concealer|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream|blush|iluminador|contorno|"
-     r"bronzer|cushion", "PELE DE FILTRO NA VIDA REAL 💄"),
+    (r"base|corretivo|concealer|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream|blush|iluminador|"
+     r"contorno(?! (?:d[oa]s? |de )?olhos)|bronzer|cushion", "PELE DE FILTRO NA VIDA REAL 💄"),
     (r"paleta de sombras?|sombras?|delineador|l[áa]pis de olho|kajal", "OLHAR PODEROSO NO PRECINHO 👁️"),
     (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
      r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
@@ -1646,7 +1683,35 @@ PERFUME_E = re.compile(r"(?i)(?<!sem )perfume\b|eau de (?:parfum|toilette|cologn
 
 
 def eh_perfume(titulo: str, grupo: str | None) -> bool:
-    return grupo == "perfume" or bool(PERFUME_E.search(titulo or ""))
+    return (grupo == "perfume" or bool(PERFUME_E.search(titulo or ""))) and not kit_capilar(titulo)
+
+
+# 08/10 (Rita): "Primer Antifrizz Plástica dos Fios - Cadiveu" (cabelo) saiu "A MAKE DURA MUITO MAIS"; "Kit Máscara
+# Lamelar e Perfume Capilar Forever Liss" saiu "CHEIROSA O DIA INTEIRO" → a palavra solta (primer, perfume) não decide o
+# tipo quando o título é de CABELO; make nunca em cabelo, e kit de tratamento capilar não ganha frase de perfume
+CABELO_CONTEXTO = re.compile(r"(?i)capilar|cabelos?\b|\bfios\b|anti-?frizz|\bfrizz|shampoo|condicionador|leave-?in|"
+                             r"progressiva|selagem|cronograma|\bhair\b|couro cabeludo|cadiveu|k[ée]rastase|forever liss|"
+                             r"\bwella\b|\btruss\b")
+MAKE_DE_VERDADE = re.compile(r"(?i)batom|gloss|\bbase\b|corretivo|r[íi]mel|c[íi]lios|sombra|paleta|blush|iluminador|"
+                             r"delineador|maquiagem|\bmake\b|\blip\b|labial|p[óo] (?:compacto|solto|facial)")
+CUIDADO_CAPILAR = re.compile(r"(?i)m[áa]scara|shampoo|condicionador|leave-?in|\b[óo]leos?\b|ampola|creme de pentear|tratamento|"
+                             r"hidrata[çc][ãa]o|nutri[çc][ãa]o|reconstru|lamelar|s[ée]rum")
+SKINCARE_OLHOS = re.compile(r"(?i)contorno (?:d[oa]s? |de )?olhos|eye cream|[áa]rea dos olhos|creme (?:para |de )?olhos")
+FRASES_PERFUME = {"CHEIROSA O DIA INTEIRO, AMIGA 🌸", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"}
+
+
+def eh_cabelo(titulo: str, grupo: str | None) -> bool:
+    """Produto de cabelo (categoria ou o título fala de fios/capilar) sem ser maquiagem de verdade."""
+    t = titulo or ""
+    return (grupo == "cabelo" or bool(CABELO_CONTEXTO.search(t))) and not MAKE_DE_VERDADE.search(t)
+
+
+def kit_capilar(titulo: str) -> bool:
+    """Perfume capilar/hair mist JUNTO de tratamento (máscara, shampoo…): o produto é de cabelo, não perfume."""
+    t = titulo or ""
+    return bool(re.search(r"(?i)perfume capilar|perfume (?:para|pra) (?:o )?cabelo|hair mist|hair perfume", t)) and bool(
+        CUIDADO_CAPILAR.search(re.sub(r"(?i)perfume capilar|perfume (?:para|pra) (?:o )?cabelo|hair mist|hair perfume",
+                                      "", t)))
 
 
 def beneficio(titulo: str, grupo: str | None) -> str | None:
@@ -1654,11 +1719,14 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
     cabeca = cabeca_do_titulo(titulo)
     melhor: tuple[int, int, str | None] | None = None  # (posição, ordem na lista, frase)
     perfume = eh_perfume(titulo, grupo)
+    cabelo, kit_cab = eh_cabelo(titulo, grupo), kit_capilar(titulo)
     for i, (rx, frase) in enumerate(_BENEF):
         if i < BENEFICIOS_BELEZA and grupo not in (None, "beleza", "cabelo", "perfume"):
             continue  # frase de maquiagem/cabelo só em produto de beleza (cama de cachorro "com base" virava "PELE DE FILTRO")
         if perfume and frase in FRASES_MAKE:
             continue  # 06/10 (Rita): perfume "Una Blush" virava frase de blush pelo NOME
+        if (cabelo and frase in FRASES_MAKE) or (kit_cab and frase in FRASES_PERFUME):
+            continue  # 08/10 (Rita): "Primer Antifrizz" (cabelo) e kit máscara + perfume capilar
         for m in rx.finditer(cabeca):
             antes = [p.lower().strip(",") for p in cabeca[:m.start()].split()[-2:]]
             if antes and antes[-1] in PARA_ALGO and not (len(antes) == 2 and antes[0] in COLETIVOS):
@@ -1675,6 +1743,8 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
         return None
     frase = melhor[2]
     for fino in REFINO.get(frase, []):  # "Perfume Árabe Lattafa": o tipo é perfume, mas a frase certa é a do árabe
+        if kit_cab and fino in FRASES_PERFUME:
+            continue
         if any(rx.search(cabeca) for rx, f in _BENEF if f == fino):
             frase = fino
             break
@@ -1768,6 +1838,13 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
         return False
     if not perfume and GANCHO_PERFUME.search(gancho or "") and MAKE_RX.search(titulo or ""):
         return False
+    # 08/10 (Rita/Beto): a categoria manda, não a palavra solta — make em cabelo ("Primer Antifrizz… Fios") ou em creme
+    # de "Contorno dos Olhos", e perfume em kit de tratamento capilar ("Máscara + Perfume Capilar"), não
+    if GANCHO_MAKE.search(gancho or "") and "DESCANSAD" not in (gancho or "").upper() and (eh_cabelo(titulo, grupo) or (
+            SKINCARE_OLHOS.search(titulo or "") and not MAKE_DE_VERDADE.search(titulo or ""))):
+        return False
+    if GANCHO_PERFUME.search(gancho or "") and kit_capilar(titulo):
+        return False
     # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
             r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
@@ -1813,6 +1890,9 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
         probs.append("preço do texto diferente do preço da oferta")
     if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
         probs.append("'de' menor ou igual ao 'por'")
+    # 08/10 (Rita, 5ª rodada seguida): post de oferta sem a linha "De:" riscada não vai (regra da dona) — última trava
+    if "*Por:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas):
+        probs.append("sem preço 'De' no post")
     # 08/10 (revisão): post com 2 links (💌 indique / 🎟️ cupons do dia) — o link do PRODUTO é o do "Compre aqui"; o do
     # site/cupom não pode esconder um "Compre aqui" sem link (texto sem "Compre aqui" = regra antiga, qualquer https)
     compre = re.search(r"Compre aqui:?\**[ \t]*(\S*)", texto or "")
@@ -2259,7 +2339,95 @@ def no_perfil_feminino(o: dict) -> bool:
 def barrada_na_hora(o: dict) -> bool:
     """04/10: regras novas valem também para o que JÁ estava aprovado no banco (o servidor posta da fila antiga)."""
     return (de_inflado(o) or fora_do_perfil(o.get("titulo") or "") or titulo_ruim(o.get("titulo") or "")
-            or perfume_grife_sem_ml(o) or preco_proibido(o))
+            or perfume_grife_sem_ml(o) or preco_proibido(o) or farmacia_shopee_comum(o))
+
+
+# 08/10 (Beto, 2ª vez: Avène "produto importado" R$ 50 e Cicalfate 20 ml na Raitz Beauty com De 2× exato; Sunless De
+# 99,90 × Drogasil 63; Hidraderm De 34,69 × 21,99): dermo importado e marca de FARMÁCIA em loja comum da Shopee vêm com
+# o "De" inflado (e às vezes sem garantia de origem) → na Shopee só da loja OFICIAL
+DERMO_IMPORTADO = re.compile(
+    r"(?i)(?<!\w)(?:av[èe]ne|la roche|bioderma|vichy|cerave|eucerin|isdin|uriage|ducray|sesderma|cetaphil|skinceuticals|"
+    r"caudalie|nuxe|filorga|svr|a-derma|neostrata|noreva|cicalfate|effaclar|anthelios|cicaplast|sensibio|atoderm|"
+    r"hyalu b5|mineral 89|lipikar|toleriane)(?!\w)")
+MARCA_FARMACIA = re.compile(
+    r"(?i)(?<!\w)(?:sunless|hidraderm|episol|asepxia|catharine hill|mavala|neutrogena|nivea|darrow|adcos|dermage|"
+    r"mantecorp|bepantol|bepantriz|hipoglos|minancora|epidrat|cetrilan|fisiogel|actine|tracta|ricca|depimiel|tabu)(?!\w)")
+
+
+def farmacia_shopee_comum(o: dict) -> bool:
+    link = f"{o.get('link_loja') or ''} {o.get('fonte') or ''}"
+    if not re.search(r"shopee|shope\.ee", link, re.I) or sinais_de(o).get("oficial"):
+        return False
+    t = o.get("titulo") or ""
+    return bool(DERMO_IMPORTADO.search(t) or MARCA_FARMACIA.search(t))
+
+
+# 07–08/10 (Rita, 5ª rodada seguida): o filtro "sem preço 'De'" só olhava o número — mas a legenda ESCONDE o "De" que
+# não é confiável (loja de "De" fixo/inflado, koksara, Por já no preço de mercado) → o post saía só com "Por" (Medicube,
+# Vnox, Missha, Kokeshi…). Regra da dona: sem "De" maior que o "Por" NA LEGENDA, não vai ao grupo (nem pedido)
+def tem_de_no_post(o: dict) -> bool:
+    p, de = o.get("preco") or 0, o.get("preco_antigo") or 0
+    return p > 0 and de > p and de_confiavel(o)
+
+
+# 07/10 (Beto, 7× em 06–08/10: Taiff ML de 29/09, Mondial 04/10, fwee 02/10): preço com mais de 24 h não entra na fila
+# nem volta. "Visto" = a última vez que a fonte mostrou ESSE preço: atualizado_em (Shopee/ML/Amazon/Época/Océane regravam
+# o preço a cada coleta); na Promobit o preço é o do POST da comunidade → visto_em. Amazon (6 h), Magalu/Época (12 h) e
+# Océane (OCEANE_VALIDADE_H) têm validade própria, mais curta.
+PRECO_VALE_H = 24
+
+
+def preco_visto_em(o: dict) -> str:
+    if o.get("fonte") == "promobit":
+        return str(o.get("visto_em") or o.get("atualizado_em") or "")
+    return str(o.get("atualizado_em") or o.get("visto_em") or "")
+
+
+def preco_fresco(o: dict, agora: datetime | None = None) -> bool:
+    visto = preco_visto_em(o)
+    if not visto:
+        return True  # sem data nenhuma (teste/linha manual): quem decide é a validade da fonte
+    agora = agora or datetime.now()
+    h = PRECO_VALE_H
+    link = o.get("link_loja") or ""
+    if re.search(r"amazon\.com\.br|amzn\.to", link, re.I):
+        h = min(h, 6)
+    if o.get("fonte") == "magalu_epoca":
+        h = min(h, 12)
+    if o.get("fonte") == "oceane_afiliados":
+        h = min(h, OCEANE_VALIDADE_H)
+    return visto.replace("T", " ") >= (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
+
+
+# 08/10 (Beto: Laneige Lip Glowy Balm saiu 06/10 e voltou 08/10 pela vaga da grife, que deixava voltar em 2 dias): o
+# MESMO produto (mesmo id, mesmo item da loja — ASIN/MLB/item Shopee — ou o mesmo título) não sai de novo em REPETIR_DIAS
+REPETIR_DIAS = 7
+
+
+def _norm_titulo(t: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", limpar_titulo(t or "").lower()).encode("ascii", "ignore").decode()
+    return " ".join(re.findall(r"[a-z0-9]+", t))
+
+
+def publicados_recentes(dias: int = REPETIR_DIAS) -> dict:
+    """{"ids", "chaves", "titulos"} do que saiu no grupo nos últimos `dias`."""
+    from vendas import revisao_fila
+    ids, chaves, titulos = set(), set(), set()
+    for r in db.consultar("SELECT id, titulo, link_loja FROM ofertas WHERE publicado_em >= "
+                          f"datetime('now','localtime','-{int(dias)} days')") or []:
+        ids.add(r["id"])
+        if c := revisao_fila.chave_item(r["id"] or "", r["link_loja"]):
+            chaves.add(c)
+        if r["titulo"]:
+            titulos.add(_norm_titulo(r["titulo"]))
+    return {"ids": ids, "chaves": chaves, "titulos": titulos}
+
+
+def ja_saiu(o: dict, pub: dict) -> bool:
+    from vendas import revisao_fila
+    return (o.get("id") in pub["ids"] or revisao_fila.chave_item(o.get("id") or "", o.get("link_loja")) in pub["chaves"]
+            or _norm_titulo(o.get("titulo") or "") in pub["titulos"])
 
 
 # 06/10 (Beto): perfume de GRIFE sem o tamanho no título (My Way 305/De 569, Idôle, La Vie Est Belle, Chloé, Light Blue
@@ -2328,6 +2496,9 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         o, p = dict(r), ped[r["id"]]
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
             continue  # já saiu depois do pedido
+        # 08/10 (Rita/Beto): pedido também precisa do "De" na legenda e de preço visto há ≤ 24 h (regra da dona)
+        if not tem_de_no_post(o) or not preco_fresco(o):
+            continue
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
                 or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
                 or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
@@ -2369,11 +2540,16 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
             and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)]
     marca("aprovadas, com link e foto, sem repetir 48 h", base)
+    base = [o for o in base if preco_fresco(o)]  # 08/10 (Beto): preço visto há mais de 24 h não vai nem volta
+    marca(f"preço visto há ≤ {PRECO_VALE_H} h", base)
+    pub = publicados_recentes()  # 08/10 (Beto: Laneige voltou 2 dias depois): o mesmo produto não sai de novo em 7 dias
+    base = [o for o in base if not ja_saiu(o, pub)]
+    marca(f"não saiu (mesmo item/título) em {REPETIR_DIAS} dias", base)
     cand = [o for o in base if not o["publicado_em"]]
     marca("ainda não postadas", cand)
     if len(cand) < POUCO_ESTOQUE:  # 04/10 (grupo parado com o PC desligado): oferta que o radar AINDA vê em promoção
-        # (preço conferido nas últimas 2 h) e saiu há mais de 3 dias pode voltar — quem entrou depois não viu
-        volta = (datetime.now() - timedelta(days=3)).isoformat(sep=" ", timespec="seconds")
+        # (preço conferido nas últimas 2 h) e saiu há mais de REPETIR_DIAS (era 3) pode voltar — quem entrou depois não viu
+        volta = (datetime.now() - timedelta(days=REPETIR_DIAS)).isoformat(sep=" ", timespec="seconds")
         fresco = (datetime.now() - timedelta(hours=2)).isoformat(sep=" ", timespec="seconds")
         cand += [o for o in base if o["publicado_em"] and o["publicado_em"] < volta
                  and (o.get("atualizado_em") or "") >= fresco]
@@ -2403,7 +2579,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     marca("acima do mercado", cand)
     # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
     # "De" maior que o "Por" não vai (os pedidos da dona entram depois, por cima)
-    cand = [o for o in cand if not (o.get("preco") and (o.get("preco_antigo") or 0) <= o["preco"])]
+    # 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número era olhado e a legenda escondia o
+    # "De" não confiável, então o post saía só com "Por"
+    cand = [o for o in cand if tem_de_no_post(o)]
     marca("sem preço 'De'", cand)
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
@@ -2505,14 +2683,16 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # o fim da rodada anterior (últimos posts no banco); só passa disso se a fila só tiver essa loja
     antes = [loja_de(dict(r)) for r in db.consultar(
         "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
-        f"LIMIT {MAX_LOJA_SEGUIDA}") or []][::-1]
+        f"LIMIT {max(MAX_LOJA_SEGUIDA, LOJA_JANELA - 1)}") or []][::-1]
     lojas_cand = {loja_de(x) for x in cand}
 
     def sem_rajada(lista: list, lojas_resto) -> list:
-        seq = (antes + [loja_de(x) for x in out])[-MAX_LOJA_SEGUIDA:]
-        if len(seq) < MAX_LOJA_SEGUIDA or len(set(seq)) > 1 or all(lj == seq[0] for lj in lojas_resto):
+        seq = antes + [loja_de(x) for x in out]
+        bons = [x for x in lista if loja_cabe(loja_de(x), seq)]
+        if len(bons) == len(lista):
             return lista
-        return [x for x in lista if loja_de(x) != seq[0]]
+        # só passa da regra se NENHUMA outra loja da fila cabe agora (o grupo não para)
+        return bons if any(loja_cabe(lj, seq) for lj in set(lojas_resto)) else lista
     # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada). 08/10 (Vitória: 33 do ML seguidos das 13h30 às 15h31,
     # todos pedidos) → no máx. metade da rodada é pedido e no máx. 1 por loja por rodada (o resto mistura)
     lojas_ped: dict = {}
@@ -2535,13 +2715,16 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # 01/10: a vaga abre ~56 rodadas/dia e a grife inédita ACABAVA (sobrava 1) → grife ainda em promoção pode voltar
     # depois de 2 dias (quem entrou no grupo nesse meio tempo não viu; chegam só ~13 grifes boas por dia) e "de" a
     # partir de R$ 150
-    volta = (datetime.now() - timedelta(days=2)).isoformat(sep=" ", timespec="seconds")
+    # 08/10 (Beto: Laneige de 06/10 voltou em 08/10 por aqui) → só depois de REPETIR_DIAS, com preço fresco e "De" no post
+    volta = (datetime.now() - timedelta(days=REPETIR_DIAS)).isoformat(sep=" ", timespec="seconds")
     from vendas import revisao_fila
     vet = revisao_fila.vetados()  # 06/10: a grife que VOLTA também respeita o veto (pelo produto)
     chaves_vet = revisao_fila.chaves_vetadas(vet)
+    pub = publicados_recentes()
     pool = cand + [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["publicado_em"] and o["publicado_em"] < volta
                    and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
                    and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)
+                   and preco_fresco(o) and tem_de_no_post(o) and not ja_saiu(o, pub)
                    and not revisao_fila.vetada(o, vet, chaves_vet)]
     grife = [o for o in pool if LUXO.search(o["titulo"] or "") and (o.get("preco_antigo") or 0) >= 150
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
@@ -2622,6 +2805,18 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
 
 
 MAX_LOJA_SEGUIDA = 3  # 08/10 (revisão: 105 da Shopee seguidos em 07/10) — ver fila_posts
+# 08/10 (Beto: 3 Océane em 5 posts, 2 coladas): loja que NÃO é marketplace (Océane, Época, Doce Beleza, Netshoes…) sai
+# espaçada — nunca 2 seguidas e no máx. LOJA_MAX_JANELA em cada LOJA_JANELA posts. Marketplace segue MAX_LOJA_SEGUIDA.
+LOJA_JANELA, LOJA_MAX_JANELA = 5, 2
+MARKETPLACES = ("shopee", "mercadolivre", "amazon", "magalu")
+
+
+def loja_cabe(loja: str, seq: list[str]) -> bool:
+    """A próxima oferta da `loja` pode sair depois da sequência de lojas `seq` (a mais recente no fim)?"""
+    if loja in MARKETPLACES:
+        ult = seq[-MAX_LOJA_SEGUIDA:]
+        return not (len(ult) >= MAX_LOJA_SEGUIDA and all(lj == loja for lj in ult))
+    return not seq or (seq[-1] != loja and seq[-(LOJA_JANELA - 1):].count(loja) < LOJA_MAX_JANELA)
 _REDES = (("shopee", re.compile(r"shopee|shope\.ee", re.I)),
           ("mercadolivre", re.compile(r"mercado ?livre|mercadoli(?:vre|bre)\.com|meli\.la", re.I)),
           ("amazon", re.compile(r"amazon|amzn\.", re.I)),
