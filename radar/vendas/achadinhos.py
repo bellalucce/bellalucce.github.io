@@ -572,11 +572,21 @@ def fora_do_perfil(titulo: str) -> bool:
 DE_MAX = 2.0  # 04/10 (revisora da nuvem): "De" acima de 2× o "Por" = desconto de vitrine (era 4×)
 
 
+def sinais_de(o: dict) -> dict:
+    """Sinais da oferta como dict (no banco é texto JSON). 08/10 (revisão): vazio, "null", lista ou JSON quebrado = {} —
+    antes o json.loads solto derrubava a legenda e, com ela, a rodada inteira do grupo (o robô não tem try em volta)."""
+    s = o.get("sinais")
+    if isinstance(s, str):
+        try:
+            s = json.loads(s) if s.strip() else {}
+        except ValueError:
+            s = {}
+    return s if isinstance(s, dict) else {}
+
+
 def de_inflado(o: dict) -> bool:
     """"De" mais de 2× o preço, fora de loja oficial (a oficial tem o "De" de tabela da marca)."""
-    s = o.get("sinais") or {}
-    if isinstance(s, str):
-        s = json.loads(s or "{}")
+    s = sinais_de(o)
     return (o.get("preco_antigo") or 0) > DE_MAX * (o.get("preco") or 0) > 0 and not s.get("oficial")
 
 
@@ -1754,7 +1764,10 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
         probs.append("preço do texto diferente do preço da oferta")
     if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
         probs.append("'de' menor ou igual ao 'por'")
-    if "https://" not in texto:
+    # 08/10 (revisão): post com 2 links (💌 indique / 🎟️ cupons do dia) — o link do PRODUTO é o do "Compre aqui"; o do
+    # site/cupom não pode esconder um "Compre aqui" sem link (texto sem "Compre aqui" = regra antiga, qualquer https)
+    compre = re.search(r"Compre aqui:?\**[ \t]*(\S*)", texto or "")
+    if not (compre.group(1).startswith("https://") if compre else "https://" in (texto or "")):
         probs.append("sem link")
     # 01/10 (dona): link da Shopee sempre curto — exceto na emergência de 02/10 (fila sem link curto: postar com o link
     # comum é melhor que o grupo parado; o vigia avisa)
@@ -1790,10 +1803,7 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     (vendas/ganchos.py) → sinal real de venda / frase universal. `recentes` = ganchos dos últimos posts (não repetir)."""
     from vendas import ganchos
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
-    try:  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA QUE É DE GRIFE")
-        s0 = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
-    except ValueError:
-        s0 = {}
+    s0 = sinais_de(o)  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA…")
     if s0.get("origem") == "vitrine_fiel" and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)]):
         return ganchos.escolher(frases, n, recentes)
     if not de_confiavel(o):
@@ -1813,7 +1823,7 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         return ganchos.escolher(frases, n, recentes)
     if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher|calcinha", titulo, re.I):
         return ganchos.escolher(ganchos.REPERTORIO[PRA_ELE], n, recentes)
-    sinais = json.loads(o["sinais"]) if isinstance(o.get("sinais"), str) else (o.get("sinais") or {})
+    sinais = s0
     opcoes = []
     vend = sinais.get("vendidos_num", 0) or 0
     if vend >= 10000:  # número real do anúncio, em vez de "tá bombando" genérico
@@ -1920,7 +1930,13 @@ def de_confiavel(o: dict) -> bool:
     lojas (preço normal de mercado)."""
     link = o.get("link_loja") or ""
     if not any(f"/product/{s}/" in link for s in LOJAS_DE_INFLADO) and not _loja_desconto_fixo(link):
-        return True
+        # 08/10 (revisão + Rita/Beto: CeraVe 50 ml R$ 65,99 com "De" 119,98, mercado a R$ 54): em loja COMUM, quando o
+        # "Por" já é o preço normal do mercado e o "De" passa de 1,5× a mediana, o desconto só existe pelo "De" inflado
+        # → não risca o "De" (nem gancho de % OFF). Loja oficial fica de fora (o "De" dela é o de tabela da marca).
+        if sinais_de(o).get("oficial") or not o.get("preco_antigo"):
+            return True
+        med = mediana_mercado(o)
+        return not (med and o.get("preco", 0) >= med and o["preco_antigo"] > 1.5 * med)
     med = mediana_mercado(o)
     return bool(med and o.get("preco_antigo") and o["preco_antigo"] <= 1.2 * med and o.get("preco", 0) < med)
 
@@ -1940,10 +1956,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
-    s = o.get("sinais") or {}
-    if isinstance(s, str):
-        s = json.loads(s or "{}")
-    if s.get("oficial"):  # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar
+    if sinais_de(o).get("oficial"):  # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar
         linhas.append("✔️ Loja oficial")
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
@@ -1964,8 +1977,9 @@ def _cupom_shopee_manha(o: dict, agora: datetime | None = None) -> str | None:
     if agora.hour >= 12 or "shopee" not in (o.get("link_loja") or "").lower():
         return None
     from vendas import datas
-    return next((c["link"] for c in datas.cupons_do_dia(agora.date())
-                 if c.get("loja") == "Shopee" and "s.shopee.com.br/" in c["link"]), None)
+    # 08/10 (revisão): "shopee" minúsculo da Cora também vale; o arquivo fora do formato já volta [] em cupons_do_dia
+    return next((str(c["link"]) for c in datas.cupons_do_dia(agora.date())
+                 if str(c.get("loja") or "").strip().lower() == "shopee" and "s.shopee.com.br/" in str(c["link"])), None)
 
 
 SITE_URL = "https://bellalucce.github.io"
