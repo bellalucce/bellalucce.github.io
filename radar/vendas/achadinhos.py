@@ -2346,6 +2346,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
     ped = _pedidos_da_dona(amazon_ok)  # 07/10: pedido da dona na frente de tudo (ver PEDIDOS_DONA)
+    # 08/10 (revisão): o pedido também espera o link curto da Shopee (ia com o shope.ee/an_redir comprido)
+    ped = [o for o in ped if not (so_com_link_curto and shopee_sem_curto(o))]
     if ped:
         ids = {o["id"] for o in ped}
         cand = ped + [o for o in cand if o["id"] not in ids]
@@ -2402,10 +2404,17 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
-    for o in [x for x in cand if x.get("pedido_dona")]:  # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada)
-        if len(out) >= n:
+    # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada). 08/10 (Vitória: 33 do ML seguidos das 13h30 às 15h31,
+    # todos pedidos) → no máx. metade da rodada é pedido e no máx. 1 por loja por rodada (o resto mistura)
+    lojas_ped: dict = {}
+    for o in [x for x in cand if x.get("pedido_dona")]:
+        if len(out) >= max(1, n // 2):
             break
+        loja = (o.get("loja") or o.get("fonte") or "")[:20]
+        if lojas_ped.get(loja):
+            continue
         if not tipo_na_rodada(o, out) and foto_ok(o):
+            lojas_ped[loja] = 1
             out.append(o)
             ultimo.append(o["grupo"])
         cand.remove(o)
