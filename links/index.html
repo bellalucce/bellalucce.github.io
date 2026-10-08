@@ -48,7 +48,27 @@
   </a>
 
   <h2>Achado do dia ✨</h2>
-  <a class="achado" href="https://s.shopee.com.br/7faMqqHZOF" rel="noopener"><b>★</b><span>Kit Boca Rosa Beauty: base + máscara + pó · R$ 41,89<small>de R$ 77,57 · Shopee</small></span></a>
+  <!-- 07/10 (dona: "a página do Git tá desatualizada, os preços"): o achado do dia sai da vitrine de agora
+       (/ofertas.json, atualizado pela nuvem a cada 20 min) em vez de ficar fixo -->
+  <a class="achado" id="achado-dia" href="../" rel="noopener"><b>★</b><span>Ofertas de hoje: perfume, make, skincare e cabelo<small>atualizadas ao longo do dia</small></span></a>
+  <script>
+    fetch("/ofertas.json", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : []; }).then(function (ofs) {
+      var bons = (ofs || []).filter(function (o) {
+        var p = parseFloat(String(o.p || "").replace(/[^\d,]/g, "").replace(",", "."));
+        return ["beleza", "perfume", "cabelo"].indexOf(o.g) >= 0 && o.d >= 25 && o.d <= 60 && p > 0 && p <= 150
+          && o.u && o.a && !/\w\s*\/\s*\w/.test(o.t);
+      }).sort(function (a, b) { return b.d - a.d; });
+      if (!bons.length) return;
+      var o = bons[0], el = document.getElementById("achado-dia");
+      var t = o.t.length > 70 ? o.t.slice(0, 68) + "…" : o.t;
+      el.href = o.u;
+      el.querySelector("span").innerHTML = "";
+      el.querySelector("span").appendChild(document.createTextNode(t + " · " + o.p));
+      var s = document.createElement("small");
+      s.textContent = "de " + o.a + " · " + o.l;
+      el.querySelector("span").appendChild(s);
+    }).catch(function () {});
+  </script>
 
   <h2>Achados dos posts</h2>
   <p class="dica">O número é o mesmo que aparece no post 😉</p>
