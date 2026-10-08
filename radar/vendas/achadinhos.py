@@ -1989,12 +1989,8 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
             legenda = c.get("loja_legenda") or legenda
             cabeca = f"*{c.get('loja_chamada', 'PRESENTE DA NOSSA LOJINHA 🎁')}*"
             break
-    pr = p.get("promo") or {}
-    agora_txt = agora.strftime("%Y-%m-%d %H:%M")
-    # 06/10 (Otto): promo renovada até 31/10, mas 10/10 é só a Oferta Relâmpago (outro preço) → `pausa` = [de, até]
-    pausa = pr.get("pausa") or ["", ""]
-    if (pr and pr.get("desde", "") <= agora_txt <= pr.get("ate", "")
-            and not (pausa[0] and pausa[0] <= agora_txt <= pausa[1])):
+    pr = promo_valendo(p, agora) or {}
+    if pr:
         # 01/10 (dona): "lança meus produtos com promoção, sem promoção fica nada a ver" → mesmo modelo das ofertas
         # (De riscado / Por), com a Promoção de Desconto REAL criada na Shopee (config/midia.json → promo)
         linhas = [cabeca, "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
@@ -2717,6 +2713,27 @@ def auditar() -> list[str]:
     return problemas
 
 
+def promo_valendo(p: dict, agora: datetime | None = None) -> dict | None:
+    """Promoção REAL do produto da loja (config/midia.json → promo) valendo AGORA, ou None.
+    06/10 (Otto): promo renovada até 31/10, mas 10/10 é só a Oferta Relâmpago (outro preço) → `pausa` = [de, até]."""
+    pr = p.get("promo") or {}
+    agora_txt = (agora or datetime.now()).strftime("%Y-%m-%d %H:%M")
+    pausa = pr.get("pausa") or ["", ""]
+    if (pr and pr.get("por") and pr.get("desde", "") <= agora_txt <= pr.get("ate", "")
+            and not (pausa[0] and pausa[0] <= agora_txt <= pausa[1])):
+        return pr
+    return None
+
+
+def preco_loja_site(p: dict, agora: datetime | None = None) -> str:
+    """07/10 (dona: "os preços da nossa lojinha no site tão desatualizados"): o site mostrava o preço CHEIO (R$ 24,90)
+    com a promoção da Shopee a R$ 18,00 valendo → mostra o preço de agora, com o "de"."""
+    pr = promo_valendo(p, agora)
+    if pr:
+        return f"{pr['por']} na {pr.get('canal', 'Shopee')} (de {pr['de']})"
+    return p.get("preco", "")
+
+
 def _publicar_loja(pasta, radar) -> None:
     """Faixa "Da nossa loja" do site: produtos da Bella Lucce COM estoque (config/midia.json + estoque do Hermes) →
     radar/config/loja.json + fotos reduzidas em loja/<sku>.jpg no repositório do site."""
@@ -2735,7 +2752,7 @@ def _publicar_loja(pasta, radar) -> None:
             im = Image.open(foto).convert("RGB")
             im.thumbnail((500, 500))
             im.save(destino, quality=85)
-        lista.append({"nome": p["nome"], "preco": p.get("preco", ""), "links": p["links"], "foto": f"loja/{sku}.jpg"})
+        lista.append({"nome": p["nome"], "preco": preco_loja_site(p), "links": p["links"], "foto": f"loja/{sku}.jpg"})
     # 06/10 (Kátia, dona: "impulsiona os KITS no ML"): os kits do ML entram na vitrine do SITE (não é WhatsApp/Telegram;
     # anúncio próprio, sem etiqueta de afiliado) — só os ativos com estoque disponível no Hermes
     try:
