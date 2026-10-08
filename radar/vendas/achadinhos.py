@@ -11,6 +11,7 @@ Fontes (só páginas públicas permitidas no robots.txt, poucas requisições po
 O link da loja é resolvido só para as ofertas aprovadas; o código de afiliado de terceiros é removido e trocado pelo
 nosso quando existir (config/segredos.json → "afiliados": {"amazon_tag": "...", ...}).
 """
+import functools
 import html as _html
 import json
 import os
@@ -2097,7 +2098,7 @@ CASA_BONITA = re.compile(
     r"toalhas? (?:de banho|felpudas?|de rosto)|roup[ãa]o|\bcanecas?\b|\bx[íi]caras?\b|\bta[çc]as?\b|"
     r"bandeja (?:espelhada|decorativa)|quadros? decorativ|porta[- ]?retratos?|tapete (?:felpudo|shaggy|decorativo)|"
     r"cabides? de veludo|kit lavabo")
-FORA_FEMININO = re.compile(r"(?i)barbear|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
+FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(?:cortar|corte|acabamento)|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
                            r"t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|cervical|elizabetano|"
@@ -2246,7 +2247,7 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
             continue  # já saiu depois do pedido
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
-                or revisao_fila.vetada(o, vet, chaves_vet)
+                or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
                 or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)):
             continue
         o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
@@ -2413,6 +2414,18 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # linha do grupo (usuário): beleza/cabelo/perfume primeiro → em cada 5 posts, 3 da linha principal e 2 das outras
     # (fitness, casa, bebê, moda, pet), sempre o de maior score de cada lado; sem 3 da mesma categoria seguidas
     out, ultimo = [], []
+    # 08/10 (revisão: 105 posts SEGUIDOS da Shopee em 07/10): no máx. MAX_LOJA_SEGUIDA seguidos da mesma loja, contando
+    # o fim da rodada anterior (últimos posts no banco); só passa disso se a fila só tiver essa loja
+    antes = [loja_de(dict(r)) for r in db.consultar(
+        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
+        f"LIMIT {MAX_LOJA_SEGUIDA}") or []][::-1]
+    lojas_cand = {loja_de(x) for x in cand}
+
+    def sem_rajada(lista: list, lojas_resto) -> list:
+        seq = (antes + [loja_de(x) for x in out])[-MAX_LOJA_SEGUIDA:]
+        if len(seq) < MAX_LOJA_SEGUIDA or len(set(seq)) > 1 or all(lj == seq[0] for lj in lojas_resto):
+            return lista
+        return [x for x in lista if loja_de(x) != seq[0]]
     # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada). 08/10 (Vitória: 33 do ML seguidos das 13h30 às 15h31,
     # todos pedidos) → no máx. metade da rodada é pedido e no máx. 1 por loja por rodada (o resto mistura)
     lojas_ped: dict = {}
@@ -2420,7 +2433,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         if len(out) >= max(1, n // 2):
             break
         loja = (o.get("loja") or o.get("fonte") or "")[:20]
-        if lojas_ped.get(loja):
+        if lojas_ped.get(loja) or not sem_rajada([o], lojas_cand):
             continue
         if not tipo_na_rodada(o, out) and foto_ok(o):
             lojas_ped[loja] = 1
@@ -2456,7 +2469,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     from vendas import datas
     tema = datas.tema_do_dia()  # 01/10 (dona): 2 dias temáticos por semana ("Quarta do Perfume") → 9 em 10 do tema
     vez_grife = (n >= len(PADRAO_LINHA) or pos % len(PADRAO_LINHA) < n) and not tema
-    for top in sorted(grife, key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if vez_grife else []:
+    for top in sorted(sem_rajada(grife, lojas_cand), key=lambda o: (o["preco_antigo"] or 0) - o["preco"],
+                      reverse=True)[:8] if vez_grife else []:
         if top in cand:
             cand.remove(top)
         if foto_ok(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
@@ -2484,7 +2498,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                         key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True):
             if k <= 0 or tentativas > n * 10:
                 break
-            if por_vendedor.get(vendedor(o)) or tipo_na_rodada(o, out):
+            if por_vendedor.get(vendedor(o)) or tipo_na_rodada(o, out) or not sem_rajada([o], lojas_cand):
                 continue
             tentativas += 1
             for f in filas.values():
@@ -2503,6 +2517,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "C", "O") if filas[k]), [])
         livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
                   and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out)]
+        livres = sem_rajada(livres, (loja_de(y) for f in filas.values() for y in f))  # 08/10: 4º seguido da loja, não
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
         quer_h, quer_b = vez.endswith("h"), vez.endswith("b")
         bolsa = lambda x: bool(BOLSA.search(x.get("titulo") or "")) and not NAO_BOLSA.search(x.get("titulo") or "")  # noqa: E731
@@ -2517,6 +2532,27 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                     por_vendedor[vendedor(o)] = 1
                 break
     return out
+
+
+MAX_LOJA_SEGUIDA = 3  # 08/10 (revisão: 105 da Shopee seguidos em 07/10) — ver fila_posts
+_REDES = (("shopee", re.compile(r"shopee|shope\.ee", re.I)),
+          ("mercadolivre", re.compile(r"mercado ?livre|mercadoli(?:vre|bre)\.com|meli\.la", re.I)),
+          ("amazon", re.compile(r"amazon|amzn\.", re.I)),
+          ("magalu", re.compile(r"magalu|magazine ?luiza|magazineluiza", re.I)))
+
+
+@functools.lru_cache(maxsize=50000)
+def _loja_nome(loja: str, link: str, fonte: str) -> str:
+    for alvo in (loja, link):
+        for nome, rx in _REDES:
+            if rx.search(alvo):
+                return nome
+    return re.sub(r"\W+", "", loja.lower()) or fonte or "?"
+
+
+def loja_de(o: dict) -> str:
+    """08/10: loja da oferta — 'shopee', 'mercadolivre', 'amazon', 'magalu' ou o nome da loja (Promobit: Netshoes…)."""
+    return _loja_nome(o.get("loja") or "", o.get("link_loja") or "", o.get("fonte") or "")
 
 
 def vendedor(o: dict) -> str:
