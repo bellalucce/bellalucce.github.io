@@ -495,7 +495,9 @@ MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|\bboxer\b|barbear|\bba
 def cupom_valido(c: str | None) -> str | None:
     """Cupom só se parecer código de verdade (a fonte às vezes manda texto como 'do anúncio')."""
     c = (c or "").strip()
-    return c if re.fullmatch(r"[A-Za-z0-9_-]{3,24}", c) and not re.fullmatch(r"(?i)cupom|desconto|anuncio", c) else None
+    # 08/10: o NOSSO cupom de programa vem com o valor ("BELLALUCCE (10% OFF)", Océane) — o reavaliar() apagava
+    cod = re.sub(r"\s+\(\d{1,2}% OFF\)$", "", c)
+    return c if re.fullmatch(r"[A-Za-z0-9_-]{3,24}", cod) and not re.fullmatch(r"(?i)cupom|desconto|anuncio", cod) else None
 
 
 # Regras do usuário (29/09): SÓ anúncio de UM produto, link direto da página do produto, até ~R$ 500, categorias
@@ -534,6 +536,8 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
     r"farfetch\.com/br/shopping/[a-z]+/[a-z0-9-]+-item-\d+\.aspx",  # luxo (30/09)
     r"docebeleza\.com\.br/products/[a-z0-9-]+/?$",  # 05/10: Doce Beleza (Awin, aprovada) — link_afiliado põe o link Awin
+    # 08/10: Océane (#SQUAD/Flip) — VTEX "/<slug>/p"; linha Mariana Saad NUNCA (robots.txt /*saad* e fora do programa)
+    r"oceane\.com\.br/(?![a-z0-9-]*saad)[a-z0-9-]+/p(?:[?#]|$)",
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
                                r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
@@ -723,6 +727,9 @@ def aprovada(o: dict) -> bool:
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] == "magalu_epoca":  # 06/10 (dona): Época no Magalu, "de" conferido no site da própria Época
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume") and bool(s.get("de_conferido"))
+    if o["fonte"] == "oceane_afiliados":  # 08/10 (dona): loja oficial da marca, "de" = ListPrice da própria loja (VTEX)
+        # "fora" = a rodada seguinte viu o produto sem promoção/sem estoque (integracoes/oceane.py) → sai até voltar
+        return d >= 15 and o.get("grupo") in ("beleza", "cabelo", "perfume") and not s.get("fora")
     if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
@@ -760,7 +767,9 @@ def _link_loja(link_fonte: str, cli: httpx.Client) -> str | None:
 
 
 ENCURTADORES = ("meli.la", "s.shopee.com.br", "shope.ee", "amzn.to", "tidd.ly", "bit.ly", "onelink.me")
-RASTREIO = re.compile(r"tag|ref_|matt_[a-z_]+|utm_[a-z]+|af_[a-z_]+|smtt|sp_atk|xptdk|mmp_pid|uls_trackid|gads_t_sig|lp|c|"
+# 08/10: utmi_pc/utmi_cp = código de afiliado de loja VTEX (Océane, Época…) — de TERCEIRO sai aqui; o nosso entra no
+# link_afiliado (link_oceane)
+RASTREIO = re.compile(r"tag|ref_|matt_[a-z_]+|utm_[a-z]+|utmi_[a-z]+|af_[a-z_]+|smtt|sp_atk|xptdk|mmp_pid|uls_trackid|gads_t_sig|lp|c|"
                       r"pid|clickid|tracking_id|forceInApp|promoter_id|partner_id|seller_id_divulgador")
 
 
@@ -809,6 +818,14 @@ NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", 
 # o ML Afiliados proíbe WhatsApp/Telegram, mas os grupos de referência usam o link de afiliado do ML e ela decidiu fazer
 # igual → o grupo passa a levar o NOSSO link do ML. Para voltar ao link comum (sem etiqueta): False.
 ML_AFILIADO_NO_WHATSAPP = True
+# 08/10 (dona): Océane — programa #SQUAD na Flip; o link de afiliada é a página do produto com utmi_pc=<nosso código>
+OCEANE_UTMI = "BELLALUCCE"
+OCEANE_PRODUTO = re.compile(r"https://(?:www\.)?oceane\.com\.br/([a-z0-9-]+)/p(?:[?#].*)?$")
+
+
+def link_oceane(slug: str) -> str:
+    """Link da Océane com o NOSSO código (é o link_loja da fonte oceane_afiliados — o link_afiliado o devolve igual)."""
+    return f"https://www.oceane.com.br/{slug.strip('/')}/p?utmi_pc={OCEANE_UTMI}"
 
 
 def link_afiliado(url: str | None, canal: str = "site") -> str | None:
@@ -822,6 +839,8 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
         from urllib.parse import quote
         return f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"
+    if m := OCEANE_PRODUTO.match(url):  # 08/10: já vem com o nosso utmi_pc → sai igual (outro código → vira o nosso)
+        return link_oceane(m.group(1))
     af = config.segredos().get("afiliados") or {}
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
@@ -1037,6 +1056,36 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
             novos += ant is None
             aprov += ok
     return {"salvos": len(itens), "novos": novos, "aprovados": aprov}
+
+
+def gravar_ofertas(ofertas: list[dict]) -> dict:
+    """08/10: grava no radar ofertas JÁ MONTADAS por uma integração (Océane: integracoes/oceane.py) — pontua, aprova
+    (mesmas regras de todas as fontes) e atualiza preço/cupom/foto/link/sinais; visto_em e publicado_em ficam.
+    Põe o["score"] e o["aprovada"] em cada oferta. sinais = dict."""
+    _tabela()
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    novas = aprov = 0
+    with db.conectar() as con:
+        for o in ofertas:
+            o["score"] = pontuar(o)
+            o["aprovada"] = ok = bool(aprovada(o))
+            ant = con.execute("SELECT 1 FROM ofertas WHERE id = ?", (o["id"],)).fetchone()
+            con.execute("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
+                             link_fonte, link_loja, nota, vendidos, sinais, score, aprovada, visto_em, atualizado_em)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(id) DO UPDATE SET loja=excluded.loja, titulo=excluded.titulo, grupo=excluded.grupo,
+                             preco=excluded.preco, preco_antigo=excluded.preco_antigo, desconto=excluded.desconto,
+                             cupom=excluded.cupom, foto=excluded.foto, link_loja=excluded.link_loja, nota=excluded.nota,
+                             vendidos=excluded.vendidos, sinais=excluded.sinais, score=excluded.score,
+                             aprovada=excluded.aprovada, atualizado_em=excluded.atualizado_em""",
+                        (o["id"], o["fonte"], o.get("loja"), o["titulo"], o["grupo"], o["preco"], o.get("preco_antigo"),
+                         o.get("desconto"), o.get("cupom"), o.get("foto"), o.get("link_fonte"), o.get("link_loja"),
+                         o.get("nota"), o.get("vendidos"), json.dumps(o.get("sinais") or {}, ensure_ascii=False),
+                         o["score"], int(ok), agora, agora))
+            _guardar_precos(con, [(o["id"], o["preco"])])
+            novas += ant is None
+            aprov += ok
+    return {"gravadas": len(ofertas), "novas": novas, "aprovadas": aprov}
 
 
 def melhores(horas: int = 24, limite: int = 60, grupo: str | None = None) -> list[dict]:
@@ -2273,6 +2322,7 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
     from vendas import revisao_fila
     vet = revisao_fila.vetados()
     chaves_vet = revisao_fila.chaves_vetadas(vet)
+    oceane_ok = (datetime.now() - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
     out = []
     for r in db.consultar(f"SELECT * FROM ofertas WHERE id IN ({','.join('?' * len(ped))})", tuple(ped)):
         o, p = dict(r), ped[r["id"]]
@@ -2280,7 +2330,10 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
             continue  # já saiu depois do pedido
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
                 or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
-                or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)):
+                or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
+                # 08/10: Océane com preço velho ou que saiu da promoção (sinais "fora") não vai nem a pedido
+                or (o.get("fonte") == "oceane_afiliados" and ((o.get("atualizado_em") or "") < oceane_ok
+                                                              or sinais_de(o).get("fora")))):
             continue
         o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
         out.append(o)
@@ -2307,12 +2360,14 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 06/10 (Ana): contrato do Influenciador Magalu veda informação desatualizada (11.4) e a coleta da Época no Magalu só
     # roda no Chrome → só preço coletado nas últimas 12 h
     magalu_ok = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
+    oceane_ok = (datetime.now() - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
     # 07/10 (Bia, Quarta do Perfume): com o feed novo da Shopee (+2 mil) o corte das 3.000 de maior score deixava de
     # fora 19 perfumes aprovados (Época/Amazon) → 8.000
     base = [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
-            and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)]
+            and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
+            and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)]
     marca("aprovadas, com link e foto, sem repetir 48 h", base)
     cand = [o for o in base if not o["publicado_em"]]
     marca("ainda não postadas", cand)
@@ -2731,6 +2786,10 @@ def ampliar_foto(url: str, alvo: int = 900, minimo: int = 280) -> str | None:
 
 
 LINHA_PRINCIPAL = ("beleza", "cabelo", "perfume")
+FONTES_SO_BELEZA = ("oceane_afiliados",)  # 08/10: o grupo da oferta não sai da linha de beleza no reavaliar()
+# 08/10: Océane é coletada 1×/dia (de manhã, integracoes/oceane.py) e a marca exige preço oficial → preço visto há até
+# 14 h (a coleta das 9h vale até as 23h, o fim do grupo; a de ontem não sai hoje)
+OCEANE_VALIDADE_H = 14
 # 01/10 (dona + estudo do "Ofertas Entre Mulheres": ~58% beleza / 31% moda / 11% resto) → em cada 10: 6 beleza, 3 moda,
 # 1 variado (casa, pet, esporte, infantil, eletrônicos); + a grife que abre a rodada = ~70% beleza
 # 01/10 (dona): também público MASCULINO → 2 das 10 vagas ("Bh" beleza, "Mh" moda) preferem produto masculino
@@ -2768,7 +2827,10 @@ def reavaliar() -> int:
         for r in con.execute("SELECT * FROM ofertas").fetchall():
             o = dict(r)
             o["sinais"] = json.loads(o["sinais"] or "{}")
-            o["grupo"] = _grupo_final(o["grupo"], o["titulo"])
+            g = _grupo_final(o["grupo"], o["titulo"])
+            # 08/10: loja que só vende beleza (Océane) não troca de grupo ("Toalha Demaquilante" virava casa e saía)
+            o["grupo"] = (o["grupo"] if o.get("fonte") in FONTES_SO_BELEZA and o["grupo"] in LINHA_PRINCIPAL
+                          and g not in LINHA_PRINCIPAL else g)
             o["cupom"] = cupom_valido(o["cupom"])
             o["score"] = pontuar(o)
             ok = int(aprovada(o))
