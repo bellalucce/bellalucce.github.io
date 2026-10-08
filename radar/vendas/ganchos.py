@@ -327,10 +327,28 @@ _DUPE_TIPOS = (("sapato", r"sapat|t[êe]nis|sand[áa]lia|mule|tamanco|rasteir|sc
                ("perfume", r"perfume|body splash|col[ôo]nia"))
 
 
+# 08/10 noite (Beto: "QUEM VÊ JURA QUE É DE GRIFE" em tiara, organizador e flor de plástico): gancho de grife/dupe/
+# "parece caro" só em beleza, perfume, bolsa e acessório de moda de verdade — nunca em casa/organização/enfeite barato
+NAO_DUPE = re.compile(r"(?i)organiz|porta[- ]?(?:j[óo]ias|joia|pinc|trecos|maquiagem|batom|cosm|canetas?|escovas?)|"
+                      r"expositor|bandejas?|\bcaixas?\b|gavetas?|tiaras?|\barcos?\b|arquinhos?|piranhas?|presilhas?|"
+                      r"\bfaixas? (?:de|para) cabelo|scrunchie|xuxinhas?|el[áa]sticos?|\bflor(?:es)?\b|arranjos?|enfeites?|"
+                      r"decora|\bvasos?\b|pl[áa]stic|acr[íi]lic|adesivos?|chaveiros?|lavabo|cabides?|suportes?|"
+                      r"\bvelas?\b|difusor|almofada|toalha|len[çc]ol|manta\b|tapete|quadros?|lumin[áa]ria|abajur")
+GANCHO_GRIFE = re.compile(r"(?i)GRIFE|PARECE CAR|\bDUPE\b|JURA QUE|CARA DE MARCA|PARECE DE MARCA|PARECE \w+, CUSTA|"
+                          r"ESTILO \w+ (?:SEM|POR)|CHEIRO DE RICA")
+
+
+def dupe_cabe(titulo: str) -> bool:
+    """O produto aguenta gancho de grife/dupe? Não para casa/organização/enfeite de cabelo barato."""
+    return not NAO_DUPE.search(titulo or "")
+
+
 def dupe(titulo: str) -> list[str]:
     """06/10 (dona: dupe forte, réplica não): ganchos "parece de grife" da Tati (dados/achadinhos/ganchos_dupe.json),
     só para achados da Eva (vitrine fiel) — peça parecida com a foto da divulgação, de outra marca. Frases com {marca}
-    ficam de fora (o achado não tem marca de referência)."""
+    ficam de fora (o achado não tem marca de referência). 08/10 noite: nada em casa/organizador/enfeite (dupe_cabe)."""
+    if not dupe_cabe(titulo):
+        return []
     try:
         import json
 
@@ -343,6 +361,10 @@ def dupe(titulo: str) -> list[str]:
         if re.search(padrao, titulo or "", re.I):
             out = [f for f in d.get(chave, []) if isinstance(f, str)] + out
             break
+    else:  # nenhum tipo de moda/beleza conhecido: só se for maquiagem/skincare (paleta, base, sombra…)
+        if not re.search(r"(?i)maquiag|make|paleta|sombra|\bbase\b|corretivo|iluminador|contorno|delineador|r[íi]mel|"
+                         r"c[íi]lios|s[ée]rum|skin ?care|perfume|bolsa|rel[óo]gio|cinto|len[çc]o", titulo or ""):
+            return []
     # frase que cita um TIPO de sapato/acessório só vale se o título for desse tipo ("SALTO…" numa sapatilha, não)
     tipos = {"SAPATILHA": r"sapatilh|bailarin", "SALTO": r"salto|scarpin", "TÊNIS": r"t[êe]nis", "RASTEIRA": r"rasteir",
              "SANDÁLIA": r"sand[áa]lia", "MULE": r"mule|tamanco", "BRINCO": r"brinco", "COLAR": r"colar",
@@ -409,6 +431,8 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
         out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
     if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
         out = [f for f in out if not re.search(r"\bPELE\b", f)] or out  # reparador LABIAL ≠ "sua pele vai agradecer"
+    if so_corretivo(titulo):  # 08/10 noite (Rita): corretivo "matte" não é "SEM BRILHO NA TESTA"
+        out = [f for f in out if not GANCHO_OLEOSIDADE.search(f)]
     if preco and preco > PRECO_ECONOMIA:  # R$ 207 não é "bom e barato" (06/10: nem "sem gastar muito"/"gastando pouco")
         out = [f for f in out if economia_ok(f, preco)]  # lista vazia → o robô vai de frase neutra
     if tipo == "CABELO MACIO DE SALÃO EM CASA 💆‍♀️":
@@ -436,6 +460,16 @@ TINTURA = re.compile(r"tintura|colora[çc][ãa]o|descolorante|tonalizante|\bhenn
 
 
 SO_BASE = re.compile(r"\bbase\b|corretivo|concealer|cushion|p[óo] compacto|bb cream|cc cream|primer|fixador", re.I)
+# 08/10 noite (Rita: corretivo Mari Maria saiu "SEM BRILHO NA TESTA, AMÉM 💄" por ser "matte"): frase de oleosidade/brilho
+# só em pó, primer e base — corretivo disfarça olheira
+GANCHO_OLEOSIDADE = re.compile(r"(?i)BRILHO NA TESTA|TIRA O BRILHO|SEM BRILHO|OLEOS|ANTIOLEOS")
+CORRETIVO = re.compile(r"(?i)corretivo|concealer")
+NAO_SO_CORRETIVO = re.compile(r"(?i)\bbase\b|\bp[óo]\b|primer|powder|foundation|bb cream|cc cream|cushion")
+
+
+def so_corretivo(titulo: str) -> bool:
+    """Corretivo sozinho (sem base/pó/primer no mesmo título — kit "Base + Corretivo + Pó" pode falar de brilho)."""
+    return bool(CORRETIVO.search(titulo or "")) and not NAO_SO_CORRETIVO.search(titulo or "")
 
 
 def escolher(opcoes: list[str], n: int, recentes: list[str] | None) -> str:

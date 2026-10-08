@@ -414,6 +414,8 @@ TAMANHO_TITULO = re.compile(r"(?i)(?<![\w,.])\d+(?:[.,]\d+)?\s?(?:ml|g|kg|l|oz)(
 
 def _fim_limpo(t: str) -> str:
     """Sem palavra que pede continuação no fim ("Delicado Não" [Escurece], "… Sem" [Acetona], "… Tipo")."""
+    if re.search(r"(?i)\bvit(?:amina|\.)?\s?E$", t):  # "… com Vitamina E": o "E" é o nome da vitamina
+        return t.strip(" ,;-–|:/(")
     return re.sub(r"(?:\s+(?:de|da|do|das|dos|e|com|para|pra|em|no|na|nos|nas|ao|aos|à|às|a|o|os|as|um|uma|que|n[ãa]o|"
                   r"sem|muito|mais|super|tipo|estilo|ou|p/|c/|\+|-|–|/))+\s*$", "", t, flags=re.I).strip(" ,;-–|:/(")
 
@@ -519,7 +521,14 @@ MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|\bboxer\b|barbear|\bba
                        # 02/10 (Mila): Azzaro Wanted (masculino; "Wanted Girl" é feminino) passava como grife
                        r"azzaro wanted(?! girl)|the most wanted|acqua di gi[oò]|\ble male\b|"
                        # 05/10 (dona: "corrija todas as frases"): Habit Rouge saiu "CHEIROSA O DIA INTEIRO, AMIGA"
-                       r"habit rouge|\buomo\b|boss bottled|\bphantom\b|\bbad boy\b|\bpolo (black|blue|red|sport)\b", re.I)
+                       r"habit rouge|\buomo\b|boss bottled|\bphantom\b|\bbad boy\b|\bpolo (black|blue|red|sport)\b|"
+                       # 08/10 noite (Rita/Beto: Ralph's Club, Malbec e Eudora H saíam com "CHEIROSA O DIA INTEIRO"):
+                       # LINHAS masculinas nacionais e de grife que não dizem "masculino" no título. Kaiak tem versão
+                       # feminina ("Kaiak Sonar Feminino") — o "feminino" no título libera (eh_masculino)
+                       r"ralph'?s club|\bmalbec\b|\beudora h\b|\bkaiak\b|\bquasar\b|\bzaad\b|\barbo\b|\buomini\b|"
+                       r"\bclub 6\b|\bportinari\b|\bthe blend\b|coffee man|\bman\b|\bmale\b|\bgentleman\b|luna rossa|"
+                       r"\bfahrenheit\b|terre d.?herm[èe]s|spicebomb|\btoy boy\b|dylan blue|\baventus\b|\bhawas\b|"
+                       r"bharara king|\b9 ?pm\b", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
@@ -1181,7 +1190,8 @@ CABELO_RX = re.compile(r"(?i)shampoo|condicionador|capilar|cabelo|leave-?in|seca
 LIMPEZA_RX = re.compile(r"(?i)remov|demaquil|micelar|limpeza|sabonete|cleanser|cleansing|espuma de limpeza")
 MAKE_RX = re.compile(r"(?i)batom|gloss|\bbase\b|corretivo|r[íi]mel|c[íi]lios|sombra|paleta|blush|iluminador|delineador|"
                      r"l[áa]pis|pinc[ée]is|pincel|esponja|primer|fixador|p[óo] (?:compacto|solto|transl|facial)|translúcido|"
-                     r"esmalte|unhas?\b|sobrancelha|maquiagem|contorno|bronzer|\blip\b|lip ?(?:oil|tint|balm)|labial|tint\b|cushion|"
+                     r"esmalte|unhas?\b|sobrancelha|maquiagem|contorno(?! (?:d[oa]s? |de )?olhos)|bronzer|\blip\b|"
+                     r"lip ?(?:oil|tint|balm)|labial|tint\b|cushion|"
                      r"m[áa]scara de c[íi]lios|make")
 MARCA_EXTRA = re.compile(r"(?i)vnox|rommanel|bamoer|curren|bio extratus|cadiveu|acquaflora|jacques janine|truss|lowell|amend|"
                          r"revlon|bra[ée]\b|itallian|trivitt|laikou|natura|botic[áa]rio|vizzano|moleca|anacapri|"
@@ -1226,6 +1236,8 @@ def aba_site(o: dict) -> str:
         if sap and not BOLSA.search(t) and not (joia and joia.start() < sap.start()):
             return "sapatos"
         return "bolsas"
+    if kit_capilar(t):  # 08/10 (Rita): kit máscara + perfume capilar é de cabelo
+        return "cabelo"
     if g == "perfume" or PERFUME_RX.search(t):
         return "perfume"
     if CABELO_RX.search(t) or g == "cabelo":
@@ -1845,6 +1857,14 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
         return False
     if GANCHO_PERFUME.search(gancho or "") and kit_capilar(titulo):
         return False
+    # 08/10 noite (Beto): grife/dupe/"parece caro" em tiara, organizador, flor de plástico não (perfume é outra conversa:
+    # "Body Splash Floral" pode ter "CHEIRO DE GRIFE")
+    if ganchos.GANCHO_GRIFE.search(gancho or "") and not perfume and not ganchos.dupe_cabe(titulo):
+        return False
+    # 08/10 noite (Rita: corretivo Mari Maria com "SEM BRILHO NA TESTA"): gancho de oleosidade/brilho só em pó, primer
+    # e base — corretivo disfarça olheira
+    if ganchos.GANCHO_OLEOSIDADE.search(gancho or "") and ganchos.so_corretivo(titulo):
+        return False
     # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
             r"rosto|facial|\bpele\b|face\b", titulo or "", re.I):
@@ -1879,6 +1899,7 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
 def conferir_legenda(o: dict, texto: str) -> list[str]:
     """Checagem final de CADA post antes do envio (rodada do grupo): lista de problemas (vazia = pode mandar)."""
     probs = []
+    o = com_tipo(o)  # 08/10 noite: confere a frase contra o título COM o tipo (o mesmo que sai no post)
     linhas = (texto or "").replace("⁠", "").split("\n")
     if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo")):
         probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
@@ -1917,6 +1938,7 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
 def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho conferido: se a frase escolhida não combina com o tipo do produto, vai uma frase neutra."""
     from vendas import ganchos
+    o = com_tipo(o)  # 08/10 noite: "Eudora Diva Esplêndida Feminino 100ml" → frase de perfume, não "10 MIL VENDIDOS"
     g = _gancho_bruto(o, n, recentes)
     preco = o.get("preco") or 0
     # 06/10 (Rita): frase de economia ("SEM GASTAR MUITO", "GASTANDO POUCO") só até R$ 120
@@ -2079,13 +2101,15 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     por = f"🗣️ *Por:* {_brl_zap(o['preco'])}"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
-    linhas = [f"*{gancho}*", "", f"🛍️ {cortar(limpar_titulo(o['titulo']), 100)}", ""]
+    linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
     if o.get("preco_antigo") and de_confiavel(o):
         linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
     linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
-    if sinais_de(o).get("oficial"):  # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar
+    # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar — 08/10 noite (Rita): só se
+    # a loja for oficial DA MARCA do produto (revendedora Shopee Mall, como a koksara, não)
+    if loja_oficial_da_marca(o):
         linhas.append("✔️ Loja oficial")
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
@@ -2097,6 +2121,18 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     elif n % 5 == 2 and not o.get("cupom") and (c := _cupom_shopee_manha(o)):
         linhas += ["", f"🎟️ Resgate os cupons do dia: {c}"]
     return "\n".join(linhas)
+
+
+def com_tipo(o: dict) -> dict:
+    """A oferta com o título completado pelo tipo (tipo_completado) — para escolher e conferir o gancho."""
+    t = tipo_completado(o)
+    return {**o, "titulo": t} if t and t != (o.get("titulo") or "") else o
+
+
+def titulo_do_post(o: dict) -> str:
+    """Nome do produto no post: limpo, cortado e — 08/10 noite — com o tipo quando o título só diz marca + linha."""
+    t = limpar_titulo(o.get("titulo") or "")
+    return cortar(tipo_completado({**o, "titulo": t}) or t, 100)
 
 
 def _cupom_shopee_manha(o: dict, agora: datetime | None = None) -> str | None:
@@ -2302,7 +2338,21 @@ FORA_NICHO_GRUPO = re.compile(
     r"\b(?:remove|remover|removedor de|remo[çc][ãa]o d[eao]s?|elimina|eliminar|acaba com|some com|cura|curar)\b\s+"
     r"(?:\w+\s+){0,3}?"
     r"(?:melasma|manchas?|cicatriz(?:es)?|estrias?|acne|espinhas?|celulite|olheiras?|verrugas?|pintas?|rugas?|poros?)|"
-    r"clareamento (?:intenso|de manchas|[íi]ntimo|de axila|de virilha)")
+    r"clareamento (?:intenso|de manchas|[íi]ntimo|de axila|de virilha)|"
+    # 08/10 noite (Beto/Rita 07/10, 4 dias seguidos): ainda entravam como "beleza" — suplemento (glutamina, colágeno
+    # em pó/pote/sachê, "Colágenos Verisol"), bandagem/atadura, corretor postural e móvel/carrinho de salão
+    r"glutamina|maltodextrina|\btaurina\b|col[áa]genos? (?:hidrolisado|em p[óo]|verisol|tipo|tri plus|pura vida|profit)|"
+    r"bandage[mn]s?|ataduras?|kinesio|thumb tape|esparadrapo|corretor(?:es)? (?:de )?postur|colete (?:postural|corretor)|"
+    r"\bcarrinhos? (?:auxiliar|de sal[ãa]o|para sal[ãa]o|de cabel|de manicure|de est[ée]tica|organizador)|"
+    r"m[óo]veis (?:bonatto|para sal[ãa]o)|\bmacas?\b (?:de |para )?(?:est[ée]tica|massagem)|"
+    r"cadeiras? (?:de |para )?(?:cabel|barb|est[ée]t|manicure|sal[ãa]o)|lavat[óo]rio|autoclave|"
+    r"suporte (?:de parede|para (?:secador|chapinha|prancha))|organizador de sal[ãa]o")
+# colágeno de BEBER sem dizer o tipo ("Colágeno Pura Vida em pó sabor Chocolate 450g", "1 Pote Colágeno…") — o de
+# creme/sérum/máscara ("Gota de Colágeno Kokeshi", "Creme… com Colágeno 350g", "Elseve Collagen") é cosmético e fica
+COLAGENO_SUPLEMENTO = re.compile(r"(?i)col[áa]genos?\b.*?(?:\bsabor\b|\bem p[óo]\b|\bpotes?\b|sach[êe]s?\b|c[áa]psulas?|"
+                                 r"comprimidos?|\bcaps\b)|\bpotes?\b.*?col[áa]geno")
+COLAGENO_COSMETICO = re.compile(r"(?i)creme|s[ée]rum|loção|lo[çc][ãa]o|gel\b|m[áa]scara|shampoo|condicionador|leave|"
+                                r"hidratante|facial|gota|ampola|t[ôo]nico")
 # vitamina C/E em sérum, creme ou ampola é skincare (dermo = nicho); "vitamina" em cápsula/goma é suplemento (fica fora)
 VITAMINA_SKINCARE = re.compile(r"(?i)s[ée]rum|facial|creme|ampola|booster|\bpele\b|rosto|t[ôo]nico|\bgel\b|"
                                r"hidratante|antioxidante|skin ?care")
@@ -2312,6 +2362,8 @@ COLA_DE_BELEZA = re.compile(r"(?i)c[íi]lios|\bunhas?\b|peruca|\blace\b|\bwig\b|
 def fora_do_nicho_grupo(titulo: str) -> bool:
     """FORA_NICHO_GRUPO, menos a cola de cílios/unha/peruca (07/10: "New Show Cílios… + 1 Cola", "Cola Alongamento de
     Cílios", "Cola Ultra Hold Lace Wig" eram barradas como cola de sapato)."""
+    if COLAGENO_SUPLEMENTO.search(titulo or "") and not COLAGENO_COSMETICO.search(titulo or ""):
+        return True
     return any(not (m.group(0).lower() == "cola" and COLA_DE_BELEZA.search(titulo))
                for m in FORA_NICHO_GRUPO.finditer(titulo or ""))
 
@@ -2338,8 +2390,127 @@ def no_perfil_feminino(o: dict) -> bool:
 
 def barrada_na_hora(o: dict) -> bool:
     """04/10: regras novas valem também para o que JÁ estava aprovado no banco (o servidor posta da fila antiga)."""
-    return (de_inflado(o) or fora_do_perfil(o.get("titulo") or "") or titulo_ruim(o.get("titulo") or "")
-            or perfume_grife_sem_ml(o) or preco_proibido(o) or farmacia_shopee_comum(o))
+    t = o.get("titulo") or ""
+    return (de_inflado(o) or fora_do_perfil(t) or titulo_ruim(t)
+            or perfume_grife_sem_ml(o) or preco_proibido(o) or farmacia_shopee_comum(o)
+            # 08/10 noite: linha masculina e fora do nicho saem SEMPRE (antes só no modo feminino e só pela palavra
+            # "masculino" — Ralph's Club/Malbec/Eudora H passavam), validade só na foto (Océane), título sem o tipo
+            # do produto e kit de salão da Shopee comum com "De" de vitrine
+            or eh_masculino(o) or fora_do_nicho_grupo(t) or validade_na_foto(o) or titulo_sem_tipo(o)
+            or kit_salao_shopee(o))
+
+
+# 08/10 (Beto: Océane oce:61508 e oce:81863 com "VALIDADE PRÓXIMA JAN/2027" só na foto): a foto da loja vem com o mês
+# de validade no nome do arquivo ("…/ids/218495/JAN27_0001s_…Objeto Inteligente…jpg") — vale para o que JÁ está no
+# banco (coletado antes da regra do oceane.avaliar) e para qualquer fonte
+VALIDADE_FOTO = re.compile(r"(?i)/(?:JAN|FEV|FEB|MAR|ABR|APR|MAI|MAY|JUN|JUL|AGO|AUG|SET|SEP|OUT|OCT|NOV|DEZ|DEC)\d{2}_|"
+                           r"objeto(?:%20|[-_ ])+inteligente|validade(?:%20|[-_ ])*pr[óo]xima")
+
+
+def validade_na_foto(o: dict) -> bool:
+    return bool(VALIDADE_FOTO.search(str(o.get("foto") or "")))
+
+
+# 08/10 (Rita: "Eudora Rouge Kit (2 Produtos)", "Kit La Violette O.U.i Feminino (2 Produtos)"): título que só diz
+# marca + linha não diz O QUE é. Perfume sai com "Perfume" na frente (a categoria diz); beleza/cabelo sem o tipo, não sai.
+TIPO_PRODUTO = re.compile(
+    r"(?i)perfum|parfum|eau de|toilette|cologne|col[ôo]nia|\bedp\b|\bedt\b|splash|\bmist\b|bruma|fragr|"
+    r"batom|gloss|\blips?\b|labial|l[áa]bios|balm|baume|b[áa]lsamo|lipstick|\btint|\bbase\b|foundation|corretivo|"
+    r"concealer|\bp[óo]\b|powder|primer|blush|bronzer|iluminador|highlighter|contorno|sombras?|paleta|palette|"
+    r"delineador|eyeliner|l[áa]pis|pencil|r[íi]mel|mascara|m[áa]scara|c[íi]lios|pestanas|sobrancelha|brow|esmalte|"
+    r"unhas?\b|nail|pinc[ée]is|pincel|brush|esponja|cushion|fixador|setting|s[ée]rum|serum|essence|ess[êe]ncia|ampola|"
+    r"ampoule|booster|creme|cream|lo[çc][ãa]o|lotion|hidratante|moisturi|emuls|\bgel\b|gelatina|espuma|foam|sabonete|"
+    r"soap|cleans|limpeza|t[ôo]nico|toner|[áa]gua|micelar|\bh2o\b|demaquil|[óo]leo|\boils?\b|protetor|fps|spf|"
+    r"sun ?(?:cream|screen|stick)|suncream|esfolia|peeling|exfoli|scrub|argila|clay|patch|pads?\b|strips?|mask|sheet|"
+    r"desodorante|antitranspirante|shampoo|xampu|condicionador|conditioner|leave|finalizador|fluido|mousse|spray|"
+    r"pomada|\bwax\b|\bcera\b|tintura|colora[çc]|descolor|tonaliz|matizad|oxidante|reparador|ativador|definidor|"
+    r"alisa|relaxa|tratamento|treatment|reconstru|cronograma|capilar|cabelos?\b|\bfios\b|\bpele\b|facial|rosto|"
+    r"acidificante|antiqueda|elseve|"
+    r"corporal|\bmilk\b|secador|chapinha|prancha|escova|modelador|babyliss|difusor|pente|presilha|piranha|tiara|"
+    r"maquiagem|makeup|\bmake\b|skin ?care|rotina|stick|bast[ãa]o|vela|sais de banho|sach[êe]|[áa]cido|retinol|retinal|"
+    r"niacinamida|vitamina|bb ?cream|cc ?cream|aplicador|curvex|pin[çc]a|lixa|depila|\brolo\b|gua ?sha|massageador|"
+    r"espelho|necessaire|organizador|\bporta\b|bolsa|clutch|brincos?|colar|pulseira|\banel\b|joia|rel[óo]gio|"
+    r"sapat|sand[áa]lia|t[êe]nis|[óo]culos|aparador|m[áa]quina|barbeador|kit (?:de )?(?:maquiagem|make|skincare|"
+    r"cuidados?|capilar|facial|corporal|banho|presente|viagem|travel)")
+PERFUMARIA = re.compile(r"(?i)eudora|botic[áa]rio|\bnatura\b|\bavon\b|jequiti|o\.?u\.?i\b|la violette|lattafa|"
+                        r"al wataniah|maison alhambra|armaf|afnan|\bmahogany\b")
+
+
+def titulo_sem_tipo(o: dict) -> bool:
+    t = o.get("titulo") or ""
+    if o.get("grupo") not in LINHA_PRINCIPAL or TIPO_PRODUTO.search(t) or MARCAS_SKINCARE.search(t):
+        return False
+    return tipo_completado(o) is None
+
+
+def tipo_completado(o: dict) -> str | None:
+    """Título sem o tipo → "Perfume …" quando a categoria (ou marca de perfumaria com ml, sem ser kit) diz que é
+    perfume; senão None. Título que já diz o tipo volta igual."""
+    t = o.get("titulo") or ""
+    if TIPO_PRODUTO.search(t) or MARCAS_SKINCARE.search(t):
+        return t
+    if o.get("grupo") == "perfume" or (PERFUMARIA.search(t) and re.search(r"(?i)\d+\s?ml\b", t)
+                                        and not re.search(r"(?i)\bkit\b|produtos?\b|\bcombo\b", t)):
+        return f"Perfume {t}"
+    return None
+
+
+# 08/10 (Beto: kit Marco Boni De 326,65/Por 184 na Shopee × Raia 159,85 o mesmo kit): kit/acessório de SALÃO (escova,
+# pente, tesoura, alicate, bobes) em loja comum da Shopee com mais de 40% OFF = "De" de vitrine. Não temos o preço da
+# farmácia/Raia no código para comparar → sem loja oficial da marca, não sai.
+KIT_SALAO = re.compile(r"(?i)marco boni|santa clara|\bdompel\b|\bbelliz\b|"
+                       r"(?:\bkit\b|\bjogo\b|\bconjunto\b|\d+\s*(?:un|unid\w*|p[çc]s|pe[çc]as))\b.{0,40}?"
+                       r"\b(?:escovas?|pentes?|tesouras?|alicates?|bobes|presilhas? de sal[ãa]o)\b|"
+                       r"\b(?:escovas?|pentes?|tesouras?|alicates?)\b.{0,40}?\bprofissiona(?:l|is)\b")
+
+
+def kit_salao_shopee(o: dict) -> bool:
+    if not re.search(r"shopee|shope\.ee", f"{o.get('link_loja') or ''} {o.get('fonte') or ''}", re.I):
+        return False
+    p, de = o.get("preco") or 0, o.get("preco_antigo") or 0
+    d = o.get("desconto") or (round(100 * (1 - p / de)) if de > p > 0 else 0)
+    t = o.get("titulo") or ""
+    if re.search(r"(?i)secador|secadora|prancha|chapinha|rotativa|alisadora|modeladora|el[ée]tric|bivolt|\d+ ?w\b", t):
+        return False  # aparelho elétrico (escova secadora "profissional") não é kit de salão
+    return d > 40 and bool(KIT_SALAO.search(t)) and not loja_oficial_da_marca(o)
+
+
+# 08/10 noite (Rita: "✔️ Loja oficial" em Medicube/Missha da koksara.kbeauty — Shopee Mall, mas REVENDEDORA): o selo só
+# sai quando a loja é oficial da MARCA do produto — loja da própria marca (Océane) ou Shopee Mall/feed oficial com o
+# nome da loja batendo com o título. Na dúvida (sem nome de loja, loja multimarca), sem selo.
+GENERICO_LOJA = {"oficial", "official", "oficiais", "loja", "store", "shop", "flagship", "brasil", "brazil", "br", "the",
+                 "de", "da", "do", "e", "ltda", "online", "ofc", "mall", "skincare", "cosmeticos", "cosmetics", "beauty",
+                 "beleza", "makeup", "make", "joias", "joalheria", "moda", "s925", "comercio", "distribuidora", "oficia",
+                 # nome de loja multimarca/revendedora ("Amor de Make", "Mix Beleza", "Grupo Elian", "Lojas REDE",
+                 # "Beleza na Web", "Beleza Renovada", "Poderosa Beleza") não é marca de produto
+                 "amor", "mix", "lojas", "grupo", "rede", "web", "renovada", "poderosa", "mundo", "casa", "center",
+                 "mega", "super", "top", "kbeauty", "kbeleza", "importados", "import", "atacado", "variedades", "com"}
+
+
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    return unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
+
+
+def loja_oficial_da_marca(o: dict) -> bool:
+    s = sinais_de(o)
+    if not s.get("oficial"):
+        return False
+    titulo = _sem_acento(o.get("titulo") or "")
+    marca = _sem_acento(str(s.get("marca") or ""))
+    if marca and marca == _sem_acento(o.get("loja") or ""):
+        return True  # loja da própria marca (Océane: o site é da marca)
+    # "Centersportoficial", "Eudora_Oficial": o "oficial" grudado sai
+    palavras = [w for w in (re.sub(r"(?:oficial|official|ofc)$", "", x)
+                            for x in re.findall(r"[a-z0-9]+", _sem_acento(str(s.get("loja_nome") or ""))))
+                if w not in GENERICO_LOJA and len(w) >= 3]
+    if not palavras:
+        return False
+    junto, tit_junto = "".join(palavras), re.sub(r"[^a-z0-9]", "", titulo)
+    toks = set(re.findall(r"[a-z0-9]+", titulo))
+    # "PhálleBeauty Oficial" × "Primer PhálleBeauty"; "New Show Oficial" × "New Show Cílios"; "Loja oficial Kemei" ×
+    # "Kemei …"; "Vnox Official Flagship Store" × "Vnox Pulseira…"
+    return (len(junto) >= 4 and junto in tit_junto) or (len(palavras[0]) >= 4 and palavras[0] in toks)
 
 
 # 08/10 (Beto, 2ª vez: Avène "produto importado" R$ 50 e Cicalfate 20 ml na Raitz Beauty com De 2× exato; Sunless De
@@ -2500,6 +2671,7 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         if not tem_de_no_post(o) or not preco_fresco(o):
             continue
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
+                or validade_na_foto(o)  # 08/10 noite: validade próxima só na foto (Océane) também não vai a pedido
                 or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
                 or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
                 # 08/10: Océane com preço velho ou que saiu da promoção (sinais "fora") não vai nem a pedido
@@ -2534,14 +2706,17 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     oceane_ok = (datetime.now() - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
     # 07/10 (Bia, Quarta do Perfume): com o feed novo da Shopee (+2 mil) o corte das 3.000 de maior score deixava de
     # fora 19 perfumes aprovados (Época/Amazon) → 8.000
-    base = [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["link_loja"] and o.get("foto")
+    # 08/10 (Beto): preço visto há mais de 24 h não vai nem volta — filtrado ANTES do "1 por tipo" (senão a oferta velha
+    # de maior score escondia a fresca do mesmo tipo)
+    todas = melhores(horas, LIMITE_CANDIDATOS)
+    frescas = [o for o in todas if preco_fresco(o)]
+    marca(f"aprovadas com preço visto há ≤ {PRECO_VALE_H} h (de {len(todas)})", frescas)
+    base = [o for o in sem_repetidos(frescas) if o["link_loja"] and o.get("foto")
             and chave_produto(o["titulo"]) not in recentes
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
             and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)]
-    marca("aprovadas, com link e foto, sem repetir 48 h", base)
-    base = [o for o in base if preco_fresco(o)]  # 08/10 (Beto): preço visto há mais de 24 h não vai nem volta
-    marca(f"preço visto há ≤ {PRECO_VALE_H} h", base)
+    marca("1 por tipo, com link e foto, sem repetir 48 h", base)
     pub = publicados_recentes()  # 08/10 (Beto: Laneige voltou 2 dias depois): o mesmo produto não sai de novo em 7 dias
     base = [o for o in base if not ja_saiu(o, pub)]
     marca(f"não saiu (mesmo item/título) em {REPETIR_DIAS} dias", base)
@@ -2685,6 +2860,18 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
         f"LIMIT {max(MAX_LOJA_SEGUIDA, LOJA_JANELA - 1)}") or []][::-1]
     lojas_cand = {loja_de(x) for x in cand}
+    # 08/10 noite (Beto 07/10: 22 perfumes seguidos na fila e 8 numa rodada): no máx. PERFUME_MAX_JANELA perfumes em
+    # cada PERFUME_JANELA posts, contando o fim da rodada anterior. As vagas do TEMA do dia (ex.: "Quarta do Perfume",
+    # pedido da dona em 07/10) e os pedidos da dona não têm esse teto — mas contam na janela
+    perf_antes = [eh_perfume_post(dict(r)) for r in db.consultar(
+        "SELECT titulo, grupo FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
+        f"LIMIT {PERFUME_JANELA - 1}") or []][::-1]
+
+    def perfume_cabe(o: dict) -> bool:
+        if not eh_perfume_post(o):
+            return True
+        seq = perf_antes + [eh_perfume_post(x) for x in out]
+        return sum(seq[-(PERFUME_JANELA - 1):]) < PERFUME_MAX_JANELA
 
     def sem_rajada(lista: list, lojas_resto) -> list:
         seq = antes + [loja_de(x) for x in out]
@@ -2739,8 +2926,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     from vendas import datas
     tema = datas.tema_do_dia()  # 01/10 (dona): 2 dias temáticos por semana ("Quarta do Perfume") → 9 em 10 do tema
     vez_grife = (n >= len(PADRAO_LINHA) or pos % len(PADRAO_LINHA) < n) and not tema
-    for top in sorted(sem_rajada(grife, lojas_cand), key=lambda o: (o["preco_antigo"] or 0) - o["preco"],
-                      reverse=True)[:8] if vez_grife else []:
+    for top in sorted(sem_rajada([o for o in grife if perfume_cabe(o)], lojas_cand),
+                      key=lambda o: (o["preco_antigo"] or 0) - o["preco"], reverse=True)[:8] if vez_grife else []:
         if top in cand:
             cand.remove(top)
         if foto_ok(top):  # 30/09 (dona): SEMPRE verificar a imagem antes de enviar
@@ -2785,9 +2972,25 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
             break
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "C", "O") if filas[k]), [])
-        livres = [x for x in fila if not (len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
+
+        def _livres(f: list, variar: bool = True) -> list:
+            lv = [x for x in f if not (variar and len(ultimo) >= 2 and ultimo[-1] == ultimo[-2] == x["grupo"])
                   and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out)]
-        livres = sem_rajada(livres, (loja_de(y) for f in filas.values() for y in f))  # 08/10: 4º seguido da loja, não
+            return sem_rajada(lv, (loja_de(y) for g in filas.values() for y in g))  # 08/10: 4º seguido da loja, não
+        livres = _livres(fila)
+        # 08/10 noite: teto de perfume — se a vaga só tem perfume e o teto encheu, vai o próximo NÃO perfume desta fila
+        # ou de outra (se preciso, um 3º seguido da mesma categoria — beleza é a linha do grupo); só passa do teto se não
+        # sobrar nada que não seja perfume ou se a rodada ainda não tem nenhum post (o grupo não para)
+        cabem = [x for x in livres if perfume_cabe(x)]
+        if livres and not cabem:
+            for k, variar in [(k, v) for v in (True, False) for k in ("B", "M", "C", "O")]:
+                if alt := [x for x in _livres(filas[k], variar) if perfume_cabe(x)]:
+                    fila, cabem = filas[k], alt
+                    break
+            else:
+                if not out or all(eh_perfume_post(y) for g in filas.values() for y in g):
+                    cabem = livres
+        livres = cabem
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
         quer_h, quer_b = vez.endswith("h"), vez.endswith("b")
         bolsa = lambda x: bool(BOLSA.search(x.get("titulo") or "")) and not NAO_BOLSA.search(x.get("titulo") or "")  # noqa: E731
@@ -2805,6 +3008,15 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
 
 
 MAX_LOJA_SEGUIDA = 3  # 08/10 (revisão: 105 da Shopee seguidos em 07/10) — ver fila_posts
+# 08/10 noite (Beto: 22 perfumes seguidos e 8 numa rodada): a linha padrão (PADRAO_LINHA) é beleza variada — perfume no
+# máx. 2 em cada 10 posts (fora as vagas do tema do dia e os pedidos da dona)
+PERFUME_JANELA, PERFUME_MAX_JANELA = 10, 2
+
+
+def eh_perfume_post(o: dict) -> bool:
+    """Perfume de gente (para o teto da fila): categoria perfume ou título de perfume — perfume capilar não conta."""
+    t = o.get("titulo") or ""
+    return eh_perfume(t, o.get("grupo")) and not re.search(r"(?i)capilar|cabelos?\b|\bhair\b", t)
 # 08/10 (Beto: 3 Océane em 5 posts, 2 coladas): loja que NÃO é marketplace (Océane, Época, Doce Beleza, Netshoes…) sai
 # espaçada — nunca 2 seguidas e no máx. LOJA_MAX_JANELA em cada LOJA_JANELA posts. Marketplace segue MAX_LOJA_SEGUIDA.
 LOJA_JANELA, LOJA_MAX_JANELA = 5, 2
@@ -3000,7 +3212,7 @@ NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessair
 
 def eh_masculino(o: dict) -> bool:
     t = o.get("titulo") or ""
-    return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher|calcinha", t, re.I)
+    return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher|calcinha|pour femme|for her\b", t, re.I)
 
 
 def marcar_postado(id_oferta: str) -> None:
