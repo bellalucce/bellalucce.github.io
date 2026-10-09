@@ -2278,6 +2278,10 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
         recentes.append(gancho)  # a própria rodada também não repete
     # 01/10 (dona, print do "Ofertas Entre Mulheres"): 🛍️ produto / "De:" riscado / 🗣️ *Por:* / 🛒 *Compre aqui:*
     por = f"🗣️ *Por:* {_brl_zap(o['preco'])}"
+    # 09/10 (Claude): ML com desconto só no Pix (Too Faced 197,10 no Pix × 219 no cartão) — dizer "no Pix", senão
+    # quem paga no cartão acha que o preço é mentira
+    if (o.get("sinais") or {}).get("so_pix") if isinstance(o.get("sinais"), dict) else False:
+        por += " no Pix"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
@@ -3073,9 +3077,9 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
     d: dict = {}
     html = html or ""
     bloco = _bloco_preco(html)
-    for bloco in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html or "", re.S | re.I):
+    for ld in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html, re.S | re.I):
         try:
-            j = json.loads(bloco, strict=False)  # quebra de linha dentro do texto não derruba
+            j = json.loads(ld, strict=False)  # quebra de linha dentro do texto não derruba
         except ValueError:
             continue
         for x in j if isinstance(j, list) else j.get("@graph", [j]) if isinstance(j, dict) else []:
