@@ -528,7 +528,10 @@ MASCULINO = re.compile(r"masculin|\bmen\b|\bhomem\b|cueca|\bboxer\b|barbear|\bba
                        r"ralph'?s club|\bmalbec\b|\beudora h\b|\bkaiak\b|\bquasar\b|\bzaad\b|\barbo\b|\buomini\b|"
                        r"\bclub 6\b|\bportinari\b|\bthe blend\b|coffee man|\bman\b|\bmale\b|\bgentleman\b|luna rossa|"
                        r"\bfahrenheit\b|terre d.?herm[èe]s|spicebomb|\btoy boy\b|dylan blue|\baventus\b|\bhawas\b|"
-                       r"bharara king|\b9 ?pm\b", re.I)
+                       r"bharara king|\b9 ?pm\b|"
+                       # 09/10 (treino): "Paco Rabanne One Million" saiu no grupo — só "1 Million" era pego.
+                       # "Lady Million"/"Million Gold for Her" são femininos (não entram)
+                       r"\bone million\b(?! (lucky )?(for her|woman))|\bmillion (parfum|prive|priv[ée]|elixir|royal)\b", re.I)
 
 
 def cupom_valido(c: str | None) -> str | None:
@@ -1839,9 +1842,10 @@ NOME_NO_GANCHO = [
 ]
 
 
-def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
+def gancho_confere(gancho: str, titulo: str, grupo: str | None, novas: bool = True) -> bool:
     """False quando a frase do gancho é de um tipo e o produto é claramente de outro (whey de tônico capilar com
-    frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa."""
+    frase de treino; suplemento com frase de pele; frase de pet em produto que não é pet). Frase neutra passa.
+    `novas=False`: sem as checagens de 08/10 noite (o verificador relendo post publicado antes delas)."""
     if not familia_confere(gancho, grupo, titulo):
         return False
     # 06/10 noite (Rita): frase de make em perfume ("Una Blush" → "BOCHECHA CORADINHA") e de perfume em make, não
@@ -1852,18 +1856,18 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
         return False
     # 08/10 (Rita/Beto): a categoria manda, não a palavra solta — make em cabelo ("Primer Antifrizz… Fios") ou em creme
     # de "Contorno dos Olhos", e perfume em kit de tratamento capilar ("Máscara + Perfume Capilar"), não
-    if GANCHO_MAKE.search(gancho or "") and "DESCANSAD" not in (gancho or "").upper() and (eh_cabelo(titulo, grupo) or (
-            SKINCARE_OLHOS.search(titulo or "") and not MAKE_DE_VERDADE.search(titulo or ""))):
+    if novas and GANCHO_MAKE.search(gancho or "") and "DESCANSAD" not in (gancho or "").upper() and (
+            eh_cabelo(titulo, grupo) or (SKINCARE_OLHOS.search(titulo or "") and not MAKE_DE_VERDADE.search(titulo or ""))):
         return False
-    if GANCHO_PERFUME.search(gancho or "") and kit_capilar(titulo):
+    if novas and GANCHO_PERFUME.search(gancho or "") and kit_capilar(titulo):
         return False
     # 08/10 noite (Beto): grife/dupe/"parece caro" em tiara, organizador, flor de plástico não (perfume é outra conversa:
     # "Body Splash Floral" pode ter "CHEIRO DE GRIFE")
-    if ganchos.GANCHO_GRIFE.search(gancho or "") and not perfume and not ganchos.dupe_cabe(titulo):
+    if novas and ganchos.GANCHO_GRIFE.search(gancho or "") and not perfume and not ganchos.dupe_cabe(titulo):
         return False
     # 08/10 noite (Rita: corretivo Mari Maria com "SEM BRILHO NA TESTA"): gancho de oleosidade/brilho só em pó, primer
     # e base — corretivo disfarça olheira
-    if ganchos.GANCHO_OLEOSIDADE.search(gancho or "") and ganchos.so_corretivo(titulo):
+    if novas and ganchos.GANCHO_OLEOSIDADE.search(gancho or "") and ganchos.so_corretivo(titulo):
         return False
     # 03/10 (dona): "Óleo e Sérum Bifásico Dove" (cabelo) saiu "PELE LISINHA" → frase de pele só se o título não for de cabelo
     if re.search(r"PELE|SKINCARE|ROSTO", gancho or "", re.I) and CABELO.search(titulo or "") and not re.search(
@@ -1896,12 +1900,24 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None) -> bool:
     return True
 
 
-def conferir_legenda(o: dict, texto: str) -> list[str]:
-    """Checagem final de CADA post antes do envio (rodada do grupo): lista de problemas (vazia = pode mandar)."""
+# 08/10 noite (verificador do servidor 96% → 71% às 17h30: 26 "sem preço 'De' no post"): regra nova de conferência só
+# vale para post publicado DEPOIS que ela chegou ao robô do servidor — o verificador relê o dia inteiro, e os posts da
+# manhã/tarde saíram (certos pela regra da hora) com o "De" escondido. 1ª rodada do servidor com o código novo: 17h30.
+REGRA_DE_NO_POST_DESDE = "2026-10-08 17:30:00"   # "sem preço 'De' no post" (furos da fila, 08/10 tarde)
+# ganchos novos de 08/10: make em cabelo/contorno dos olhos e perfume em kit capilar (tarde); grife/dupe em enfeite e
+# oleosidade em corretivo (noite)
+REGRAS_GANCHO_NOITE_DESDE = "2026-10-08 17:30:00"
+
+
+def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
+    """Checagem final de CADA post antes do envio (rodada do grupo): lista de problemas (vazia = pode mandar).
+    `quando` = hora em que o post SAIU (só o verificador passa): regra criada depois disso não conta contra ele."""
     probs = []
+    quando = (quando or "").replace("T", " ")
     o = com_tipo(o)  # 08/10 noite: confere a frase contra o título COM o tipo (o mesmo que sai no post)
     linhas = (texto or "").replace("⁠", "").split("\n")
-    if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo")):
+    if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo"),
+                          novas=not quando or quando >= REGRAS_GANCHO_NOITE_DESDE):
         probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
     if not ganchos.economia_ok(linhas[0].strip("* "), o.get("preco")):  # 06/10 (Rita)
         probs.append(f"frase de economia em produto acima de R$ {ganchos.PRECO_ECONOMIA}")
@@ -1912,7 +1928,8 @@ def conferir_legenda(o: dict, texto: str) -> list[str]:
     if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
         probs.append("'de' menor ou igual ao 'por'")
     # 08/10 (Rita, 5ª rodada seguida): post de oferta sem a linha "De:" riscada não vai (regra da dona) — última trava
-    if "*Por:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas):
+    if ("*Por:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas)
+            and (not quando or quando >= REGRA_DE_NO_POST_DESDE)):
         probs.append("sem preço 'De' no post")
     # 08/10 (revisão): post com 2 links (💌 indique / 🎟️ cupons do dia) — o link do PRODUTO é o do "Compre aqui"; o do
     # site/cupom não pode esconder um "Compre aqui" sem link (texto sem "Compre aqui" = regra antiga, qualquer https)
@@ -2309,7 +2326,10 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(
 # alimento (L-Arginina, pré-treino, ômega 3, fibras P&P FIT, bebida de amêndoa), higiene bucal (creme dental, escovas
 # Colgate, enxaguante), lava-roupas/sabão "Perfume", desodorante masculino e PROMESSA de tratamento ("remove melasma").
 FORA_NICHO_GRUPO = re.compile(
-    r"(?i)escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
+    # 09/10 (dona: "o que foi aquela cola de prótese capilar? não tem nada a ver com a nossa coisa"): prótese (capilar,
+    # dentária) e cola/fita de fixação de peruca/mega hair/lace = produto técnico, fora do público "quem ama comprar"
+    r"(?i)pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
+    r"escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
     r"clareamento dental|irrigador|lava[- ]?roupas?|sab[ãa]o (?:l[íi]quido|em p[óo]|em barra|de coco)|amaciante|"
     r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
     # 07/10 (Rita): suplemento esportivo entrava como "beleza" (gel energético, beta alanina)
@@ -2680,6 +2700,12 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
             continue
         o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
         out.append(o)
+    # 09/10 (dona: Océane abaixo de R$ 90 sempre primeiro): entre os pedidos da Océane vale a "ordem" da Odete
+    # (integracoes/oceane.escolher_pedidos); os das outras lojas ficam onde estavam
+    pos_oce = [i for i, o in enumerate(out) if o.get("fonte") == "oceane_afiliados"]
+    for i, o in zip(pos_oce, sorted((out[i] for i in pos_oce),
+                                    key=lambda o: (int(ped[o["id"]].get("ordem") or 10 ** 6), o["id"]))):
+        out[i] = o
     return out
 
 
@@ -2883,11 +2909,17 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     # 07/10: o que a dona pediu sai primeiro (1 tipo por rodada). 08/10 (Vitória: 33 do ML seguidos das 13h30 às 15h31,
     # todos pedidos) → no máx. metade da rodada é pedido e no máx. 1 por loja por rodada (o resto mistura)
     lojas_ped: dict = {}
+    # 09/10 (dona: Océane ≤ R$ 90 "sempre dar um jeito de pôr", sem quebrar o mix 7/2/1): o pedido da Océane só entra
+    # quando a próxima vaga do PADRAO_LINHA é de beleza ("B") — ocupa a vaga B, e o padrão segue igual
+    pos_hoje = (db.consultar("SELECT COUNT(*) n FROM ofertas WHERE date(publicado_em) = date('now','localtime')")
+                or [{"n": 0}])[0]["n"]
     for o in [x for x in cand if x.get("pedido_dona")]:
         if len(out) >= max(1, n // 2):
             break
         loja = (o.get("loja") or o.get("fonte") or "")[:20]
         if lojas_ped.get(loja) or not sem_rajada([o], lojas_cand):
+            continue
+        if o.get("fonte") in FONTES_SO_BELEZA and not PADRAO_LINHA[(pos_hoje + len(out)) % len(PADRAO_LINHA)].startswith("B"):
             continue
         if not tipo_na_rodada(o, out) and foto_ok(o):
             lojas_ped[loja] = 1
@@ -3331,6 +3363,23 @@ def _publicar_loja(pasta, radar) -> None:
     (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def _reclonar_site(pasta, git: list) -> None:
+    """Troca um .git corrompido do site por um clone novo (só histórico, sem baixar arquivos: --filter=blob:none) e
+    remonta o índice a partir do main da nuvem; os arquivos da pasta não são tocados. O .git velho fica ao lado."""
+    import shutil
+    import subprocess
+    url = "https://bellalucce@github.com/bellalucce/bellalucce.github.io.git"
+    tmp = pasta.parent / "pages_reclone"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    subprocess.run(["git", "clone", "-q", "--no-checkout", "--filter=blob:none", url, str(tmp)], check=True, timeout=900)
+    (pasta / ".git").rename(pasta.parent / f"pages_git_quebrado_{time.strftime('%Y%m%d_%H%M')}")
+    (tmp / ".git").rename(pasta / ".git")
+    tmp.rmdir()
+    subprocess.run(git + ["config", "credential.helper", "manager"], check=True)
+    subprocess.run(git + ["reset", "-q"], check=True)
+
+
 def publicar_site() -> str:
     """Alimenta o RADAR NA NUVEM (repo bellalucce/bellalucce.github.io, GitHub Actions a cada 20 min — quem monta e
     publica o site é a nuvem, mesmo com o PC desligado). O PC só envia, quando mudam: o código deste módulo, a config,
@@ -3371,7 +3420,15 @@ def publicar_site() -> str:
             shutil.copyfile(fonte, pasta / destino)
     git = ["git", "-C", str(pasta), "-c", "user.name=bellalucce", "-c", "user.email=bellalucce@users.noreply.github.com",
            "-c", "credential.helper=", "-c", "credential.helper=manager"]
-    subprocess.run(git + ["add", "-A"], check=True)
+    # 09/10: o PC desligou no meio de um push (08/10 17:32) e zerou index/refs do .git → site parado 3 h. O clone
+    # local não guarda nada só dele (a nuvem é a fonte), então: .git quebrado vai para o lado e vem um clone novo.
+    ok = subprocess.run(git + ["rev-parse", "-q", "--verify", "HEAD"], capture_output=True).returncode == 0
+    r = subprocess.run(git + ["add", "-A"], capture_output=True, text=True) if ok else None
+    if r is None or r.returncode != 0:
+        _reclonar_site(pasta, git)
+        r = subprocess.run(git + ["add", "-A"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"git add falhou: {r.stderr.strip()[:200]}")
     if subprocess.run(git + ["diff", "--cached", "--quiet"]).returncode == 0:
         return "radar na nuvem: nada novo"
     subprocess.run(git + ["commit", "-qm", "Radar: dados/código do PC"], check=True)
