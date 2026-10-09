@@ -3324,7 +3324,14 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
                      o["desconto"], None, o["foto"], None, o["link_loja"], o["nota"], o["vendidos"],
                      json.dumps(o["sinais"], ensure_ascii=False), o["score"], agora, agora))
         _guardar_precos(con, [(o["id"], o["preco"])])
-    _gravar_pedido_dona(o["id"])
+    # 09/10 (Claude): reprocessar um pedido JÁ POSTADO o punha de novo na frente da fila → repetiu no grupo no mesmo
+    # dia (Kérastase/Too Faced 13h16/13h30). Já saiu nos últimos REPETIR_DIAS → só atualiza o preço, não volta à fila
+    ja = db.consultar("SELECT publicado_em FROM ofertas WHERE id=? AND publicado_em >= datetime('now','localtime',?)",
+                      (o["id"], f"-{REPETIR_DIAS} days"))
+    if ja and ja[0]["publicado_em"]:
+        avisos.append(f"já saiu no grupo em {ja[0]['publicado_em'][:16]} → preço atualizado, NÃO voltou para a fila")
+    else:
+        _gravar_pedido_dona(o["id"])
     _pendente(mlb, None, "", tirar=True)
     return {"ok": True, "id": o["id"], "titulo": o["titulo"], "preco": o["preco"], "de": o["preco_antigo"],
             "link": link_afiliado(o["link_loja"], canal="whatsapp"), "grupo": o["grupo"], "avisos": avisos,
