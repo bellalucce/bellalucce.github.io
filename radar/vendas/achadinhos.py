@@ -63,7 +63,9 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
             r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir|"  # 01/10 (Rafa): blazer caía em outros
             # 06/10 (Eva, vitrine fiel): joia/bijuteria e calçado fofo da divulgação caíam em "outros" e nunca entravam no grupo
             r"\bbrincos?\b|\bcolar(?:es)?\b|bijuteria|semijoia|gargantilha|choker|pulseira|bracelete|\btiara\b|presilha|"
-            r"\bmules?\b|scarpin|tamanco|mary ?jane",
+            r"\bmules?\b|scarpin|tamanco|mary ?jane|"
+            # 09/10 (dona: "bolsa, sapato, acessório, pijama e tal"): pijama/roupa de dormir, cinto e calçado
+            r"\bpijamas?\b|\bcamisolas?\b|baby[- ]?doll|short[- ]?doll|\bcintos?\b|papete|anabela",
     "casa": r"panela|colchão|colchao|toalha|lençol|lencol|travesseiro|aspirador|air fryer|fritadeira|liquidificador|cafeteira|"
             r"organizador|cortina|tapete|jogo de cama|potes|faqueiro|ventilador|micro-ondas|geladeira|fogão",
     "eletronicos": r"smart ?tv|notebook|(?<!renova[çc][ãa]o )celular|smartphone|fone|headset|monitor|tablet|carregador|ssd|mouse|teclado|caixa de som|câmera|camera",
@@ -118,7 +120,18 @@ def chave_produto(titulo: str) -> str:
     import unicodedata
     t = unicodedata.normalize("NFKD", titulo.lower()).encode("ascii", "ignore").decode()
     pal = [p for p in re.findall(r"[a-z]+", t) if p not in STOP and len(p) > 2]
+    # 09/10 (mix com 3 de moda em 10): "Bolsa Feminina Transversal…" e "Bolsa Feminina Tote…" eram o MESMO tipo
+    # ("bolsa feminina") → só 1 bolsa a cada 48 h. Na moda o "feminina/casual/elegante" não diz o tipo — sai da chave
+    if pal and pal[0] in NOME_MODA:
+        pal = [p for p in pal if p not in GENERICO_MODA] or pal
     return " ".join(pal[:2])
+
+
+NOME_MODA = {"bolsa", "bolsas", "sandalia", "sandalias", "tenis", "sapato", "sapatos", "sapatilha", "rasteirinha",
+             "rasteira", "mule", "tamanco", "scarpin", "relogio", "oculos", "colar", "brinco", "brincos", "pijama",
+             "camisola", "cinto", "cintos", "presilha", "chinelo", "papete", "pulseira", "corrente", "conjunto"}
+GENERICO_MODA = {"feminino", "feminina", "femininos", "femininas", "mulher", "moda", "casual", "elegante", "luxo",
+                 "adulto", "blogueira", "confortavel", "leve", "lancamento", "promocao", "barato", "estiloso"}
 
 
 _MERCADO: dict = {}  # cache por processo: [(tokens, preço)] das ofertas vistas nos últimos 7 dias
@@ -580,6 +593,8 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"docebeleza\.com\.br/products/[a-z0-9-]+/?$",  # 05/10: Doce Beleza (Awin, aprovada) — link_afiliado põe o link Awin
     # 08/10: Océane (#SQUAD/Flip) — VTEX "/<slug>/p"; linha Mariana Saad NUNCA (robots.txt /*saad* e fora do programa)
     r"oceane\.com\.br/(?![a-z0-9-]*saad)[a-z0-9-]+/p(?:[?#]|$)",
+    # 09/10: Shein pela Lomadee (fonte lomadee_shein) — só aprovada com o NOSSO lmdee.link em sinais (aprovada())
+    r"br\.shein\.com/(?:[^?#]*?-)?p-\d+(?:-cat-\d+)?\.html",
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
                                r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
@@ -772,6 +787,11 @@ def aprovada(o: dict) -> bool:
     if o["fonte"] == "oceane_afiliados":  # 08/10 (dona): loja oficial da marca, "de" = ListPrice da própria loja (VTEX)
         # "fora" = a rodada seguinte viu o produto sem promoção/sem estoque (integracoes/oceane.py) → sai até voltar
         return d >= 15 and o.get("grupo") in ("beleza", "cabelo", "perfume") and not s.get("fora")
+    # 09/10 (dona): Shein SÓ pela Lomadee, só moda e só com o NOSSO lmdee.link (sem ele o post sairia com link direto da
+    # Shein, sem monetização) — Shein vinda de outra fonte (Promobit…) nunca
+    if SHEIN_PRODUTO.match((o.get("link_loja") or "").split("?")[0]) or o["fonte"] == FONTE_SHEIN:
+        return (o["fonte"] == FONTE_SHEIN and o.get("grupo") == "moda" and d >= 15 and not s.get("fora")
+                and bool(LINK_LOMADEE.match(s.get("link_lomadee") or "")))
     if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
@@ -872,6 +892,20 @@ def link_oceane(slug: str) -> str:
     return f"https://www.oceane.com.br/{slug.strip('/')}/p?utmi_pc={OCEANE_UTMI}"
 
 
+# 09/10 (dona): Shein pela Lomadee — o post leva o NOSSO link monetizado (https://lmdee.link/…, canal bellalucce.github.io),
+# guardado em sinais["link_lomadee"] da oferta lmdshein:<goods_id> (integracoes/lomadee_shein.py). Sem ele: None (o post
+# não sai com link direto da Shein — aprovada() também barra)
+FONTE_SHEIN = "lomadee_shein"
+SHEIN_PRODUTO = re.compile(r"https://(?:br|m)\.shein\.com/(?:[^?#]*?-)?p-(\d+)(?:-cat-\d+)?\.html$", re.I)
+LINK_LOMADEE = re.compile(r"^https://lmdee\.link/[A-Za-z0-9]{4,20}$")
+
+
+def link_shein(goods_id: str) -> str | None:
+    r = db.consultar("SELECT sinais FROM ofertas WHERE id = ?", (f"lmdshein:{goods_id}",))
+    lk = sinais_de(dict(r[0])).get("link_lomadee") if r else None
+    return lk if lk and LINK_LOMADEE.match(lk) else None
+
+
 def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados).
     canal="whatsapp": até 07/10 o ML (que PROÍBE WhatsApp/Telegram — mercadolivre.com.br/l/afiliados-pode-compartilhar)
@@ -885,6 +919,8 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         return f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"
     if m := OCEANE_PRODUTO.match(url):  # 08/10: já vem com o nosso utmi_pc → sai igual (outro código → vira o nosso)
         return link_oceane(m.group(1))
+    if m := SHEIN_PRODUTO.match(url.split("?")[0]):  # 09/10: Shein → o NOSSO lmdee.link (Lomadee) guardado na coleta
+        return link_shein(m.group(1))
     af = config.segredos().get("afiliados") or {}
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
@@ -1225,7 +1261,8 @@ def no_nicho_site(o: dict) -> bool:
     if g in LINHA_PRINCIPAL:
         return True
     if g == "moda":
-        return bool(MODA_FEMININA.search(t) or (SAPATO_FEM.search(t) and SAPATO_DE_MULHER.search(t)))
+        return bool(MODA_FEMININA.search(t) or (SAPATO_FEM.search(t) and SAPATO_DE_MULHER.search(t))) \
+            and not MODA_FORA.search(t) and (tipo_moda(t) != "acessorio" or not ROUPA_RX.search(t))
     return False
 
 
@@ -2392,7 +2429,11 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
             (r"t[êe]nis\b", "tênis"), (r"smart ?watch|smart ?band|mi ?band", "smartwatch"), (r"\bfones?\b|headset|earbuds?", "fone"),
             (r"camiseta|camisa\b", "camiseta"), (r"\bcal[çc]a\b", "calça"), (r"panela", "panela"),
             (r"garrafa|copo t[ée]rmico", "garrafa"), (r"[óo]culos", "óculos"), (r"sand[áa]lia|rasteir", "sandália"),
-            (r"carregador|cabo usb", "carregador"), (r"\bbolsa\b(?! t[ée]rmica)", "bolsa")]
+            (r"carregador|cabo usb", "carregador"), (r"\bbolsa\b(?! t[ée]rmica)", "bolsa"),
+            # 09/10 (mix 6/3/1 com pijama e acessório): não deixar a vaga de moda virar só pijama ou só brinco
+            (r"pijama|camisola|short[- ]?doll|baby[- ]?doll", "pijama"), (r"brincos?\b", "brinco"),
+            (r"\bcolar(?:es)?\b|gargantilha|choker|\bcorrentes?\b", "colar"), (r"\bmules?\b|tamanco", "mule"),
+            (r"presilha|piranha|scrunchie|xuxinha|tiara", "presilha"), (r"\bcintos?\b", "cinto")]
 
 
 def tipo_repetivel(o: dict) -> str | None:
@@ -2414,7 +2455,7 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"[óo]leo|finalizador|leave", "finalizador"),
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
                (r"body splash", "body splash")]
-TETO_TIPO = {"bolsa": 10, **{nome: 4 for _, nome in TIPO_BELEZA}}
+TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
 
 # 04/10 (dona: "hoje só o melhor: beleza, cabelo, perfume, bolsa, bem feminino" — saíam barbear, coisa de criança,
 # suplemento, máquina de cortar cabelo, camiseta/regata, relógio masculino, caneta depiladora) → modo FEMININO
@@ -2428,7 +2469,45 @@ MODA_FEMININA = re.compile(r"(?i)\bbolsas?\b|\bclutch\b|\btote\b|transversal|tir
                            r"pijama.*\b(?:seda|cetim|satin|renda|luxo)|\b(?:seda|cetim|satin)\b.*pijama|"
                            r"(?:robe|camisola) de (?:seda|cetim)|"
                            # 06/10 (Eva, dona: "mostramos sapato lindo e o grupo não tem"): calçado feminino fofo
-                           r"\bsapatilhas?\b|\bsand[áa]lias?\b|\bmules?\b|\btamancos?\b|scarpin|mary ?jane|rasteirinhas?")
+                           r"\bsapatilhas?\b|\bsand[áa]lias?\b|\bmules?\b|\btamancos?\b|scarpin|mary ?jane|rasteirinhas?|"
+                           # 09/10 (dona: "vamos dar uma variada, colocando bolsa, sapato, acessório, essas coisas,
+                           # pijama e tal") → 3 vagas de moda em 10: pijama/roupa de dormir de qualquer tecido, tênis/
+                           # slide/bota/papete/anabela FEMININOS, relógio/cinto/óculos/corrente femininos, scrunchie
+                           r"\bpijamas?\b|\bcamisolas?\b|short[- ]?doll|baby[- ]?doll|\brobes?\b|roupa de dormir|"
+                           r"conjunto (?:de )?dormir|\brasteiras?\b|\bpapetes?\b|\banabela\b|"
+                           r"\b(?:t[êe]nis|slides?|botas?|chinelos?|sapatos?|rel[óo]gios?|cintos?|[óo]culos|correntes?|"
+                           r"carteiras?)\b[^|]{0,60}\bfeminin|feminin\w*\b[^|]{0,60}\b(?:t[êe]nis|slides?|botas?|sapatos?|"
+                           r"rel[óo]gios?|cintos?|[óo]culos|correntes?|carteiras?)\b|scrunchies?|xuxinhas?|"
+                           r"la[çc]os? de cabelo")
+# 09/10: moda que NÃO é do grupo, mesmo feminina — lingerie sensual explícita, fantasia, roupa/tênis de academia e
+# corrida (genérico de esporte), fantasia/cosplay, scrub hospitalar, chuteira/skate/ciclismo, guarda-chuva
+# (pijama de amamentação fica: a dona mandou um em 09/10)
+MODA_FORA = re.compile(r"(?i)sensual|\bsexy\b|er[óo]tic|lingerie|transparente|cinta[- ]liga|fantasia|fio dental|"
+                       r"calcinha|suti[ãa]|academia|fitness|\blegging|treino|corrida|running|caminhada|crossfit|"
+                       r"cosplay|peruca|cir[úu]rgic|hospitalar|\bscrub|futsal|chuteira|"
+                       r"\bskate|ciclismo|meia ponta|guarda[- ]chuva|sombrinha")
+# 09/10: a moda do grupo é bolsa, sapato, acessório e pijama — ROUPA comum (calça, saia, short "com cinto", vestido,
+# macacão, conjunto) não entra pela palavra "cinto"/"colar" do título (o pijama "Conjunto Short e Blusa" entra)
+ROUPA_RX = re.compile(r"(?i)\bcal[çc]as?\b|\bsaias?\b|\bshorts?\b(?![- ]?doll)|macac[ãa]o|macaquinho|vestidos?\b|"
+                      r"\bblusas?\b|\bbody\b|cropped|regata|camiseta|jaqueta|blazer|biqu[íi]nis?|mai[ôo]\b|"
+                      r"\bconjunto (?!de j[óo]ias|de (?:brincos?|colar))(?:feminino )?(?:linh|body|alfaiat|social)")
+PIJAMA_RX = re.compile(r"(?i)\bpijamas?\b|\bcamisolas?\b|short[- ]?doll|baby[- ]?doll|\brobes?\b|roupa de dormir|"
+                       r"conjunto (?:de )?dormir")
+TIPOS_MODA = ("bolsa", "sapato", "acessorio", "pijama")
+
+
+def tipo_moda(titulo: str) -> str:
+    """09/10: a vaga de moda varia entre bolsa, sapato, acessório (joia, óculos, relógio, presilha, cinto) e pijama."""
+    t = titulo or ""
+    if PIJAMA_RX.search(t):
+        return "pijama"
+    if BOLSA.search(t) and not re.search(r"(?i)t[ée]rmica|marmita|lancheira|mochila|escolar|maternidade", t):
+        return "bolsa"  # bolsa "de viagem/trabalho" é bolsa (NAO_BOLSA só tira a preferência da vaga "Mb")
+    sap = SAPATO_FEM.search(t) or re.search(r"(?i)rasteirinhas?|babuches?|sapat[êe]nis|slingback|\bmules?\b", t)
+    joia = JOIA_RX.search(t)  # "Corrente De Tênis" é joia; "Sandália com Pingente", sapato
+    if sap and not (joia and joia.start() < sap.start()):
+        return "sapato"
+    return "acessorio"
 # 07/10 (dona: "pode incluir coisas de casa bonito"): casa só o que ENFEITA — aroma, penteadeira, decoração, cama e banho,
 # mesa posta (nada de ferramenta, limpeza, eletro ou cozinha de trabalho)
 CASA_BONITA = re.compile(
@@ -2531,9 +2610,15 @@ def no_perfil_feminino(o: dict) -> bool:
     # 06/10 (coordenação): "vitamina" barrava sérum/creme de vitamina C (dermo, nosso nicho) — o site já liberava
     if m and m.group(0).lower() == "vitamina" and VITAMINA_SKINCARE.search(t) and not FORA_FEMININO.search(t, m.end()):
         m = None
+    # 09/10 (dona: acessório no mix): relógio FEMININO de pulso é acessório (smartwatch continua fora)
+    if (m and re.fullmatch(r"(?i)rel[óo]gio", m.group(0)) and o.get("grupo") == "moda" and re.search(r"(?i)feminin", t)
+            and not FORA_FEMININO.search(t, m.end())):
+        m = None
     if m or fora_do_nicho_grupo(t) or eh_masculino(o):
         return False
-    return (o.get("grupo") in LINHA_PRINCIPAL or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)))
+    return (o.get("grupo") in LINHA_PRINCIPAL
+            or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)) and not MODA_FORA.search(t)
+                and (tipo_moda(t) != "acessorio" or not ROUPA_RX.search(t)))
             or (o.get("grupo") == "casa" and bool(CASA_BONITA.search(t))))
 
 
@@ -3314,6 +3399,13 @@ def funil_fila(horas: int = 30, grupos: list | None = None) -> str:
         grupos_txt = ", ".join(f"{g} {q}" for g, q in sorted(por.items(), key=lambda x: -x[1])[:6])
         linhas.append(f"{n:6d}{corte:10s} {etapa} · {grupos_txt}")
         antes = n
+    for f, teto in TETO_FONTE_DIA.items():  # 09/10: fonte com teto por dia (Shein) — reserva e quanto já saiu hoje
+        res = [o for o in melhores(horas, LIMITE_CANDIDATOS) if o.get("fonte") == f and not o.get("publicado_em")]
+        frescas = [o for o in res if preco_fresco(o)]
+        if not res and not postadas_hoje_fonte(f):
+            continue
+        linhas.append(f"  {f}: {len(frescas)} na reserva com preço ≤ {PRECO_VALE_H} h (de {len(res)} aprovadas) · "
+                      f"teto {teto}/dia, saiu hoje {postadas_hoje_fonte(f)}")
     return "\n".join(linhas) or "sem ofertas"
 
 
@@ -3350,6 +3442,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     cand, recentes, amazon_ok = _candidatos(horas, so_com_link_curto)
+    cand = dentro_do_teto_dia(cand)  # 09/10 (dona): Shein no máx. 1 POR DIA (TETO_FONTE_DIA)
     # 05/10: a lista da revisora (nuvem._linhas_da_fila) só precisa do TEXTO — sem baixar e medir 40 fotos (prendia a
     # rodada do servidor). Quem posta continua conferindo a foto de cada uma.
     foto_ok = foto_boa if conferir_foto else (lambda o: True)
@@ -3475,6 +3568,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                 k -= 1
                 if vendedor(o):
                     por_vendedor[vendedor(o)] = 1
+    moda_hoje: dict = {}  # 09/10: tipos de moda que já saíram hoje (a vaga "Mv" prefere o que menos saiu)
+    for r in db.consultar("SELECT titulo, grupo FROM ofertas WHERE date(publicado_em) = date('now','localtime')") or []:
+        if dict(r).get("grupo") == "moda":
+            tp = tipo_moda(dict(r).get("titulo") or "")
+            moda_hoje[tp] = moda_hoje.get(tp, 0) + 1
     inicio = (pos + len(out)) % len(PADRAO_LINHA)
     for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
@@ -3500,10 +3598,24 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                     cabem = livres
         livres = cabem
         # 01/10 (dona): "tem que ter coisas masculinas também" → vagas "h" preferem produto masculino; as outras, não
-        quer_h, quer_b = vez.endswith("h"), vez.endswith("b")
-        bolsa = lambda x: bool(BOLSA.search(x.get("titulo") or "")) and not NAO_BOLSA.search(x.get("titulo") or "")  # noqa: E731
+        quer_h = vez.endswith("h")
+
+        def _pref(x: dict, vez: str = vez) -> int:
+            """09/10: "Mb" quer bolsa, "Ms" sapato, "Mv" o tipo de moda que menos saiu hoje (varia bolsa/sapato/
+            acessório/pijama); as outras vagas não têm preferência."""
+            if not vez.startswith("M") or x.get("grupo") != "moda":
+                return 0
+            tp = tipo_moda(x.get("titulo") or "")
+            if vez.endswith("b"):
+                return int(tp != "bolsa")
+            if vez.endswith("s"):
+                return int(tp != "sapato")
+            if vez.endswith("v"):
+                return moda_hoje.get(tp, 0) + sum(tipo_moda(y.get("titulo") or "") == tp for y in out
+                                                  if y.get("grupo") == "moda")
+            return 0
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
-        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, quer_b and not bolsa(x)))[:6]:
+        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x)))[:6]:
             fila.remove(o)
             tentativas += 1
             if foto_ok(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
@@ -3512,6 +3624,31 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                 if vendedor(o):
                     por_vendedor[vendedor(o)] = 1
                 break
+    return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
+
+
+# 09/10 (dona: "vamos pôr poucas coisas deles" → "Shein é 1 por DIA no grupo, só isso"): teto RÍGIDO de posts por dia de
+# uma fonte, contando o que já saiu hoje (publicado_em) — vale para todas as vagas, pedido da dona e grife inclusive
+TETO_FONTE_DIA = {"lomadee_shein": 1}
+
+
+def postadas_hoje_fonte(fonte: str) -> int:
+    r = db.consultar("SELECT COUNT(*) n FROM ofertas WHERE fonte = ? AND date(publicado_em) = date('now','localtime')",
+                     (fonte,))
+    return (r or [{"n": 0}])[0]["n"]
+
+
+def dentro_do_teto_dia(lista: list[dict]) -> list[dict]:
+    """Tira da lista o que passaria do TETO_FONTE_DIA (mantém a ordem; da fonte com teto fica só a 1ª que ainda cabe)."""
+    sobra = {f: t - postadas_hoje_fonte(f) for f, t in TETO_FONTE_DIA.items()}
+    out = []
+    for o in lista:
+        f = o.get("fonte")
+        if f in sobra:
+            if sobra[f] <= 0:
+                continue
+            sobra[f] -= 1
+        out.append(o)
     return out
 
 
@@ -3712,7 +3849,10 @@ OCEANE_VALIDADE_H = 14
 # tirar brinquedo e o resto"): sem vaga de variado nem de masculino → 8 beleza/cabelo/perfume + 2 bolsa/joia
 # 07/10 (dona: "pode incluir coisas de casa bonito"): 1 vaga "C" de casa bonita (decoração, aroma, penteadeira, cama e
 # banho); sem casa bonita na fila, a vaga volta para beleza/moda
-PADRAO_LINHA = ("B", "Mb", "B", "B", "C", "B", "B", "B", "Mb", "B")
+# 09/10 (dona: "vamos dar uma variada, colocando bolsa, sapato, acessório, essas coisas, pijama e tal") → 6 beleza /
+# 3 moda / 1 casa bonita: "Mb" prefere bolsa, "Ms" sapato, "Mv" o tipo de moda (tipo_moda) que menos saiu hoje
+# (acessório, pijama…). Sem moda na fila, a vaga volta para beleza (filas vazias caem na próxima)
+PADRAO_LINHA = ("B", "Mb", "B", "B", "C", "B", "Ms", "B", "Mv", "B")
 # 03/10 (dona: "sinto necessidade de bolsas no grupo" — 11 bolsas em ~420 posts): a 1ª vaga de moda prefere BOLSA
 BOLSA = re.compile(r"\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete", re.I)
 NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessaire|cosm[ée]tic|maternidade|viagem", re.I)
@@ -3746,6 +3886,8 @@ def reavaliar() -> int:
             # 08/10: loja que só vende beleza (Océane) não troca de grupo ("Toalha Demaquilante" virava casa e saía)
             o["grupo"] = (o["grupo"] if o.get("fonte") in FONTES_SO_BELEZA and o["grupo"] in LINHA_PRINCIPAL
                           and g not in LINHA_PRINCIPAL else g)
+            if o.get("fonte") == FONTE_SHEIN:  # 09/10: Shein entra só como moda (bolsa/sapato/acessório/pijama)
+                o["grupo"] = "moda"
             o["cupom"] = cupom_valido(o["cupom"])
             o["score"] = pontuar(o)
             ok = int(aprovada(o))
