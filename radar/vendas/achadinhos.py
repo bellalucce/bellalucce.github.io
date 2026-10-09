@@ -782,6 +782,8 @@ def aprovada(o: dict) -> bool:
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
         if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000) and not s.get("oficial"):
             return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
+        if s.get("pedido_dona"):  # 09/10: a dona mandou (`achadinhos pedido`) → passa por cima do desconto mínimo
+            return True
         if o["fonte"] == "shopee_afiliados" and s.get("origem") == "vitrine_fiel":
             # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
@@ -2093,6 +2095,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     from vendas import ganchos
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
     s0 = sinais_de(o)  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA…")
+    if g := (s0.get("gancho_dona") or "").strip():  # 09/10: `achadinhos pedido --texto` (o gancho_post ainda confere)
+        return g
     if s0.get("origem") == "vitrine_fiel" and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)]):
         return ganchos.escolher(frases, n, recentes)
     if not de_confiavel(o):
@@ -2251,6 +2255,10 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
         linhas.append("✔️ Loja oficial")
     if o.get("cupom"):
         linhas.append(f"🎟️ Cupom: *{o['cupom']}*")
+        # 09/10 (dona: "pode pôr"): no site da Océane, quem chega pelo NOSSO link vê a bolinha da Bella Lucce com o
+        # cupom para copiar (recurso do programa #SQUAD) — avisar ajuda a pessoa a usar o cupom
+        if o.get("fonte") == "oceane_afiliados":
+            linhas.append("_Ao abrir o link, aparece a bolinha da Bella Lucce com o cupom pra copiar 💗_")
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
     linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
@@ -2821,6 +2829,9 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
             continue
         o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
         out.append(o)
+    # 09/10: na ordem do ARQUIVO (o `pedido` da dona entra no começo dele = vai primeiro); antes era a ordem do banco
+    pos = {k: i for i, k in enumerate(ped)}
+    out.sort(key=lambda o: pos.get(o["id"], len(pos)))
     # 09/10 (dona: Océane abaixo de R$ 90 sempre primeiro): entre os pedidos da Océane vale a "ordem" da Odete
     # (integracoes/oceane.escolher_pedidos); os das outras lojas ficam onde estavam
     pos_oce = [i for i, o in enumerate(out) if o.get("fonte") == "oceane_afiliados"]
@@ -2828,6 +2839,340 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
                                     key=lambda o: (int(ped[o["id"]].get("ordem") or 10 ** 6), o["id"]))):
         out[i] = o
     return out
+
+
+# ---------------- pedido da dona pelo WhatsApp da loja (09/10) ----------------
+# A dona manda promoções na conversa dela com o WhatsApp da loja, quase sempre com o meli.la de OUTRA pessoa. A Central
+# de Afiliados do ML só acha parte delas (4 de 6 ficaram de fora em 09/10), mas o NOSSO link (link_afiliado: anúncio +
+# matt_word/matt_tool) vale para QUALQUER anúncio. `vendas achadinhos pedido URL|MLB [--texto "gancho"]`:
+#   meli.la → só os cabeçalhos Location (encurtador) → anúncio direto, ou /social/<pessoa> (o caminho: os MLB em ordem,
+#   o 1º é o produto) → página PÚBLICA do anúncio (1 requisição) → radar (aprovada, NOSSO link) → pedidos_dona.json
+#   no COMEÇO. 1 página de produto por pedido, sem varrer; ML pediu verificação → pausa ML_PAUSA_H (nada de contornar)
+#   e o pedido fica em pedidos_pendentes.json (só o MLB — o link DELES nunca é guardado nem postado).
+# Shopee (s.shopee/shopee.com.br) → shopee_referencia.pela_api (Open API, gera o nosso s.shopee).
+ML_PAUSA = config.DADOS / "achadinhos" / "ml_pausa.json"
+ML_PAUSA_H = 6
+PEDIDOS_PENDENTES = config.DADOS / "achadinhos" / "pedidos_pendentes.json"
+MOTIVO_PEDIDO_WHATSAPP = "dona: pedido no WhatsApp da loja (achadinhos pedido)"
+# anúncio = MLB + 6 a 11 dígitos; "-MLB110736447154_092026" (12 dígitos, depois de "-" e antes de "_") é FOTO do mlstatic
+MLB_ANUNCIO = re.compile(r"(?<![\w-])MLB-?(\d{6,11})(?![\d_])")
+PAREDE_ML = re.compile(r"account-verification|/gz/|captcha|/lgz/login|/jms/mlb/lgz|challenge", re.I)
+CABECALHO_NAVEGADOR = {**UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+
+
+class PedidoErro(RuntimeError):
+    """Pedido que não deu para montar (motivo em português, para a saída do comando)."""
+
+
+class MLBloqueado(PedidoErro):
+    """O ML respondeu com verificação/captcha: parar o ML (é a dona quem resolve), não tentar de novo."""
+
+
+def ml_pausado(agora: datetime | None = None) -> str | None:
+    """Hora em que o ML pediu verificação, se ainda estiver dentro da pausa (senão None)."""
+    try:
+        d = json.loads(ML_PAUSA.read_text(encoding="utf-8"))
+        desde = datetime.fromisoformat(d["desde"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return d["desde"] if (agora or datetime.now()) - desde < timedelta(hours=ML_PAUSA_H) else None
+
+
+def _pausar_ml(onde: str) -> None:
+    ML_PAUSA.parent.mkdir(parents=True, exist_ok=True)
+    ML_PAUSA.write_text(json.dumps({"desde": datetime.now().isoformat(timespec="seconds"), "onde": onde},
+                                   ensure_ascii=False), encoding="utf-8")
+
+
+def _get_ml(url: str, cli: httpx.Client) -> str:
+    """A ÚNICA página do ML que o pedido lê. Verificação/captcha → pausa e MLBloqueado (sem repetir)."""
+    if desde := ml_pausado():
+        raise MLBloqueado(f"ML em pausa desde {desde[11:16]} (pediu verificação; volto a tentar depois de "
+                          f"{ML_PAUSA_H} h — quem resolve a verificação é a dona)")
+    r = cli.get(url, headers=CABECALHO_NAVEGADOR, follow_redirects=True)
+    if PAREDE_ML.search(str(r.url)) or r.status_code in (403, 429):
+        _pausar_ml(str(r.url)[:80])
+        raise MLBloqueado(f"ML pediu verificação ao abrir {url.split('?')[0]} — parei o ML por {ML_PAUSA_H} h")
+    if r.status_code >= 400:
+        raise PedidoErro(f"ML respondeu {r.status_code} em {url.split('?')[0]}")
+    return r.text
+
+
+def mlbs_no_html(html: str) -> list[str]:
+    """MLB de ANÚNCIO na ordem em que aparecem (id de foto do mlstatic fica de fora), sem repetir."""
+    return list(dict.fromkeys(f"MLB{m}" for m in MLB_ANUNCIO.findall(html or "")))
+
+
+def _seguir_encurtador(url: str, cli: httpx.Client) -> str:
+    """meli.la → destino lendo SÓ o cabeçalho Location (não abre a página do ML)."""
+    from urllib.parse import urlparse
+    for _ in range(5):
+        if not any(e in urlparse(url).netloc for e in ENCURTADORES):
+            break
+        r = cli.get(url, headers=UA, follow_redirects=False)
+        loc = r.headers.get("location")
+        if not (300 <= r.status_code < 400 and loc):
+            raise PedidoErro("o link curto não levou a lugar nenhum (expirado?)")
+        url = loc if loc.startswith("http") else str(r.url.join(loc))
+    return url
+
+
+def resolver_pedido(alvo: str, cli: httpx.Client) -> dict:
+    """{"loja": "ml", "mlb", "url", "html"?, "outros"?} ou {"loja": "shopee", "url"}. Link de terceiro é só caminho."""
+    alvo = (alvo or "").strip()
+    if re.fullmatch(r"(?i)MLB-?\d+", alvo):
+        num = re.sub(r"\D", "", alvo)
+        if len(num) > 11:
+            raise PedidoErro(f"{alvo}: {len(num)} dígitos é id de FOTO do ML (mlstatic), não de anúncio — "
+                             "pegue o MLB do link do produto")
+        return {"loja": "ml", "mlb": f"MLB{num}"}
+    if not re.match(r"https?://", alvo):
+        raise PedidoErro(f"não entendi o pedido: {alvo[:60]} (mande o link ou o MLB)")
+    if re.search(r"s\.shopee\.com\.br|shope\.ee|shopee\.com\.br", alvo):
+        return {"loja": "shopee", "url": alvo}
+    url = _seguir_encurtador(alvo, cli) if "meli.la" in alvo else alvo
+    if not re.search(r"mercadoli(?:vre|bre)\.com", url):
+        raise PedidoErro(f"o link não é do Mercado Livre nem da Shopee: {url.split('?')[0][:60]}")
+    if "/social/" in url:  # vitrine da OUTRA pessoa: o HTML lista os MLB em ordem — o 1º é o do link
+        html = _get_ml(url, cli)
+        ids = mlbs_no_html(html)
+        if not ids:
+            raise PedidoErro("a vitrine /social não mostrou nenhum anúncio")
+        return {"loja": "ml", "mlb": ids[0], "html": html, "outros": ids[1:6]}
+    m = re.search(r"/p/(MLB\d+)", url)  # anúncio de catálogo: a URL da página é a própria /p/
+    if m and not MLB_ANUNCIO.search(url.split("/p/")[0]):
+        return {"loja": "ml", "mlb": m.group(1), "url": url.split("?")[0].split("#")[0]}
+    if not (m := MLB_ANUNCIO.search(url)):
+        raise PedidoErro(f"não achei o MLB no link: {url.split('?')[0][:70]}")
+    return {"loja": "ml", "mlb": f"MLB{m.group(1)}"}
+
+
+def _num(v) -> float | None:
+    """'1.234,56' / '1234.56' / 179.55 → float."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = re.sub(r"[^\d,.]", "", str(v))
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _reais_aria(rotulo: str, html: str) -> float | None:
+    """aria-label="Antes: 286 reais com 66 centavos" (o "De" riscado da página do ML)."""
+    m = re.search(rf'aria-label="{rotulo}:?\s*([\d.]+)\s*reais(?:\s*com\s*(\d+)\s*centavos?)?', html, re.I)
+    return float(m.group(1).replace(".", "")) + int(m.group(2) or 0) / 100 if m else None
+
+
+def ler_anuncio_ml(html: str, mlb: str) -> dict:
+    """Título, preço, "De", foto, loja oficial, nota e vendidos da página PÚBLICA do anúncio (ld+json + meta + rótulos)."""
+    d: dict = {}
+    for bloco in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html or "", re.S | re.I):
+        try:
+            j = json.loads(bloco, strict=False)  # quebra de linha dentro do texto não derruba
+        except ValueError:
+            continue
+        for x in j if isinstance(j, list) else j.get("@graph", [j]) if isinstance(j, dict) else []:
+            if not (isinstance(x, dict) and x.get("@type") == "Product"):
+                continue
+            img = x.get("image")
+            of = x.get("offers") or {}
+            of = of[0] if isinstance(of, list) and of else of
+            nota = (x.get("aggregateRating") or {}).get("ratingValue") if isinstance(x.get("aggregateRating"), dict) else None
+            d.update({k: v for k, v in {
+                "titulo": " ".join(_html.unescape(x.get("name") or "").split()),
+                "foto": img[0] if isinstance(img, list) and img else img if isinstance(img, str) else None,
+                "preco": _num(of.get("price")) if isinstance(of, dict) else None, "nota": _num(nota)}.items() if v})
+
+    def meta(prop):
+        m = (re.search(rf'<meta[^>]+(?:property|name|itemprop)="{prop}"[^>]*content="([^"]*)"', html or "", re.I)
+             or re.search(rf'<meta[^>]+content="([^"]*)"[^>]*(?:property|name|itemprop)="{prop}"', html or "", re.I))
+        return _html.unescape(m.group(1)).strip() if m else None
+    d.setdefault("titulo", (meta("og:title") or "").split(" | ")[0].strip() or None)
+    d.setdefault("foto", meta("og:image"))
+    if not d.get("preco"):
+        d["preco"] = _num(meta("price")) or _reais_aria("Agora", html or "")
+    de = _reais_aria("Antes", html or "") or _num((re.search(r'"original_price"\s*:\s*([\d.]+)', html or "") or [None, None])[1])
+    d["preco_antigo"] = de if de and d.get("preco") and de > d["preco"] else None
+    if not d.get("nota"):
+        m = re.search(r'ui-pdp-review__rating[^>]*>\s*([\d.,]+)', html or "")
+        d["nota"] = _num(m.group(1)) if m else None
+    m = re.search(r'\+\s*(\d+(?:[.,]\d+)?)\s*(mil)?\s*vendid', html or "", re.I)
+    d["vendidos_num"] = int(float(m.group(1).replace(",", ".")) * (1000 if m.group(2) else 1)) if m else 0
+    m = (re.search(r'"official_store_name"\s*:\s*"([^"]{2,60})"', html or "")
+         or re.search(r'Loja oficial\s*(?:<[^>]+>\s*)*([^<"]{2,60})', html or "", re.I))
+    d["oficial"], d["loja_nome"] = bool(m), (_html.unescape(m.group(1)).strip() if m else "")
+    if d.get("foto"):  # miniatura do mlstatic → a original (~1200 px)
+        d["foto"] = re.sub(r"(mlstatic\.com/)D_Q_NP_(?:2X_)?(.+)-[A-Z]{1,2}\.(webp|jpg)$", r"\1D_NQ_NP_2X_\2-F.\3",
+                           d["foto"])
+    d["do_anuncio"] = re.sub(r"\D", "", mlb) in (html or "")
+    return d
+
+
+def _gravar_pedido_dona(oid: str, grupo: str | None = None) -> None:
+    """Põe o id no COMEÇO de pedidos_dona.json (mesmo formato da Rafa/Océane: {id: {"quando", "motivo", "grupo"?}})."""
+    arq = PEDIDOS_DONA
+    try:
+        d = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+    except (OSError, ValueError):
+        raise PedidoErro(f"{arq.name} ilegível — não sobrescrevo os pedidos que já estão lá") from None
+    if not isinstance(d, dict):
+        raise PedidoErro(f"{arq.name} fora do formato")
+    novo = {"quando": datetime.now().isoformat(timespec="seconds"), "motivo": MOTIVO_PEDIDO_WHATSAPP,
+            **({"grupo": grupo} if grupo else {})}
+    d = {oid: novo, **{k: v for k, v in d.items() if k != oid}}
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    tmp = arq.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(arq)
+
+
+def _pendente(mlb: str, texto: str | None, motivo: str, tirar: bool = False) -> None:
+    """pedidos_pendentes.json: [{mlb, texto, quando, motivo}] — só o MLB (nunca o link de terceiro)."""
+    try:
+        lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
+        lista = lista if isinstance(lista, list) else []
+    except (OSError, ValueError):
+        lista = []
+    lista = [p for p in lista if p.get("mlb") != mlb]
+    if not tirar:
+        lista.append({"mlb": mlb, "texto": texto or "", "quando": datetime.now().isoformat(timespec="seconds"),
+                      "motivo": motivo})
+    PEDIDOS_PENDENTES.parent.mkdir(parents=True, exist_ok=True)
+    PEDIDOS_PENDENTES.write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def pendentes() -> list[dict]:
+    try:
+        lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [p for p in lista if isinstance(p, dict) and p.get("mlb")] if isinstance(lista, list) else []
+
+
+def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
+    mlb = r["mlb"]
+    url = r.get("url") or f"https://produto.mercadolivre.com.br/MLB-{mlb[3:]}"
+    html = r.get("html")
+    d = ler_anuncio_ml(html, mlb) if html else {}
+    if not (d.get("titulo") and d.get("preco") and d.get("do_anuncio") and d.get("foto")):
+        # a vitrine /social é só o caminho do meli.la deles; o anúncio é a 1 página do produto que o pedido lê
+        d = ler_anuncio_ml(_get_ml(url, cli), mlb)
+    if not d.get("do_anuncio"):
+        raise PedidoErro(f"{mlb}: a página aberta não é a deste anúncio")
+    if not (d.get("titulo") and d.get("preco")):
+        raise PedidoErro(f"{mlb}: a página não mostrou título e preço (anúncio pausado/encerrado?)")
+    if not (d.get("foto") and re.match(r"https://http2\.mlstatic\.com/", d["foto"])):
+        raise PedidoErro(f"{mlb}: sem foto do anúncio")
+    if (px := foto_px(d["foto"])) < FOTO_MIN_PX:
+        raise PedidoErro(f"{mlb}: foto com {px} px (mínimo {FOTO_MIN_PX})")
+    titulo = d["titulo"]
+    grupo = _grupo_final(_grupo(titulo), titulo)
+    de, preco = d.get("preco_antigo"), d["preco"]
+    sinais = {"tipo": "NORMAL", "comissao": 0, "vendidos_num": d.get("vendidos_num") or 0, "oficial": d["oficial"],
+              "loja_nome": d.get("loja_nome") or "", "pedido_dona": True, "origem": "pedido_dona"}
+    if texto:
+        sinais["gancho_dona"] = texto.strip().upper()
+    vend = sinais["vendidos_num"]
+    o = {"id": f"mlaf:{mlb}", "fonte": "ml_afiliados", "loja": "Mercado Livre", "titulo": titulo, "grupo": grupo,
+         "preco": preco, "preco_antigo": de, "desconto": round((1 - preco / de) * 100) if de else 0, "cupom": None,
+         "foto": d["foto"], "link_fonte": None, "link_loja": url if "/p/" in url else f"https://produto.mercadolivre.com.br/MLB-{mlb[3:]}",
+         "nota": d.get("nota"), "vendidos": f"{vend} vendidos" if vend else None, "sinais": sinais}
+    return o
+
+
+def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None) -> dict:
+    """Pedido da dona → radar (aprovada, NOSSO link) + frente da fila. Devolve {"ok", "id", "titulo", "preco", "de",
+    "link", "avisos"} ou {"ok": False, "erro"}. Nunca guarda o link de terceiro."""
+    _tabela()
+    fechar = cli is None
+    cli = cli or httpx.Client(timeout=25)
+    mlb = None
+    try:
+        r = resolver_pedido(alvo, cli)
+        if r["loja"] == "shopee":
+            return _pedido_shopee(r["url"], texto)
+        mlb = r["mlb"]
+        o = _pedido_ml(r, texto, cli)
+    except MLBloqueado as e:
+        if mlb:
+            _pendente(mlb, texto, str(e))
+        return {"ok": False, "erro": str(e), "mlb": mlb, "pendente": bool(mlb)}
+    except (PedidoErro, httpx.HTTPError) as e:
+        return {"ok": False, "erro": str(e) if isinstance(e, PedidoErro) else f"rede: {type(e).__name__}", "mlb": mlb}
+    finally:
+        if fechar:
+            cli.close()
+    avisos = []
+    if tem_afiliado_terceiro(o["link_loja"]) or not pagina_de_produto(o["link_loja"]):
+        return {"ok": False, "erro": f"link fora do padrão: {o['link_loja']}", "mlb": mlb}
+    if not o.get("preco_antigo"):
+        avisos.append("a página não mostra preço 'De' → a fila não posta sem 'De' (regra da dona)")
+    if FALSIFICAVEL.search(o["titulo"]) and not o["sinais"]["oficial"]:
+        avisos.append("marca muito falsificada e a loja NÃO é oficial — o Beto confere antes de sair")
+    o["score"] = pontuar(o)
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    with db.conectar() as con:
+        con.execute("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
+                         link_fonte, link_loja, nota, vendidos, sinais, score, aprovada, visto_em, atualizado_em)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                       ON CONFLICT(id) DO UPDATE SET titulo=excluded.titulo, grupo=excluded.grupo, preco=excluded.preco,
+                         preco_antigo=excluded.preco_antigo, desconto=excluded.desconto, foto=excluded.foto,
+                         link_loja=excluded.link_loja, nota=excluded.nota, vendidos=excluded.vendidos,
+                         sinais=excluded.sinais, score=excluded.score, aprovada=1, visto_em=excluded.visto_em,
+                         atualizado_em=excluded.atualizado_em""",
+                    (o["id"], o["fonte"], o["loja"], o["titulo"], o["grupo"], o["preco"], o["preco_antigo"],
+                     o["desconto"], None, o["foto"], None, o["link_loja"], o["nota"], o["vendidos"],
+                     json.dumps(o["sinais"], ensure_ascii=False), o["score"], agora, agora))
+        _guardar_precos(con, [(o["id"], o["preco"])])
+    _gravar_pedido_dona(o["id"])
+    _pendente(mlb, None, "", tirar=True)
+    return {"ok": True, "id": o["id"], "titulo": o["titulo"], "preco": o["preco"], "de": o["preco_antigo"],
+            "link": link_afiliado(o["link_loja"], canal="whatsapp"), "grupo": o["grupo"], "avisos": avisos,
+            "outros": r.get("outros") or []}
+
+
+def _pedido_shopee(url: str, texto: str | None) -> dict:
+    """Shopee: o caminho que já existe (Open API pelo itemId → nosso s.shopee) e depois a frente da fila."""
+    from vendas.integracoes import shopee_referencia as sr
+    limpa = sr.limpar_url(url)
+    if not limpa:
+        return {"ok": False, "erro": "não achei o produto da Shopee nesse link"}
+    res = sr.pela_api([limpa], log=lambda *a: None)
+    oid = f"shpaf:{limpa.rsplit('/', 1)[1]}"
+    linha = db.consultar("SELECT * FROM ofertas WHERE id = ?", (oid,))
+    if not linha:
+        return {"ok": False, "erro": "; ".join(res.get("recusados") or []) or "a Open API não devolveu o produto"}
+    o = dict(linha[0])
+    s = sinais_de(o)
+    if not re.match(r"https://s\.shopee\.com\.br/\w+$", s.get("offer_link") or ""):
+        return {"ok": False, "erro": f"{oid}: sem o NOSSO link curto da Shopee (a fila não posta sem ele)"}
+    s.update(pedido_dona=True, **({"gancho_dona": texto.strip().upper()} if texto else {}))
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    with db.conectar() as con:
+        con.execute("UPDATE ofertas SET sinais = ?, aprovada = 1, atualizado_em = ? WHERE id = ?",
+                    (json.dumps(s, ensure_ascii=False), agora, oid))
+    _gravar_pedido_dona(oid)
+    return {"ok": True, "id": oid, "titulo": o["titulo"], "preco": o["preco"], "de": o.get("preco_antigo"),
+            "link": s["offer_link"], "grupo": o["grupo"],
+            "avisos": [] if o.get("preco_antigo") else ["sem preço 'De' → a fila não posta sem 'De' (regra da dona)"]}
+
+
+def relatorio_pedido(r: dict) -> str:
+    if not r.get("ok"):
+        extra = " (ficou em pedidos_pendentes.json — `vendas achadinhos pedido` sem link tenta de novo)" \
+            if r.get("pendente") else ""
+        return f"x {r.get('mlb') or ''} {r['erro']}{extra}".replace("x  ", "x ")
+    de = f"de {_brl(r['de'])} " if r.get("de") else ""
+    linhas = [f"OK {r['id']} · {r['titulo'][:70]} · {de}por {_brl(r['preco'])} · {r['grupo']}", f"   {r['link']}"]
+    linhas += [f"   ! {a}" for a in r.get("avisos") or []]
+    if r.get("outros"):
+        linhas.append(f"   (outros MLB na vitrine /social, em ordem: {', '.join(r['outros'])})")
+    return "\n".join(linhas)
 
 
 def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | None = None,
