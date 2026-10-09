@@ -1514,10 +1514,11 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 .busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid var(--linha);border-radius:20px;padding:9px 14px;font-size:14px;background:var(--claro);font-family:inherit}}.busca span{{font-size:12px;color:#8A7A66;white-space:nowrap}}
 #mais{{display:block;margin:0 auto 24px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
 .entrar{{display:block;margin:12px auto 0;max-width:420px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;border-radius:24px;padding:11px 16px}}
+.oce{{display:block;margin:10px auto 0;max-width:420px;background:#fff;color:var(--cor2);text-decoration:none;font-weight:700;border:2px dashed var(--cor);border-radius:24px;padding:10px 16px}}
 .nossa{{padding:12px 16px 0}}.nossa h2{{font-size:24px;margin:4px 0 10px;color:var(--cor2);font-family:'Cormorant Garamond',Georgia,serif;font-weight:700}}
 .trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
-<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}</header>
+<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}<a class="oce" href="oceane/">🎟️ Área Océane · cupom BELLALUCCE 10% OFF</a></header>
 {faixa}
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
@@ -1539,7 +1540,127 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
 </body></html>"""
     SITE.mkdir(parents=True, exist_ok=True)
     (SITE / "index.html").write_text(pagina, encoding="utf-8")
+    try:  # 09/10: área só da Océane (/oceane/) — erro nela não pode derrubar a vitrine
+        pagina_oceane()
+    except Exception as ex:  # noqa: BLE001
+        print("área Océane falhou:", ex)
     return str(SITE / "index.html")
+
+
+# ---------------- área Océane do site (/oceane/) ----------------
+# 09/10 (dona: "no site a gente podia criar uma área só da Océane, porque agora eu tenho um cupom"): página só com as
+# ofertas da Océane que estão valendo (fonte oceane_afiliados, preço OFICIAL visto há até OCEANE_VALIDADE_H h), Por
+# ≤ R$ 90 primeiro (pedido da dona), De/Por da própria loja e o NOSSO link (utmi_pc=BELLALUCCE); no topo o cupom
+# BELLALUCCE (10% OFF) com botão de copiar. Fora: Mariana Saad (fora do programa e do robots.txt), validade próxima e
+# a linha infantil/teen 4YOU. Regras da marca: sem promessa de resultado, nunca em mídia paga, preço só o oficial.
+OCEANE_CUPOM_SITE = "BELLALUCCE"
+OCEANE_PRIORIDADE_SITE = 90.0  # = integracoes/oceane.PRECO_PRIORIDADE (a nuvem não tem o pacote integracoes)
+OCEANE_FORA_SITE = re.compile(r"(?i)4\s*-?\s*you\b|\bsaad\b|mariana[\s-]*saad|infantil|\bkids?\b|crian[çc]as?|\bbaby\b|"
+                              r"\bbeb[êe]s?\b|validade|vencimento")
+OCEANE_JS = """<script>
+document.querySelectorAll('[data-copiar]').forEach(function (b) {
+  b.onclick = function () {
+    var c = b.getAttribute('data-copiar'), ok = function () { b.textContent = 'Cupom copiado ✓'; };
+    var velho = function () {
+      var t = document.createElement('textarea'); t.value = c; document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { b.textContent = c; }
+      t.remove();
+    };
+    if (navigator.clipboard) { navigator.clipboard.writeText(c).then(ok, velho); } else { velho(); }
+  };
+});
+</script>"""
+
+
+def ofertas_oceane(agora: datetime | None = None) -> list[dict]:
+    """Ofertas da Océane valendo AGORA para a área do site, já na ordem: Por ≤ R$ 90 primeiro, depois maior desconto."""
+    _tabela()
+    agora = agora or datetime.now()
+    limite = (agora - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
+    out = []
+    for o in db.consultar("SELECT * FROM ofertas WHERE fonte = 'oceane_afiliados' AND aprovada = 1 "
+                          "AND link_loja IS NOT NULL AND atualizado_em >= ?", (limite,)):
+        s = sinais_de(o)
+        txt = " ".join(str(x or "") for x in (o.get("titulo"), o.get("link_loja"), o.get("foto"), s.get("nome_loja"),
+                                              s.get("categoria")))
+        if s.get("fora") or OCEANE_FORA_SITE.search(txt) or validade_na_foto(o) or vencendo(o.get("titulo") or ""):
+            continue
+        por, de = o.get("preco") or 0, o.get("preco_antigo") or 0
+        link = link_afiliado(o["link_loja"]) or ""
+        if not (por > 0 and de > por and o.get("foto") and f"utmi_pc={OCEANE_UTMI}" in link):
+            continue
+        out.append({**o, "_link": link})
+    out.sort(key=lambda o: (o["preco"] > OCEANE_PRIORIDADE_SITE, -(o.get("desconto") or 0), o["preco"]))
+    return out
+
+
+def pagina_oceane(agora: datetime | None = None) -> str:
+    """Gera SITE/oceane/index.html (a nuvem copia para /oceane/). Sem oferta valendo, a página fica só com o cupom."""
+    agora = agora or datetime.now()
+    ofs = ofertas_oceane(agora)
+    e = _html.escape
+
+    def card(o: dict) -> str:
+        t = cortar(limpar_titulo(o["titulo"]), 90)
+        selo = f'<span class="selo">-{int(o["desconto"])}%</span>' if o.get("desconto") else ""
+        return (f'<a class="card" href="{e(o["_link"])}" target="_blank" rel="nofollow sponsored noopener">'
+                f'<div class="img"><img loading="lazy" decoding="async" width="300" height="300" src="{e(o["foto"])}" '
+                f'alt="{e(t)}">{selo}</div><div class="loja">Océane · loja oficial</div><div class="tit">{e(t)}</div>'
+                f'<div class="preco"><s>De {_brl(o["preco_antigo"])}</s><b>Por {_brl(o["preco"])}</b></div>'
+                f'<div class="btn">Ver na Océane</div></a>')
+
+    ate = [o for o in ofs if o["preco"] <= OCEANE_PRIORIDADE_SITE]
+    acima = [o for o in ofs if o["preco"] > OCEANE_PRIORIDADE_SITE]
+    blocos = ""
+    if ate:
+        blocos += f'<h2>Até R$ 90 <i>{len(ate)}</i></h2><main>{"".join(card(o) for o in ate)}</main>'
+    if acima:
+        blocos += f'<h2>Mais ofertas da Océane <i>{len(acima)}</i></h2><main>{"".join(card(o) for o in acima)}</main>'
+    if not ofs:
+        blocos = ('<p class="vazio">As ofertas da Océane entram aqui toda manhã, com o preço da loja oficial. '
+                  'O cupom já vale no site da Océane 👇</p>')
+    visto = max((str(o.get("atualizado_em") or "") for o in ofs), default="")
+    conferido = (f" · preços da loja conferidos às {visto[11:16]} de {visto[8:10]}/{visto[5:7]}" if len(visto) >= 16
+                 else "")
+    loja = f"https://www.oceane.com.br/?utmi_pc={OCEANE_UTMI}"
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Área Océane · cupom BELLALUCCE 10% OFF · Bella Lucce</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
+<link rel="canonical" href="{SITE_URL}/oceane/">
+<meta property="og:title" content="Área Océane · cupom BELLALUCCE 10% OFF"><meta property="og:type" content="website">
+<meta name="description" content="Ofertas da loja oficial da Océane (maquiagem, skincare e cabelo) e o cupom BELLALUCCE: 10% OFF no site da Océane.">
+<style>
+:root{{--cor:#B9683C;--cor2:#8E4A26;--fundo:#F4E8D2;--claro:#FBF4E6;--txt:#4A2C1A;--linha:#E2CBA6}}*{{box-sizing:border-box}}body{{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;background:var(--fundo);color:var(--txt)}}
+.voltar{{display:inline-block;margin:12px 16px 0;color:var(--cor2);font-weight:600;text-decoration:none;font-size:14px}}
+header{{padding:10px 16px 18px;text-align:center;border-bottom:3px double var(--cor)}}header .sobre{{font-size:11px;letter-spacing:.25em;font-weight:700;color:var(--cor);margin:0 0 2px}}header h1{{margin:0;font-size:36px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;color:var(--cor2);line-height:1.05}}header p{{margin:8px 0 0;font-size:13px;color:#7A5A44}}
+.logo{{width:72px;height:72px;border-radius:50%;border:1px solid var(--linha);display:block;margin:0 auto 8px}}
+.cupom{{max-width:460px;margin:16px auto 4px;background:#fff;border:2px dashed var(--cor);border-radius:16px;padding:16px;text-align:center}}
+.cupom b{{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;color:var(--cor2);line-height:1.15}}.cupom small{{display:block;font-size:12px;color:#7A5A44;margin-top:6px}}
+.cupom button{{margin-top:12px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:11px 22px;font-size:15px;font-family:inherit;cursor:pointer}}
+.cupom a{{display:inline-block;margin:10px 0 0 8px;color:var(--cor2);font-weight:600;font-size:14px}}
+h2{{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;color:var(--cor2);margin:22px 16px 10px}}h2 i{{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:13px;opacity:.7}}
+main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 10px}}
+.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
+.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
+.selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
+.loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
+.preco{{padding:0 10px;font-size:16px;font-weight:700}}.preco s{{display:block;color:#8A7A66;font-size:12px;font-weight:400}}.preco b{{color:#3F6B38}}
+.btn{{margin:10px;background:var(--cor);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
+.vazio{{text-align:center;padding:20px 16px;font-size:15px}}
+footer{{text-align:center;font-size:11px;color:#999;padding:16px 16px 24px}}
+</style></head><body>
+<a class="voltar" href="../">← Todas as ofertas</a>
+<header><img class="logo" src="../logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Área Océane</h1><p>Maquiagem, skincare e cabelo da loja oficial da Océane · atualizado {agora:%d/%m %H:%M}{conferido}</p></header>
+<section class="cupom"><b>Cupom {OCEANE_CUPOM_SITE}: 10% OFF no site da Océane</b><small>Copie e cole o cupom no carrinho do site da Océane.</small><button type="button" data-copiar="{OCEANE_CUPOM_SITE}">Copiar cupom</button><a href="{e(loja)}" target="_blank" rel="nofollow sponsored noopener">Ir para a Océane →</a></section>
+{blocos}
+<footer>#publi · Links de afiliada da Bella Lucce: a Océane pode nos pagar uma comissão, sem custo a mais para você. Preços da loja oficial; podem mudar a qualquer momento — confira no site antes de comprar.</footer>
+{OCEANE_JS}
+</body></html>"""
+    pasta = SITE / "oceane"
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "index.html").write_text(pagina, encoding="utf-8")
+    return str(pasta / "index.html")
 
 
 # ---------------- posts do grupo (formato estudado nos grupos que o usuário segue) ----------------
@@ -2851,6 +2972,9 @@ def funil_fila(horas: int = 30, grupos: list | None = None) -> str:
     return "\n".join(linhas) or "sem ofertas"
 
 
+RESERVA_RODADAS = 3  # 09/10: o "+1 por rodada" só entra se o resto ainda dá 1 post a cada 3 rodadas até o fim
+
+
 def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, intervalo_min: int = 10) -> int:
     """Ritmo pelo estoque: divide o que sobrou pelas rodadas que faltam até o fim do horário, para o grupo não
     secar no meio do dia. Estoque menor que as rodadas → 1 post a cada k rodadas (as outras ficam com 0)."""
@@ -2858,9 +2982,16 @@ def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, in
     if estoque_atual <= 0:
         return 0
     if estoque_atual >= faltam:
-        return min(quantos, -(-estoque_atual // faltam))
-    k = -(-faltam // estoque_atual)  # rodadas por post
-    return 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
+        base = -(-estoque_atual // faltam)
+    else:
+        k = -(-faltam // estoque_atual)  # rodadas por post
+        base = 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
+    # 09/10 (dona: "tá bem parada… põe uma a mais, entraram duas pessoas que gostam de comprar"): +1 por rodada, desde
+    # que o que SOBRA ainda dê 1 post a cada RESERVA_RODADAS rodadas até o fim do horário (sem oferta nova chegando, o
+    # grupo não seca; com pouco estoque volta ao ritmo antigo). Nunca passa de `quantos` nem do estoque.
+    if (estoque_atual - base - 1) * RESERVA_RODADAS >= faltam - 1:
+        base += 1
+    return min(quantos, base, estoque_atual)
 
 
 def tipo_na_rodada(o: dict, out: list[dict]) -> bool:

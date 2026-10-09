@@ -44,6 +44,8 @@ def main() -> None:
     SAIDA.mkdir(exist_ok=True)
     for arq in ("index.html", "ofertas.json"):
         shutil.copyfile(a.SITE / arq, SAIDA / arq)
+    if (a.SITE / "oceane").exists():  # 09/10 (dona): área só da Océane, montada pelo vitrine() junto com a página
+        shutil.copytree(a.SITE / "oceane", SAIDA / "oceane", dirs_exist_ok=True)
     for arq in ("logo.png", "favicon.png", "README.md"):
         if (REPO / arq).exists():
             shutil.copyfile(REPO / arq, SAIDA / arq)
@@ -61,7 +63,7 @@ def main() -> None:
     for arq in REPO.glob("google*.html"):
         shutil.copyfile(arq, SAIDA / arq.name)
     base = "https://bellalucce.github.io"
-    paginas = ["/", "/grupo/", "/links/"] + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
+    paginas = ["/", "/oceane/", "/grupo/", "/links/"] + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
