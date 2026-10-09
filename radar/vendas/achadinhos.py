@@ -3048,14 +3048,31 @@ def _num(v) -> float | None:
 
 
 def _reais_aria(rotulo: str, html: str) -> float | None:
-    """aria-label="Antes: 286 reais com 66 centavos" (o "De" riscado da página do ML)."""
-    m = re.search(rf'aria-label="{rotulo}:?\s*([\d.]+)\s*reais(?:\s*com\s*(\d+)\s*centavos?)?', html, re.I)
+    """aria-label="Antes: 286 reais com 66 centavos" (o "De" riscado da página do ML). 09/10: o Chrome da loja devolve
+    o rótulo em espanhol ("Antes: 219 reales con 10 centavos") — vale também."""
+    m = re.search(rf'aria-label="{rotulo}:?\s*([\d.]+)\s*rea(?:is|les)(?:\s*co[mn]\s*(\d+)\s*centavos?)?', html, re.I)
     return float(m.group(1).replace(".", "")) + int(m.group(2) or 0) / 100 if m else None
 
 
+def _bloco_preco(html: str) -> str | None:
+    """O bloco de preço PRINCIPAL do anúncio (id="price"). A página tem dezenas de "Antes:" de carrossel embaixo — o
+    "De" só vale se estiver AQUI. None = HTML sem esse bloco (mínimo/antigo)."""
+    i = html.find('id="price"')
+    if i < 0:
+        i = html.find("ui-pdp-price__main-container")
+    return html[i:i + 5000] if i >= 0 else None
+
+
+# og:title do ML = "Título - R$ 219" (09/10, blush Too Faced: o preço vinha grudado no título)
+_OG_TITULO_PRECO = re.compile(r"^(.*?\S)\s+-\s+R\$\s*([\d.]+(?:,\d{1,2})?)\s*$")
+
+
 def ler_anuncio_ml(html: str, mlb: str) -> dict:
-    """Título, preço, "De", foto, loja oficial, nota e vendidos da página PÚBLICA do anúncio (ld+json + meta + rótulos)."""
+    """Título, preço, "De", foto, loja oficial, nota e vendidos da página PÚBLICA do anúncio (ld+json + meta + rótulos).
+    Serve também para o HTML da página aberta no Chrome da loja (`achadinhos pedido MLB --html`)."""
     d: dict = {}
+    html = html or ""
+    bloco = _bloco_preco(html)
     for bloco in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html or "", re.S | re.I):
         try:
             j = json.loads(bloco, strict=False)  # quebra de linha dentro do texto não derruba
@@ -3073,28 +3090,54 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
                 "foto": img[0] if isinstance(img, list) and img else img if isinstance(img, str) else None,
                 "preco": _num(of.get("price")) if isinstance(of, dict) else None, "nota": _num(nota)}.items() if v})
 
-    def meta(prop):
-        m = (re.search(rf'<meta[^>]+(?:property|name|itemprop)="{prop}"[^>]*content="([^"]*)"', html or "", re.I)
-             or re.search(rf'<meta[^>]+content="([^"]*)"[^>]*(?:property|name|itemprop)="{prop}"', html or "", re.I))
+    def meta(prop, onde=html):
+        m = (re.search(rf'<meta[^>]+(?:property|name|itemprop)="{prop}"[^>]*content="([^"]*)"', onde, re.I)
+             or re.search(rf'<meta[^>]+content="([^"]*)"[^>]*(?:property|name|itemprop)="{prop}"', onde, re.I))
         return _html.unescape(m.group(1)).strip() if m else None
-    d.setdefault("titulo", (meta("og:title") or "").split(" | ")[0].strip() or None)
+    # título: ld+json Product → <h1 class="ui-pdp-title"> → og:title SEM o " - R$ 219" do fim (09/10, Too Faced)
+    og = " ".join(_html.unescape(meta("og:title") or "").split(" | ")[0].split())
+    og_preco = None
+    if m := _OG_TITULO_PRECO.match(og):
+        og, og_preco = m.group(1), _num(m.group(2))
+    if not d.get("titulo"):
+        m = re.search(r'<h1[^>]*ui-pdp-title[^>]*>([^<]{3,300})</h1>', html)
+        d["titulo"] = " ".join(_html.unescape(m.group(1)).split()) if m else (og or None)
     d.setdefault("foto", meta("og:image"))
     if not d.get("preco"):
-        d["preco"] = _num(meta("price")) or _reais_aria("Agora", html or "")
-    de = _reais_aria("Antes", html or "") or _num((re.search(r'"original_price"\s*:\s*([\d.]+)', html or "") or [None, None])[1])
+        d["preco"] = (_num(meta("price", bloco)) if bloco else None) or _num(meta("price")) \
+            or _reais_aria("Agora", bloco or html)
+    # "De" = o riscado do bloco de preço PRINCIPAL; sem esse bloco (HTML mínimo) → original_price ou o R$ do og:title.
+    # Com o bloco e sem riscado = não tem "De" (nada de pegar o "Antes" de um carrossel nem inventar pelo og:title).
+    if bloco is not None:
+        de = _reais_aria("Antes", bloco)
+    else:
+        de = (_reais_aria("Antes", html) or _num((re.search(r'"original_price"\s*:\s*([\d.]+)', html) or [None, None])[1])
+              or og_preco)
     d["preco_antigo"] = de if de and d.get("preco") and de > d["preco"] else None
+    # 09/10: "10% OFF no Pix" = o "Por" da página é o preço no Pix (no cartão é outro) → aviso para o Beto
+    texto_bloco = " ".join(_html.unescape(re.sub(r"<[^>]+>", " ", bloco or "")).split())
+    d["so_pix"] = bool(re.search(r"OFF\s+no\s+Pix", texto_bloco, re.I))
+    m = re.search(r"no\s+Pix\s+ou\s+R\$\s*([\d.]+)(?:\s*,\s*(\d{1,2}))?", texto_bloco, re.I) if d["so_pix"] else None
+    d["preco_cartao"] = _num(f"{m.group(1)},{m.group(2) or '0'}") if m else None
     if not d.get("nota"):
-        m = re.search(r'ui-pdp-review__rating[^>]*>\s*([\d.,]+)', html or "")
+        m = re.search(r'ui-pdp-review__rating[^>]*>\s*([\d.,]+)', html)
         d["nota"] = _num(m.group(1)) if m else None
-    m = re.search(r'\+\s*(\d+(?:[.,]\d+)?)\s*(mil)?\s*vendid', html or "", re.I)
+    m = re.search(r'\+\s*(\d+(?:[.,]\d+)?)\s*(mil)?\s*vendid', html, re.I)
     d["vendidos_num"] = int(float(m.group(1).replace(",", ".")) * (1000 if m.group(2) else 1)) if m else 0
-    m = (re.search(r'"official_store_name"\s*:\s*"([^"]{2,60})"', html or "")
-         or re.search(r'Loja oficial\s*(?:<[^>]+>\s*)*([^<"]{2,60})', html or "", re.I))
+    # loja oficial: nome no JSON → o "Loja oficial <loja>" do resumo do vendedor → qualquer "Loja oficial X" que não seja
+    # o selo genérico "Loja oficial do Mercado Livre" (09/10: vinha "do Mercado Livre" como nome da loja)
+    m = (re.search(r'"official_store_name"\s*:\s*"([^"]{2,60})"', html)
+         or re.search(r'seller-summary__label-sold"[^>]*>\s*(?:<[^>]+>\s*)*Loja oficial\s*(?:<[^>]+>\s*)+([^<"]{2,60})<',
+                      html, re.I)
+         or re.search(r'Loja oficial\s*(?:<[^>]+>\s*)*(?!d[oae]s?\s+Mercado\s+Livre)([^<"{\s][^<"{]{1,59})', html,
+                      re.I))
     d["oficial"], d["loja_nome"] = bool(m), (_html.unescape(m.group(1)).strip() if m else "")
     if d.get("foto"):  # miniatura do mlstatic → a original (~1200 px)
         d["foto"] = re.sub(r"(mlstatic\.com/)D_Q_NP_(?:2X_)?(.+)-[A-Z]{1,2}\.(webp|jpg)$", r"\1D_NQ_NP_2X_\2-F.\3",
                            d["foto"])
-    d["do_anuncio"] = re.sub(r"\D", "", mlb) in (html or "")
+        # 09/10: og:image do ML vem "-O" (500 px) → "-F" (tamanho cheio) ANTES de medir (FOTO_MIN_PX)
+        d["foto"] = re.sub(r"(mlstatic\.com/.+)-O\.(webp|jpe?g|png)$", r"\1-F.\2", d["foto"])
+    d["do_anuncio"] = re.sub(r"\D", "", mlb) in html
     return d
 
 
@@ -3145,6 +3188,9 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
     html = r.get("html")
     d = ler_anuncio_ml(html, mlb) if html else {}
     if not (d.get("titulo") and d.get("preco") and d.get("do_anuncio") and d.get("foto")):
+        if r.get("so_html"):  # --html: a página do Chrome é a ÚNICA fonte — nunca abre o ML daqui
+            raise PedidoErro(f"{mlb}: o HTML salvo não tem título/preço/foto deste anúncio — abra o produto de novo no "
+                             "Chrome da loja e rode o ml_pedido.js")
         # a vitrine /social é só o caminho do meli.la deles; o anúncio é a 1 página do produto que o pedido lê
         d = ler_anuncio_ml(_get_ml(url, cli), mlb)
     if not d.get("do_anuncio"):
@@ -3160,6 +3206,8 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
     de, preco = d.get("preco_antigo"), d["preco"]
     sinais = {"tipo": "NORMAL", "comissao": 0, "vendidos_num": d.get("vendidos_num") or 0, "oficial": d["oficial"],
               "loja_nome": d.get("loja_nome") or "", "pedido_dona": True, "origem": "pedido_dona"}
+    if d.get("so_pix"):
+        sinais.update(so_pix=True, **({"preco_cartao": d["preco_cartao"]} if d.get("preco_cartao") else {}))
     if texto:
         sinais["gancho_dona"] = texto.strip().upper()
     vend = sinais["vendidos_num"]
@@ -3170,15 +3218,69 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
     return o
 
 
-def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None) -> dict:
+# 09/10: o ML bloqueia o robô (verificação), mas o Chrome DA LOJA abre o produto normal. Caminho oficial do pedido com
+# link do ML: abrir o produto no Chrome (1 aba) → js/ml_pedido.js (POST /estudo → dados/estudos/mlpedido_<MLB>.json)
+# → `vendas achadinhos pedido MLB --html [ARQ]`. Nenhuma requisição ao ML sai daqui (só a foto do mlstatic é medida).
+def html_pedido_salvo(mlb: str) -> Path:
+    """Onde o receptor grava o HTML que o ml_pedido.js mandou."""
+    return config.DADOS / "estudos" / f"mlpedido_{mlb}.json"
+
+
+def ler_html_salvo(arq: str | Path) -> str:
+    """.html/.htm = o HTML cru; .json do receptor = string JSON (o outerHTML) ou {"html"/"dados": ...}."""
+    arq = Path(arq)
+    try:
+        bruto = arq.read_text(encoding="utf-8")
+    except OSError as e:
+        raise PedidoErro(f"não consegui ler {arq}: {type(e).__name__}") from None
+    if arq.suffix.lower() == ".json":
+        try:
+            j = json.loads(bruto)
+        except ValueError:
+            raise PedidoErro(f"{arq.name}: JSON ilegível") from None
+        j = j.get("html") or j.get("dados") if isinstance(j, dict) else j
+        if not isinstance(j, str):
+            raise PedidoErro(f"{arq.name}: não tem o HTML da página (esperava o outerHTML do ml_pedido.js)")
+        bruto = j
+    if "<" not in bruto[:2000]:
+        raise PedidoErro(f"{arq.name}: não parece HTML")
+    return bruto
+
+
+def mlb_do_arquivo(arq: str | Path) -> str | None:
+    """mlpedido_MLB6074272600.json → MLB6074272600."""
+    m = re.search(r"(MLB\d{6,11})(?!\d)", Path(arq).name)
+    return m.group(1) if m else None
+
+
+def _resolver_sem_rede(alvo: str) -> dict:
+    """Com --html: o MLB vem do MLB, do item_id da URL (pdp_filters=item_id:MLB…) ou do link do produto. meli.la e
+    vitrine /social precisariam abrir o ML → pede o MLB (o ml_pedido.js mostra qual é)."""
+    alvo = (alvo or "").strip()
+    if m := re.search(r"item_id(?:%3A|:)(MLB\d{6,11})(?!\d)", alvo, re.I):
+        return {"loja": "ml", "mlb": m.group(1).upper()}
+    if re.search(r"meli\.la|/social/|shopee|shope\.ee", alvo, re.I):
+        raise PedidoErro("com --html mande o MLB do anúncio (o ml_pedido.js mostra qual é) — daqui não abro link nenhum")
+    r = resolver_pedido(alvo, None)  # MLB solto, produto.mercadolivre…/MLB-…, /p/MLB…: nada disso usa a rede
+    if r.get("loja") != "ml":
+        raise PedidoErro("--html é só para anúncio do Mercado Livre")
+    return r
+
+
+def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None, html: str | None = None) -> dict:
     """Pedido da dona → radar (aprovada, NOSSO link) + frente da fila. Devolve {"ok", "id", "titulo", "preco", "de",
-    "link", "avisos"} ou {"ok": False, "erro"}. Nunca guarda o link de terceiro."""
+    "link", "avisos"} ou {"ok": False, "erro"}. Nunca guarda o link de terceiro.
+    `html` = a página do anúncio aberta no Chrome da loja (ml_pedido.js): lê só ela, sem requisição ao ML (vale mesmo
+    com o ML em pausa)."""
     _tabela()
     fechar = cli is None
     cli = cli or httpx.Client(timeout=25)
     mlb = None
     try:
-        r = resolver_pedido(alvo, cli)
+        if html is not None:
+            r = {**_resolver_sem_rede(alvo), "html": html, "so_html": True}
+        else:
+            r = resolver_pedido(alvo, cli)
         if r["loja"] == "shopee":
             return _pedido_shopee(r["url"], texto)
         mlb = r["mlb"]
@@ -3197,6 +3299,10 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None)
         return {"ok": False, "erro": f"link fora do padrão: {o['link_loja']}", "mlb": mlb}
     if not o.get("preco_antigo"):
         avisos.append("a página não mostra preço 'De' → a fila não posta sem 'De' (regra da dona)")
+    if o["sinais"].get("so_pix"):
+        cartao = o["sinais"].get("preco_cartao")
+        avisos.append("o 'Por' é o preço NO PIX" + (f" (no cartão {_brl(cartao)})" if cartao else "")
+                      + " — o Beto confere se o 'De' é promoção de verdade")
     if FALSIFICAVEL.search(o["titulo"]) and not o["sinais"]["oficial"]:
         avisos.append("marca muito falsificada e a loja NÃO é oficial — o Beto confere antes de sair")
     o["score"] = pontuar(o)
