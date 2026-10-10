@@ -2341,6 +2341,25 @@ def de_confiavel(o: dict) -> bool:
 
 
 DUPE_PRECO_MIN = 35.0
+PONTOS_FAIXA_COMISSAO = 15.0  # a pontuação das candidatas vai de ~35 a ~72
+
+
+def faixa_comissao(o: dict) -> int:
+    """Quanto a oferta nos paga, em 3 faixas (2 = paga bem, 1 = médio, 0 = pouco ou não sei). Shopee: a taxa vem da
+    Open API em sinais.comissao (0,03 a 0,20+). Tabela do Amazon Associados Brasil conferida em 10/10: beleza 13%,
+    roupas 11%, bolsas e calçados 7%. Mercado Livre ~8% em beleza; Océane 7% (programa #SQUAD)."""
+    try:
+        c = float(sinais_de(o).get("comissao") or 0)
+    except (TypeError, ValueError):
+        c = 0.0
+    loja = (o.get("loja") or "").lower()
+    if "amazon" in loja or str(o.get("fonte") or "").startswith("amazon") or str(o.get("id") or "").startswith("amz"):
+        return 2 if o.get("grupo") in ("beleza", "cabelo", "perfume", "moda") else 1
+    if c >= 0.10:
+        return 2
+    if c >= 0.07 or "mercado livre" in loja or "oc" in loja and "ane" in loja:
+        return 1
+    return 0
 KIT_VARIADO = re.compile(r"(?i)\b\d{1,3} ?/ ?\d{1,3}\b|\b\d{1,3} (?:ou|e) \d{1,3}\b|\bkit\b[^|]*\+|"
                          r"\bkit ?\d{1,3} ?pe[çc]as\b")  # "Kit 4 peças Touca Faixa Modelador… com Xuxinhas" = peças diferentes
 PRIME_TESTE = "https://www.amazon.com.br/prime?tag=bellalucce-20"  # 10/10: teste grátis do Prime com a NOSSA etiqueta
@@ -3968,9 +3987,21 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     filas = {"B": [o for o in cand if o["grupo"] in LINHA_PRINCIPAL], "M": [o for o in cand if o["grupo"] == "moda"],
              "C": [o for o in cand if casa_bonita(o)],  # 07/10: vaga de casa bonita
              "O": [o for o in cand if o["grupo"] not in LINHA_PRINCIPAL and o["grupo"] != "moda" and not casa_bonita(o)]}
+    # 10/10 (dona: "preciso que você se pague"; agente de marketing local, fatos P7/P8/C5): entre ofertas que JÁ passaram
+    # em todas as regras, sai primeiro a que paga mais comissão (faixa_comissao) — 91 das 206 da fila pagavam ≥ 10% e
+    # saíam misturadas com as de 3%. O que os grupos de referência postaram continua na frente (dona, 04/10).
+    try:
+        from vendas import referencia
+        frente = referencia.na_frente()
+    except Exception:  # noqa: BLE001
+        frente = set()
     if datas.chegando():  # data grande chegando (Dia das Crianças, Natal…): o que é ligado a ela sobe na fila
         for f in filas.values():
-            f.sort(key=lambda o: (o.get("score") or 0) + datas.bonus(o), reverse=True)
+            f.sort(key=lambda o: (o.get("score") or 0) + datas.bonus(o) + PONTOS_FAIXA_COMISSAO * faixa_comissao(o),
+                   reverse=True)
+    else:
+        for f in filas.values():  # ordenação estável: dentro da mesma faixa vale a ordem de antes (pontuação)
+            f.sort(key=lambda o: (o["id"] not in frente, -faixa_comissao(o)))
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     # 01/10 (Mila): com 3 por rodada, "1 por rodada" ainda deu 33% de um lojista → 1 por lojista a cada 10 posts
