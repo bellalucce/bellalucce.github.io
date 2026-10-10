@@ -3411,54 +3411,83 @@ def relatorio_pedido(r: dict) -> str:
     return "\n".join(linhas)
 
 
+# 09/10 noite (dona: "uma janela de uma hora sem post" — às 21h o servidor tinha 3 ofertas na fila, com 1.241 aprovadas
+# de preço fresco no radar). CAUSA: o "1 por tipo" (2 primeiras palavras do título) vinha ANTES das regras da oferta. A de
+# maior score de cada tipo quase sempre já tinha saído, estava vetada, era masculina ou não tinha "De" → o tipo INTEIRO
+# sumia (para sempre, enquanto ela seguisse no topo) e a 2ª, 3ª… boa do mesmo tipo nunca chegava à fila (288 postáveis
+# viravam 3). Agora cada oferta passa primeiro por TODAS as regras dela e só então entra a variedade:
+#   · tipo que saiu nas últimas JANELAS_TIPO_H[0] horas não repete (Mila 02/10) e fica 1 por tipo na fila;
+#   · só se isso não deixa na fila nem 1 post por rodada até o fim do horário (rodadas que faltam + 4 de folga, no máx.
+#     VARIEDADE_MIN) a janela encolhe (48 → 24 → 12 h) — o grupo não pode parar. O mesmo PRODUTO continua sem repetir
+#     em REPETIR_DIAS e o teto por tipo/dia (TETO_TIPO, "cílios 900 vezes") continua valendo.
+JANELAS_TIPO_H = (48, 24, 12)
+VARIEDADE_MIN = 60
+
+
+def rodadas_que_faltam(agora: datetime | None = None) -> int:
+    """Rodadas do grupo que ainda faltam hoje (config/achadinhos.json: horário e intervalo). Fora do horário = o dia
+    inteiro (a fila que conta é a de amanhã cedo)."""
+    agora = agora or datetime.now()
+    try:
+        cfg = canais()
+        h_ini, h_fim = cfg.get("horario", [8, 22])
+        passo = max(1, int(cfg.get("intervalo_rodada_min", 15)))
+    except Exception:  # noqa: BLE001 — config ilegível: o padrão do grupo
+        h_ini, h_fim, passo = 8, 22, 15
+    minuto = agora.hour * 60 + agora.minute
+    if not h_ini * 60 <= minuto < h_fim * 60:
+        minuto = h_ini * 60
+    return max(1, (h_fim * 60 - minuto) // passo)
+
+
 def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | None = None,
                 permitidos_teste: list | None = None) -> tuple[list[dict], set, str]:
-    """Ofertas que PODEM ir ao grupo agora (filtros baratos, sem baixar foto): (candidatas, chaves postadas em 48 h,
-    corte da Amazon). Base de fila_posts e de estoque(). `funil` (lista) recebe (etapa, quantas sobraram, por grupo)
-    a cada filtro — `vendas achadinhos funil` (05/10: achar qual regra seca a fila)."""
+    """Ofertas que PODEM ir ao grupo agora (filtros baratos, sem baixar foto): (candidatas, tipos que não podem repetir
+    agora, corte da Amazon). Base de fila_posts e de estoque(). `funil` (lista) recebe (etapa, quantas sobraram, por
+    grupo) a cada filtro — `vendas achadinhos funil` (05/10: achar qual regra seca a fila)."""
     def marca(etapa: str, lista: list) -> None:
         if funil is not None:
             por: dict = {}
             for o in lista:
                 por[o.get("grupo") or "?"] = por.get(o.get("grupo") or "?", 0) + 1
             funil.append((etapa, len(lista), por))
-    recentes = {chave_produto(r["titulo"]) for r in db.consultar(
-        # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → 48 h (= a "volta" de 2 dias do pool abaixo)
-        "SELECT titulo FROM ofertas WHERE publicado_em >= datetime('now','localtime','-48 hours')")}
+    agora = datetime.now()
+    # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → o TIPO não repete em 48 h (hora do último post de cada tipo;
+    # 09/10 noite: a janela encolhe quando a fila fica curta — ver JANELAS_TIPO_H)
+    saiu_tipo: dict = {}
+    for r in db.consultar("SELECT titulo, publicado_em FROM ofertas WHERE publicado_em >= "
+                          f"datetime('now','localtime','-{JANELAS_TIPO_H[0]} hours')") or []:
+        r = dict(r)
+        k = chave_produto(r.get("titulo") or "")
+        saiu_tipo[k] = max(saiu_tipo.get(k, ""), str(r.get("publicado_em") or "9").replace("T", " "))  # sem hora = agora
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
     # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
-    amazon_ok = (datetime.now() - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
+    amazon_ok = (agora - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
     # 06/10 (Ana): contrato do Influenciador Magalu veda informação desatualizada (11.4) e a coleta da Época no Magalu só
     # roda no Chrome → só preço coletado nas últimas 12 h
-    magalu_ok = (datetime.now() - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
-    oceane_ok = (datetime.now() - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
+    magalu_ok = (agora - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
+    oceane_ok = (agora - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
     # 07/10 (Bia, Quarta do Perfume): com o feed novo da Shopee (+2 mil) o corte das 3.000 de maior score deixava de
     # fora 19 perfumes aprovados (Época/Amazon) → 8.000
-    # 08/10 (Beto): preço visto há mais de 24 h não vai nem volta — filtrado ANTES do "1 por tipo" (senão a oferta velha
-    # de maior score escondia a fresca do mesmo tipo)
+    # 08/10 (Beto): preço visto há mais de 24 h não vai nem volta
     todas = melhores(horas, LIMITE_CANDIDATOS)
     frescas = [o for o in todas if preco_fresco(o)]
     marca(f"aprovadas com preço visto há ≤ {PRECO_VALE_H} h (de {len(todas)})", frescas)
-    base = [o for o in sem_repetidos(frescas) if o["link_loja"] and o.get("foto")
-            and chave_produto(o["titulo"]) not in recentes
+    base = [o for o in frescas if o["link_loja"] and o.get("foto")
             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
             and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)]
-    marca("1 por tipo, com link e foto, sem repetir 48 h", base)
+    marca("com link e foto, preço na validade da loja", base)
     pub = publicados_recentes()  # 08/10 (Beto: Laneige voltou 2 dias depois): o mesmo produto não sai de novo em 7 dias
     base = [o for o in base if not ja_saiu(o, pub)]
     marca(f"não saiu (mesmo item/título) em {REPETIR_DIAS} dias", base)
     cand = [o for o in base if not o["publicado_em"]]
     marca("ainda não postadas", cand)
-    if len(cand) < POUCO_ESTOQUE:  # 04/10 (grupo parado com o PC desligado): oferta que o radar AINDA vê em promoção
-        # (preço conferido nas últimas 2 h) e saiu há mais de REPETIR_DIAS (era 3) pode voltar — quem entrou depois não viu
-        volta = (datetime.now() - timedelta(days=REPETIR_DIAS)).isoformat(sep=" ", timespec="seconds")
-        fresco = (datetime.now() - timedelta(hours=2)).isoformat(sep=" ", timespec="seconds")
-        cand += [o for o in base if o["publicado_em"] and o["publicado_em"] < volta
-                 and (o.get("atualizado_em") or "") >= fresco]
-    if so_com_link_curto:
-        cand = [o for o in cand if not shopee_sem_curto(o)]
-        marca("Shopee só com link curto", cand)
+    # 04/10 (grupo parado com o PC desligado): oferta que o radar AINDA vê em promoção (preço conferido nas últimas 2 h)
+    # e saiu há mais de REPETIR_DIAS (era 3) pode voltar quando a fila fica curta — quem entrou depois não viu
+    volta = (agora - timedelta(days=REPETIR_DIAS)).isoformat(sep=" ", timespec="seconds")
+    fresco = (agora - timedelta(hours=2)).isoformat(sep=" ", timespec="seconds")
+    voltam = [o for o in base if o["publicado_em"] and o["publicado_em"] < volta and (o.get("atualizado_em") or "") >= fresco]
     # 01/10 (Mila): a vaga do variado testava 6 fotos de 400–500 px JÁ medidas e se perdia → pula de cara quem tem foto
     # pequena conhecida (Promobit→ML ainda pode trocar pela foto do ML em foto_boa); e nada de produto vencendo
     try:
@@ -3468,55 +3497,82 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     from vendas import revisao_fila  # 01/10 (dona): revisoras vetam ANTES de postar → o robô pula o vetado
     vet = revisao_fila.vetados()
     chaves_vet = revisao_fila.chaves_vetadas(vet)  # 06/10 (Beto): veto vale pelo produto (ASIN/item/MLB), não só pelo id
-    # 07/10: Promobit com foto pequena só segue se der para TROCAR pela foto real do mesmo produto (coleta do ML/Amazon
-    # ou página da loja) — senão já sai aqui (antes passava toda e, sem troca no servidor, ia com 400 px)
-    cand = [o for o in cand if not (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
-                                    and px[o["foto"]] < FOTO_MIN_PX
-                                    and not ("promobit.com.br" in o["foto"]
-                                             and (LOJAS_FOTO.search(o.get("link_loja") or "")
-                                                  or foto_do_mesmo_produto(o))))
-            and not vencendo(o.get("titulo") or "") and not revisao_fila.vetada(o, vet, chaves_vet)
-            and not barrada_na_hora(o)]
-    marca("foto pequena, vencendo, vetada, barrada", cand)
-    cand = [o for o in cand if not acima_do_mercado(o)]
-    marca("acima do mercado", cand)
+
+    def foto_pequena(o: dict) -> bool:
+        # 07/10: Promobit com foto pequena só segue se der para TROCAR pela foto real do mesmo produto (coleta do
+        # ML/Amazon ou página da loja) — senão já sai aqui (antes passava toda e, sem troca no servidor, ia com 400 px)
+        return (str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None and px[o["foto"]] < FOTO_MIN_PX
+                and not ("promobit.com.br" in o["foto"] and (LOJAS_FOTO.search(o.get("link_loja") or "")
+                                                             or foto_do_mesmo_produto(o))))
+    # regras DA OFERTA, na ordem do funil (os pedidos da dona entram depois, por cima)
+    regras: list = []
+    if so_com_link_curto:
+        regras.append(("Shopee só com link curto", lambda o: not shopee_sem_curto(o)))
+    regras.append(("foto pequena, vencendo, vetada, barrada",
+                   lambda o: not (foto_pequena(o) or vencendo(o.get("titulo") or "")
+                                  or revisao_fila.vetada(o, vet, chaves_vet) or barrada_na_hora(o))))
+    regras.append(("acima do mercado", lambda o: not acima_do_mercado(o)))
     # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
-    # "De" maior que o "Por" não vai (os pedidos da dona entram depois, por cima)
-    # 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número era olhado e a legenda escondia o
-    # "De" não confiável, então o post saía só com "Por"
-    cand = [o for o in cand if tem_de_no_post(o)]
-    marca("sem preço 'De'", cand)
+    # "De" maior que o "Por" não vai. 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número
+    # era olhado e a legenda escondia o "De" não confiável, então o post saía só com "Por"
+    regras.append(("sem preço 'De'", lambda o: tem_de_no_post(o)))
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
     permitidos = permitidos_teste or canais().get("grupos_permitidos")
     if permitidos:
-        cand = [o for o in cand if o.get("grupo") in permitidos]
-        marca(f"só {', '.join(permitidos)}", cand)
+        regras.append((f"só {', '.join(permitidos)}", lambda o: o.get("grupo") in permitidos))
+    if so_feminino_ligado():
+        regras.append(("modo feminino", lambda o: no_perfil_feminino(o)))
+    for nome, passa in regras:
+        cand = [o for o in cand if passa(o)]
+        marca(nome, cand)
+
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
-    # (só fora da linha de beleza/cabelo/perfume, que é o foco do grupo)
+    # (04/10: a linha de beleza também — TETO_TIPO, "cílios 900 vezes")
     tipos_hoje: dict = {}
     for r in db.consultar("SELECT titulo, grupo FROM ofertas WHERE publicado_em >= date('now','localtime')"):
         t = tipo_repetivel(dict(r))
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
-    base_teto = cand
     from vendas import datas as _datas
     tema = _datas.tema_do_dia()  # 07/10 (dona: "hoje é dia do perfume… precisa ter muitos perfumes"): o tema não tem teto
 
-    def _teto(fator: int) -> list:
-        return [o for o in base_teto
-                if (tema and _datas.casa(o, tema))
-                or tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
-    cand = _teto(1)
-    # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por rodada):
-    # se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx. 8/dia)
-    # 07/10 (dona: "por que parou de postar?" — de manhã eram 38 no perfil e saía 0–1 por rodada): limite 20 → 60
-    if so_feminino_ligado() and sum(1 for o in cand if no_perfil_feminino(o)) < 60:
-        cand = _teto(2)
+    def com_teto(lista: list) -> list:
+        def _teto(fator: int) -> list:
+            return [o for o in lista
+                    if (tema and _datas.casa(o, tema))
+                    or tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+        out = _teto(1)
+        # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por
+        # rodada): se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx.
+        # 8/dia). 07/10 (dona: "por que parou de postar?" — de manhã eram 38 no perfil e saía 0–1 por rodada): 20 → 60
+        if so_feminino_ligado() and sum(1 for o in out if no_perfil_feminino(o)) < 60:
+            out = _teto(2)
+        return out
+    alvo = min(VARIEDADE_MIN, rodadas_que_faltam(agora) + 4)  # 1 post por rodada até o fim do horário, com folga
+
+    def variar(lista: list) -> tuple[list, list, set, int]:
+        """Tipo que saiu há pouco não repete e fica 1 por tipo; depois o teto do tipo por dia. A janela só encolhe se o
+        que sobra no fim é menos que o `alvo`. Devolve (1 por tipo, depois do teto, tipos bloqueados, janela em h)."""
+        melhor: tuple = ([], [], set(), JANELAS_TIPO_H[0])
+        for i, h in enumerate(JANELAS_TIPO_H):
+            corte = (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
+            bloq = {k for k, quando in saiu_tipo.items() if quando >= corte}
+            unicos = sem_repetidos([o for o in lista if chave_produto(o.get("titulo") or "") not in bloq])
+            final = com_teto(unicos)
+            if i == 0 or len(final) > len(melhor[1]):  # janela menor só vale se trouxer MAIS ofertas
+                melhor = (unicos, final, bloq, h)
+            if len(final) >= alvo:
+                break
+        return melhor
+    unicos, final, recentes, janela = variar(cand)
+    if len(final) < POUCO_ESTOQUE and voltam:
+        de_volta = [o for o in voltam if all(passa(o) for _, passa in regras)]
+        if de_volta:
+            unicos, final, recentes, janela = variar(cand + de_volta)
+    marca(f"tipo sem repetir em {janela} h, 1 por tipo", unicos)
+    cand = final
     marca("teto do mesmo tipo por dia", cand)
-    if so_feminino_ligado():
-        cand = [o for o in cand if no_perfil_feminino(o)]
-        marca("modo feminino", cand)
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
         dest = referencia.na_frente()
@@ -3537,6 +3593,93 @@ def estoque(horas: int = 30) -> int:
     """04/10 (grupo parou às 8h06 com "0 postadas de 0": o servidor postava 18/h e a fila secou com o PC desligado)
     → quantas ofertas ainda podem sair (com link curto ou de emergência)."""
     return len(_candidatos(horas, so_com_link_curto=False)[0])
+
+
+def estoque_postavel(horas: int = 30, medir: int = 40) -> int:
+    """09/10 noite: estoque REAL para o ritmo — o que estoque() conta MENOS o que a rodada não consegue postar: fonte
+    com o teto do dia cheio (Shein) e foto que não passa em foto_boa. Em 09/10, das 20h45 às 21h15, o robô contava
+    "5, 3, 3 ofertas → 2 nesta rodada" e a fila vinha VAZIA (pedido da dona com foto de 500 px, fotos nunca medidas).
+    Mede no máx. `medir` fotos ainda sem medida por chamada (as primeiras da fila; as outras contam como boas) — com a
+    fila curta, que é quando o número importa, mede todas. medir=0 não usa a internet."""
+    cand = dentro_do_teto_dia(_candidatos(horas, so_com_link_curto=False)[0])
+    try:
+        px = json.loads(_FOTO_PX_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        px = {}
+    n = 0
+    for o in cand:
+        f = str(o.get("foto") or "")
+        if f.startswith("http") and (f not in px or "promobit.com.br" in f):  # medir/trocar a foto usa a internet
+            if medir <= 0:
+                n += px.get(f) is None or px[f] >= FOTO_MIN_PX  # sem medida = conta; pequena já medida = não conta
+                continue
+            medir -= 1
+        n += bool(foto_boa(dict(o)))
+    return n
+
+
+def minutos_sem_post(agora: datetime | None = None) -> float | None:
+    """Minutos desde a última OFERTA postada no grupo (None = nunca postou) — o ritmo usa para não deixar 2 rodadas
+    vazias seguidas."""
+    r = db.consultar("SELECT MAX(publicado_em) m FROM ofertas") or [{}]
+    m = dict(r[0]).get("m")
+    try:
+        return ((agora or datetime.now()) - datetime.fromisoformat(str(m)[:19].replace("T", " "))).total_seconds() / 60
+    except (TypeError, ValueError):
+        return None
+
+
+# 09/10 noite: estoque postável abaixo do mínimo → alerta para o Guarda e o Claude (Caixa de revisão + `rotina saude`)
+ESTOQUE_MINIMO = 15
+ALERTA_CAIXA_H = 3  # na Caixa de revisão, no máx. 1 linha a cada 3 h (o arquivo é regravado a cada rodada)
+
+
+def estoque_baixo_arq() -> Path:
+    return config.DADOS / "achadinhos" / "estoque_baixo.json"  # na hora (os testes trocam config.DADOS)
+
+
+def alerta_estoque(est: int, onde: str = "", agora: datetime | None = None) -> str | None:
+    """Estoque postável < ESTOQUE_MINIMO → grava dados/achadinhos/estoque_baixo.json (o `vendas rotina saude` mostra
+    com "!!") e, no máx. 1× a cada ALERTA_CAIXA_H horas, 1 linha na Caixa de revisão. Estoque de volta ao normal →
+    apaga o arquivo. Devolve o texto do alerta (None = sem alerta). Com o arquivo no lugar, a coleta da Shopee (Open
+    API) roda de hora em hora em vez de a cada 2 h (shopee_afiliados.coletar_se_devido)."""
+    agora = agora or datetime.now()
+    try:
+        ant = json.loads(estoque_baixo_arq().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        ant = {}
+    if est >= ESTOQUE_MINIMO:
+        estoque_baixo_arq().unlink(missing_ok=True)
+        return None
+    txt = (f"!! estoque postável do grupo em {est} (mínimo {ESTOQUE_MINIMO}){' — ' + onde if onde else ''} · repor: "
+           "`vendas achadinhos repor` (Shopee pela Open API) e a coleta do ML na Central de Afiliados (rotina "
+           "loja-shopee-rotina, passo 0c); `vendas achadinhos funil` mostra o que cada regra corta")
+    na_caixa = str(ant.get("caixa") or "")
+    try:
+        venceu = not na_caixa or (agora - datetime.fromisoformat(na_caixa)).total_seconds() >= ALERTA_CAIXA_H * 3600
+    except ValueError:
+        venceu = True
+    if venceu and os.environ.get("HERMES_MAQUINA") != "nuvem":  # a Caixa é do PC (o PC lê o estoque do servidor e avisa)
+        try:
+            from vendas import caixa
+            if caixa.anotar(f"- [ ] {agora:%Y-%m-%d} · Robô do grupo · {agora:%Hh%M} · {txt}"):
+                na_caixa = agora.isoformat(timespec="seconds")
+        except Exception:  # noqa: BLE001 — sem a Caixa, fica só o arquivo
+            pass
+    estoque_baixo_arq().parent.mkdir(parents=True, exist_ok=True)
+    estoque_baixo_arq().write_text(json.dumps({"quando": agora.isoformat(timespec="seconds"), "estoque": est, "onde": onde,
+                                             "desde": ant.get("desde") or agora.isoformat(timespec="seconds"),
+                                             "caixa": na_caixa}, ensure_ascii=False), encoding="utf-8")
+    return txt
+
+
+def estoque_baixo(horas: float = 2) -> dict | None:
+    """O alerta de estoque baixo ainda vale? (gravado nas últimas `horas` — a rodada regrava a cada 15 min)."""
+    try:
+        d = json.loads(estoque_baixo_arq().read_text(encoding="utf-8"))
+        return d if datetime.fromisoformat(d["quando"]) >= datetime.now() - timedelta(hours=horas) else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def funil_fila(horas: int = 30, grupos: list | None = None) -> str:
@@ -3560,24 +3703,91 @@ def funil_fila(horas: int = 30, grupos: list | None = None) -> str:
     return "\n".join(linhas) or "sem ofertas"
 
 
-RESERVA_RODADAS = 3  # 09/10: o "+1 por rodada" só entra se o resto ainda dá 1 post a cada 3 rodadas até o fim
+def detalhe_barradas(horas: int = 30) -> str:
+    """09/10 noite: abre a etapa "foto pequena, vencendo, vetada, barrada" do funil por MOTIVO (e por grupo) — para ver
+    de cara se alguma regra nova está barrando demais (`vendas achadinhos funil --detalhe`). Uma oferta pode ter mais
+    de um motivo; "só ela" = ofertas que caem só por aquele."""
+    from vendas import revisao_fila
+    agora = datetime.now()
+    amazon_ok = (agora - timedelta(hours=6)).isoformat(sep=" ", timespec="seconds")
+    magalu_ok = (agora - timedelta(hours=12)).isoformat(sep=" ", timespec="seconds")
+    oceane_ok = (agora - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
+    pub = publicados_recentes()
+    cand = [o for o in melhores(horas, LIMITE_CANDIDATOS)
+            if preco_fresco(o) and o["link_loja"] and o.get("foto") and not o["publicado_em"] and not ja_saiu(o, pub)
+            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
+            and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
+            and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)
+            and not shopee_sem_curto(o)]
+    try:
+        px = json.loads(_FOTO_PX_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        px = {}
+    vet = revisao_fila.vetados()
+    chaves_vet = revisao_fila.chaves_vetadas(vet)
+    regras = [("foto pequena (< 600 px)", lambda o, t: str(o.get("foto")).startswith("http") and px.get(o["foto"]) is not None
+               and px[o["foto"]] < FOTO_MIN_PX and not ("promobit.com.br" in o["foto"] and (
+                   LOJAS_FOTO.search(o.get("link_loja") or "") or foto_do_mesmo_produto(o)))),
+              ("vencendo", lambda o, t: vencendo(t)),
+              ("vetada pelas revisoras", lambda o, t: revisao_fila.vetada(o, vet, chaves_vet)),
+              ("linha masculina", lambda o, t: eh_masculino(o)),
+              ("fora do nicho", lambda o, t: fora_do_nicho_grupo(t)),
+              ("título sem o tipo do produto", lambda o, t: titulo_sem_tipo(o)),
+              ("farmácia/dermo na Shopee sem loja oficial", lambda o, t: farmacia_shopee_comum(o)),
+              ("kit de salão na Shopee comum", lambda o, t: kit_salao_shopee(o)),
+              ("'De' inflado (> 2×)", lambda o, t: de_inflado(o)),
+              ("perfume de grife sem ml", lambda o, t: perfume_grife_sem_ml(o)),
+              ("validade só na foto", lambda o, t: validade_na_foto(o)),
+              ("fora do perfil / título ruim / preço proibido",
+               lambda o, t: fora_do_perfil(t) or titulo_ruim(t) or preco_proibido(o))]
+    total: dict = {}
+    so: dict = {}
+    grupos: dict = {}
+    cortadas = 0
+    for o in cand:
+        t = o.get("titulo") or ""
+        motivos = [nome for nome, pega in regras if pega(o, t)]
+        cortadas += bool(motivos)
+        for m in motivos:
+            total[m] = total.get(m, 0) + 1
+            g = grupos.setdefault(m, {})
+            g[o.get("grupo") or "?"] = g.get(o.get("grupo") or "?", 0) + 1
+        if len(motivos) == 1:
+            so[motivos[0]] = so.get(motivos[0], 0) + 1
+    linhas = [f"{cortadas} cortadas de {len(cand)} (com link curto, ainda não postadas)"]
+    for m, n in sorted(total.items(), key=lambda x: -x[1]):
+        gs = ", ".join(f"{g} {q}" for g, q in sorted(grupos[m].items(), key=lambda x: -x[1])[:5])
+        linhas.append(f"{n:6d}  (só ela {so.get(m, 0):3d})  {m} · {gs}")
+    return "\n".join(linhas)
 
 
-def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, intervalo_min: int = 10) -> int:
-    """Ritmo pelo estoque: divide o que sobrou pelas rodadas que faltam até o fim do horário, para o grupo não
-    secar no meio do dia. Estoque menor que as rodadas → 1 post a cada k rodadas (as outras ficam com 0)."""
+# 09/10 noite (dona: "uma janela de uma hora sem post" — das 8h às 9h45 saíram 3 posts com 8–20 ofertas na fila; à tarde,
+# 4–5 por rodada com 90 e a fila secou às 20h45): o ritmo antigo arredondava para CIMA, somava +1 enquanto sobrasse "1
+# post a cada 3 rodadas" (= 45 min sem post) e, com pouca oferta, postava 1 a cada k rodadas (k chegou a 7 = 1h45).
+MAX_SEM_POST_MIN = 45   # dona: o grupo NUNCA fica 45 min ou mais sem post entre 8h e 22h
+RESERVA_POR_RODADA = 2  # estoque abaixo de 2 × rodadas que faltam = "baixo": sem +1; o +1 nunca deixa abaixo disso
+
+
+def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, intervalo_min: int = 10,
+               min_sem_post: float | None = None) -> int:
+    """Ritmo pelo estoque REAL postável (estoque_postavel), para durar até o fim do horário sem buraco:
+    · estoque ≥ 2 × rodadas que faltam → o que dá por rodada (arredondado para BAIXO), +1 só se o que sobra continua
+      ≥ 2 por rodada até o fim (dona 09/10: "põe uma a mais" — o +1 só vale quando sobra);
+    · entre 1× e 2× → 1 por rodada (toda rodada tem post, sem gastar rápido);
+    · menos que as rodadas → 1 post a cada 2 rodadas (30 min), NUNCA mais espaçado que MAX_SEM_POST_MIN: com
+      `min_sem_post` (minutos desde o último post) posta sempre que a rodada anterior ficou vazia.
+    Nunca passa de `quantos` nem do estoque."""
     faltam = max(1, (h_fim * 60 - (agora.hour * 60 + agora.minute)) // intervalo_min)
-    if estoque_atual <= 0:
+    if estoque_atual <= 0 or quantos <= 0:
         return 0
-    if estoque_atual >= faltam:
-        base = -(-estoque_atual // faltam)
-    else:
-        k = -(-faltam // estoque_atual)  # rodadas por post
-        base = 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
-    # 09/10 (dona: "tá bem parada… põe uma a mais, entraram duas pessoas que gostam de comprar"): +1 por rodada, desde
-    # que o que SOBRA ainda dê 1 post a cada RESERVA_RODADAS rodadas até o fim do horário (sem oferta nova chegando, o
-    # grupo não seca; com pouco estoque volta ao ritmo antigo). Nunca passa de `quantos` nem do estoque.
-    if (estoque_atual - base - 1) * RESERVA_RODADAS >= faltam - 1:
+    if estoque_atual < faltam:
+        k = min(-(-faltam // estoque_atual), max(1, (MAX_SEM_POST_MIN - 1) // intervalo_min))  # rodadas por post
+        if min_sem_post is not None:
+            return 1 if min_sem_post >= k * intervalo_min - 5 else 0  # −5: o post sai alguns minutos depois da hora
+        return 1 if ((agora.hour * 60 + agora.minute) // intervalo_min) % k == 0 else 0
+    base = estoque_atual // faltam
+    if (estoque_atual >= RESERVA_POR_RODADA * faltam
+            and estoque_atual - base - 1 >= RESERVA_POR_RODADA * (faltam - 1)):
         base += 1
     return min(quantos, base, estoque_atual)
 
@@ -3774,6 +3984,15 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                 ultimo.append(o["grupo"])
                 if vendedor(o):
                     por_vendedor[vendedor(o)] = 1
+                break
+    if not out and n > 0:
+        # 09/10 noite (dona: o grupo NUNCA fica 45 min sem post): rodada com oferta na fila e NENHUMA vaga preenchida só
+        # por regra de ESPAÇAMENTO (lojista 1 a cada 10 posts, 3ª seguida da categoria, 4ª seguida da loja, teto de
+        # perfume) — em 09/10, 20h45–21h15, "estoque 5 → 0 postadas de 0". Vai a melhor que sobrou com foto boa; as
+        # regras da OFERTA (foto, veto, "De", nicho, preço fresco) já foram todas aplicadas em _candidatos.
+        for o in dentro_do_teto_dia([x for k in ("B", "M", "C", "O") for x in filas[k]])[:12]:
+            if foto_ok(o):
+                out.append(o)
                 break
     return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
 
