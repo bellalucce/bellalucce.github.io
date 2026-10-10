@@ -80,7 +80,9 @@ PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6,
 CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|cabelo|secador(?! de (?:lou[çc]a|pratos?))|chapinha|prancha(?! abdominal)|babyliss|"
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
                     r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante|bif[áa]sic|"
-                   r"k[ée]rastase", re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo; 06/10: Kérastase Masque
+                   r"k[ée]rastase|\bshamp\b|\bsh\.? ?\+ ?cond\b|\bcond\b(?=[^|]{0,40}\b(?:\d+ ?ml|\d+ ?l)\b)|"
+                   r"wella (?:professionals|invigo|fusion|oil reflections|nutri)",
+                   re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo; 06/10: Kérastase Masque; 10/10: "Shamp + Cond" (Wella caiu em "outros")
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
