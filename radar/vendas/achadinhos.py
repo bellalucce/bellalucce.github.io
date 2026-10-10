@@ -704,6 +704,17 @@ def sem_lista_de_palavras(t: str) -> str:
     return re.sub(r"(?:\s+(?:de|da|do|e|com|para|em|\+|-|–|/))+\s*$", "", " ".join(ps[:i2]), flags=re.I).strip(" ,;-–|:/(")
 
 
+CALCADO = re.compile(r"(?i)sand[áa]lia|rasteir|tamanco|chinelo|sapat|t[êe]nis|\bbotas?\b|\bmules?\b|scarpin|papete|"
+                     r"anabela|\bslides?\b|babuche|pantufa|mocassim")
+
+
+def fora_da_linha(titulo: str) -> bool:
+    """FORA, menos a "palmilha" que só DESCREVE um calçado ("Rasteirinha Feminina Confortável Palmilha Fofinha" —
+    09/10 noite: 6 sandálias boas da busca de moda da Shopee eram reprovadas); palmilha avulsa continua fora."""
+    t = titulo or ""
+    return any(not (m.group(0).lower() == "palmilha" and CALCADO.search(t[:m.start()])) for m in FORA.finditer(t))
+
+
 def eh_produto(o: dict) -> bool:
     """Só anúncio de 1 produto, com página de produto, preço até PRECO_MAX e categoria permitida."""
     s = o.get("sinais") or {}
@@ -714,7 +725,7 @@ def eh_produto(o: dict) -> bool:
     if (o.get("loja") or "") in ("Promobit", "Decolar", "Booking", "Hurb", "123 Milhas", "MaxMilhas"):
         return False
     titulo = o.get("titulo") or ""
-    if o.get("grupo") not in GRUPOS_OK or SPAM.search(titulo) or VOLUMOSOS.search(titulo) or FORA.search(titulo):
+    if o.get("grupo") not in GRUPOS_OK or SPAM.search(titulo) or VOLUMOSOS.search(titulo) or fora_da_linha(titulo):
         return False
     if SENSIVEL.search(titulo) or titulo_ruim(titulo) or so_peca(titulo):  # 01/10 (Rita/Nina: 16 de 40 vetadas)
         return False
@@ -808,6 +819,14 @@ def aprovada(o: dict) -> bool:
             # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
             return bool(s.get("oficial")) or (nota >= 4.6 and vend >= 30)
+        if o["fonte"] == "shopee_afiliados" and s.get("origem") == "moda_boa" and o.get("grupo") == "moda":
+            # 09/10 noite (funil: moda 1 na fila): a busca de moda feminina de 09/10 (shopee_afiliados.coletar_moda) só
+            # traz o que passa em moda_boa — mas aqui a moda ainda era julgada pela régua antiga do "resto" (50% OFF, ou
+            # 30% + 1.000 vendas, ou 20% + 10 mil): 85 de 330 boas eram coletadas e reprovadas a cada rodada. A moda do
+            # mix 6/3/1 vale pela régua DELA (nota, vendas e desconto mínimos de moda_boa); "De" inflado (> 2×) já
+            # saiu acima e o perfil feminino/"De" no post continuam conferidos na fila.
+            from vendas.integracoes import shopee_afiliados as _sa
+            return nota >= _sa.MODA_NOTA_MIN and vend >= _sa.MODA_VENDAS_MIN and d >= _sa.MODA_DESC_MIN
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         # 07/10 (dona: "cadê as maquiagens?" — Rafa: Maybelline Sky High da loja oficial, nota 5, -24%, barrada só por ter
         # menos de 1.000 vendidos): loja OFICIAL bem avaliada já é confiável → conta como "bom"
@@ -1103,9 +1122,11 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
                       "oficial": bool(it.get("oficial")), "loja_nome": it.get("loja_nome") or "",
                       "offer_link": it.get("offer_link") if re.match(r"https://s\.shopee\.com\.br/\w+$",
                                                                      it.get("offer_link") or "") else None}
-            if it.get("origem"):
+            if it.get("origem") and it["origem"] != "moda_boa":
                 sinais["origem"] = it["origem"]  # "referencia" = achado do grupo Ofertas Entre Mulheres
             else:  # 06/10 (Eva): o ciclo da Open API reabre o mesmo produto — não perde a marca "vitrine_fiel"
+                if it.get("origem"):  # 09/10 noite: "moda_boa" (coletar_moda) — a "vitrine_fiel" de antes ganha
+                    sinais["origem"] = it["origem"]
                 antes = con.execute("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{it['id']}",)).fetchone()
                 try:
                     if antes and json.loads(antes[0] or "{}").get("origem") == "vitrine_fiel":
@@ -2526,8 +2547,13 @@ CASA_BONITA = re.compile(
     r"cabides? de veludo|kit lavabo")
 FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(?:cortar|corte|acabamento)|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
-                           r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b|\bmenin[oa]s?\b|suplement|c[áa]psulas|rel[óo]gio|smart ?watch|"
-                           r"t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|cervical|elizabetano|"
+                           # 09/10 noite (funil: beleza e moda boas caíam aqui por engano): "baby doll" é pijama (liberado
+                           # em 09/10 — a busca "baby doll feminino" da Shopee era toda barrada), "baby hair"/"baby
+                           # liss" são de cabelo; "proteção térmica" é protetor térmico capilar, não bolsa térmica
+                           r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b(?![- ]?(?:doll|hair|liss))|\bmenin[oa]s?\b|suplement|"
+                           r"c[áa]psulas|rel[óo]gio|smart ?watch|"
+                           r"(?<!prote[çc][ãa]o )t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|"
+                           r"cervical|elizabetano|"
                            r"an(?:el|[ée]is) (?:de|para) (?:veda|silicone|borracha|cortina|guardanapo|pist|celular|chaveiro)|"
                            # 05/10 (dona: "as promoções estão péssimas"): piercing de mamilo, pescoceira de lavatório,
                            # cílios de atacado/fio a fio de salão, vitamina e aparador de nariz saíram no grupo
@@ -2555,7 +2581,9 @@ FORA_NICHO_GRUPO = re.compile(
     # 06/10 tarde (Rita/Beto): passaram como beleza/cabelo — aspirador "antiqueda", estetoscópio, Gillette, fralda/Tena,
     # íntimo, foot spa, kit/cadeira de banho, cadeira de camping, massageador de corpo, paçoca, absorvente, magnésio
     r"aspirador|estetosc[óo]p|otosc[óo]p|gillette|\btena\b|fraldas?\b|sabonete [íi]ntimo|foot ?spa|kit (?:de )?banheiro|"
-    r"cadeira (?:de )?(?:banho|camping|praia)|massageador(?! (?:facial|de rosto|gua ?sha|de couro cabeludo))|pa[çc]o(?:c|qu)|"
+    # 09/10 noite: "Escova Massageadora Capilar"/"Massageadora Facial" caíam aqui (a exceção só valia para "massageador ")
+    r"cadeira (?:de )?(?:banho|camping|praia)|"
+    r"massageador(?!(?:a|as|es)? (?:facial|de rosto|gua ?sha|de couro cabeludo|capilar))|pa[çc]o(?:c|qu)|"
     r"absorvente|anabolic|magn[ée]sio|suporte (?:de|para) shampoo|"
     r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
     r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
@@ -2610,15 +2638,19 @@ def so_feminino_ligado() -> bool:
 def no_perfil_feminino(o: dict) -> bool:
     """Beleza, cabelo e perfume femininos + bolsa e bijuteria. Roupa, casa, eletrônico, infantil e masculino ficam fora."""
     t = o.get("titulo") or ""
-    m = FORA_FEMININO.search(t)
+    fora = [m.group(0).lower() for m in FORA_FEMININO.finditer(t)]
     # 06/10 (coordenação): "vitamina" barrava sérum/creme de vitamina C (dermo, nosso nicho) — o site já liberava
-    if m and m.group(0).lower() == "vitamina" and VITAMINA_SKINCARE.search(t) and not FORA_FEMININO.search(t, m.end()):
-        m = None
+    # 09/10 noite: título com a palavra 2 vezes ("Principia Vitamina C - Sérum com 10% de Vitamina C") continuava
+    # barrado — a 2ª "vitamina" contava como outro motivo. Agora só barra se sobrar motivo que NÃO seja a exceção.
+    if VITAMINA_SKINCARE.search(t):
+        fora = [x for x in fora if x != "vitamina"]
     # 09/10 (dona: acessório no mix): relógio FEMININO de pulso é acessório (smartwatch continua fora)
-    if (m and re.fullmatch(r"(?i)rel[óo]gio", m.group(0)) and o.get("grupo") == "moda" and re.search(r"(?i)feminin", t)
-            and not FORA_FEMININO.search(t, m.end())):
-        m = None
-    if m or fora_do_nicho_grupo(t) or eh_masculino(o):
+    if o.get("grupo") == "moda" and re.search(r"(?i)feminin", t):
+        fora = [x for x in fora if not re.fullmatch(r"rel[óo]gio", x)]
+    # 09/10 noite: piranha/presilha/tiara "de pelúcia" é acessório de cabelo, não brinquedo
+    if re.search(r"(?i)piranha|presilha|\btiara\b|scrunchie|xuxinha|prendedor de cabelo", t):
+        fora = [x for x in fora if not re.fullmatch(r"pel[úu]cia", x)]
+    if fora or fora_do_nicho_grupo(t) or eh_masculino(o):
         return False
     return (o.get("grupo") in LINHA_PRINCIPAL
             or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)) and not MODA_FORA.search(t)
@@ -2667,6 +2699,8 @@ TIPO_PRODUTO = re.compile(
     r"corporal|\bmilk\b|secador|chapinha|prancha|escova|modelador|babyliss|difusor|pente|presilha|piranha|tiara|"
     r"maquiagem|makeup|\bmake\b|skin ?care|rotina|stick|bast[ãa]o|vela|sais de banho|sach[êe]|[áa]cido|retinol|retinal|"
     r"niacinamida|vitamina|bb ?cream|cc ?cream|aplicador|curvex|pin[çc]a|lixa|depila|\brolo\b|gua ?sha|massageador|"
+    # 09/10 noite: "Kit 5 Manicure Alicate Slim Palito…" e "Kit 2 Touca De Cetim…" dizem o que são e eram barrados
+    r"manicure|pedicure|alicate|cut[íi]cula|\btoucas?\b|"
     r"espelho|necessaire|organizador|\bporta\b|bolsa|clutch|brincos?|colar|pulseira|\banel\b|joia|rel[óo]gio|"
     r"sapat|sand[áa]lia|t[êe]nis|[óo]culos|aparador|m[áa]quina|barbeador|kit (?:de )?(?:maquiagem|make|skincare|"
     r"cuidados?|capilar|facial|corporal|banho|presente|viagem|travel)")
