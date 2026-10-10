@@ -231,8 +231,11 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
     "BRILHO NO LOOK SEM GASTAR MUITO ✨": [
         (r"alian[çc]a|namoro|compromisso", ["PRA SELAR O AMOR 💍"]),
         (r"ponto de luz", ["PONTO DE LUZ, DELICADO E LINDO ✨"]),
-        (r"prata 925|prata de lei|prata925", ["PRATA 925 DE VERDADE ✨"]),
-        (r"banhad|folhead|ouro 18k", ["BANHADO A OURO, BRILHO DE JOIA ✨"]),
+        # 10/10: "Folheado a Prata 925"/"Banho de prata" NÃO é prata de verdade → a frase só vale para prata maciça
+        (r"^(?!.*(?:folhead|banhad|banho|revestid)).*(?:prata 925|prata de lei|prata925)", ["PRATA 925 DE VERDADE ✨"]),
+        # 10/10: "Folheado a Prata 925" saía como BANHADO A OURO → ouro só quando o título fala de ouro/dourado
+        (r"(?:banhad|folhead|banho)[^|]*(?:ouro|dourad)|ouro 18k", ["BANHADO A OURO, BRILHO DE JOIA ✨"]),
+        (r"(?:banhad|folhead|banho)[^|]*prata", ["BRILHO DE PRATA NO LOOK ✨"]),
         (r"antial[ée]rgic", ["ANTIALÉRGICO, PODE USAR SEM MEDO ✨"]),
         (r"rel[óo]gio", ["RELÓGIO LINDO NO PULSO ⌚"]),
         (r"presente|cora[çc][ãa]o", ["PRESENTE QUE ENCANTA 💝"]),
@@ -240,7 +243,10 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
     "LOOK NOVO GASTANDO POUCO 👗": [
         (r"festa|casamento|formatura|madrinha", ["PRONTA PRA FESTA 🥂"]),
         (r"plus size", ["PLUS SIZE LINDO E CONFORTÁVEL 👗"]),
-        (r"pijama", ["PIJAMA GOSTOSO PRA DORMIR BEM 😴"]),
+        # 10/10: baby doll/camisola também é roupa de dormir (só "pijama" pegava); de renda/cetim ganha frase própria
+        (r"(?:baby[- ]?doll|short[- ]?doll|camisola|macaquinho|pijama)[^|]*(?:renda|cetim|seda)|"
+         r"(?:renda|cetim|seda)[^|]*(?:baby[- ]?doll|short[- ]?doll|camisola|pijama)", ["PRA DORMIR LINDA 🌙"]),
+        (r"pijama|camisola|baby[- ]?doll|short[- ]?doll|roupa de dormir", ["PIJAMA GOSTOSO PRA DORMIR BEM 😴"]),
         (r"calcinha|suti[ãa]|lingerie", ["CONFORTO QUE SÓ VOCÊ SENTE 🩲"]),
         (r"jeans", ["JEANS QUE VESTE BEM 👖"]),
         (r"moletom|casaco|jaqueta|frio|t[ée]rmic", ["QUENTINHO E ESTILOSO 🧥"]),

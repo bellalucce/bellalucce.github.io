@@ -1774,7 +1774,14 @@ BENEFICIOS = [
     (r"lat+af+a|armaf|al wataniah|maison alhambra|[áa]r[áa]be|asad|yara|fakhar|khamrah|club de nuit|french avenue|"
      r"al wesal|durrat al aroos|sabah al ward", "CHEIRO DE GRIFE, PREÇO DE ÁRABE 🔥"),
     (r"(?<!sem )perfume|eau de|parfum|body splash|splash|col[ôo]nia|deo col[ôo]nia|edp|edt", "CHEIROSA O DIA INTEIRO, AMIGA 🌸"),
-    (r"legging|^top|top fitness|conjunto fitness|short fitness|cal[çc]a fitness|macaquinho|roupa de academia",
+    # 10/10 (dona: "a legenda não é de pijama"): "Macaquinho Baby Doll… com Renda" saiu como LOOK DE TREINO →
+    # roupa de dormir vem antes, e "macaquinho" só é treino quando o título não fala de dormir/renda/cetim
+    (r"\bpijamas?\b|\bcamisolas?\b|baby[- ]?doll|short[- ]?doll|roupa de dormir|"
+     r"macaquinho(?=[^|]*(?:baby[- ]?doll|short[- ]?doll|renda|dormir|pijama|camisola|cetim|seda|lingerie))",
+     "LOOK NOVO GASTANDO POUCO 👗"),
+    (r"legging|^top|top fitness|conjunto fitness|short fitness|cal[çc]a fitness|"
+     r"macaquinho(?![^|]*(?:baby[- ]?doll|short[- ]?doll|renda|dormir|pijama|camisola|cetim|seda|lingerie))|"
+     r"roupa de academia",
      "LOOK DE TREINO QUE VALORIZA TUDO 🍑"),
     # 01/10 (dona): "Tônico Capilar Yenzah Whey Amino" virou "PRA QUEM LEVA O TREINO A SÉRIO" — whey/colágeno em
     # cosmético (capilar, creme, facial…) é ingrediente, não suplemento
@@ -1791,7 +1798,7 @@ BENEFICIOS = [
     (r"toalha|toalh[ãa]o", "TOALHA FOFINHA DE HOTEL 🛁"),
     (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira|mixer|processador de alimentos|liquidificador|cafeteira|"
      r"sanduicheira|batedeira|potes? herm[ée]ticos?|formas? de silicone|travessas?", "COZINHA LINDA GASTANDO POUCO 🍳"),
-    (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),  # "canguru": moletom
+    (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby(?![- ]?doll)|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),  # "canguru": moletom
     (r"bolsa(?:s)?(?! (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade|marmita|lancheira))",
      "A BOLSA QUE COMBINA COM TUDO 👜"),
     # 01/10: scarpin de salto alto saía "PÉ LINDO E CONFORTÁVEL 👟" (a variação do salto já tinha saído) → tipo próprio
@@ -2085,6 +2092,8 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None, novas: bool = Tr
     cat = next((c for c, rx in CAT_GANCHO if re.search(rx, gancho or "", re.I)), None)
     t = re.split(r"\bsabor\b", titulo or "", flags=re.I)[0]  # "Whey… Sabor Creme de Avelã": sabor não é cosmético
     if cat == "fitness":
+        if PIJAMA_RX.search(t) or re.search(r"(?i)macaquinho[^|]*(?:renda|cetim|seda|lingerie|dormir)", t):
+            return False  # 10/10 (dona): baby doll de renda saiu com "LOOK DE TREINO"
         return not (COSMETICO.search(t) and not ROUPA_TREINO.search(t))
     if cat == "beleza":
         return not (SUPLEMENTO.search(t) and not COSMETICO.search(t)) and not PET.search(t)
