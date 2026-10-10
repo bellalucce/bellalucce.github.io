@@ -829,8 +829,14 @@ def aprovada(o: dict) -> bool:
             # 30% + 1.000 vendas, ou 20% + 10 mil): 85 de 330 boas eram coletadas e reprovadas a cada rodada. A moda do
             # mix 6/3/1 vale pela régua DELA (nota, vendas e desconto mínimos de moda_boa); "De" inflado (> 2×) já
             # saiu acima e o perfil feminino/"De" no post continuam conferidos na fila.
-            from vendas.integracoes import shopee_afiliados as _sa
-            return nota >= _sa.MODA_NOTA_MIN and vend >= _sa.MODA_VENDAS_MIN and d >= _sa.MODA_DESC_MIN
+            # 10/10 (site parou 7 h): a cópia do site no GitHub (pages/radar/vendas) NÃO tem a pasta integracoes — o
+            # import aqui derrubava o radar/rodar.py com ModuleNotFoundError. Sem o módulo, vale a mesma régua (4,7/500/20)
+            try:
+                from vendas.integracoes import shopee_afiliados as _sa
+                nmin, vmin, dmin = _sa.MODA_NOTA_MIN, _sa.MODA_VENDAS_MIN, _sa.MODA_DESC_MIN
+            except ImportError:
+                nmin, vmin, dmin = 4.7, 500, 20
+            return nota >= nmin and vend >= vmin and d >= dmin
         bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         # 07/10 (dona: "cadê as maquiagens?" — Rafa: Maybelline Sky High da loja oficial, nota 5, -24%, barrada só por ter
         # menos de 1.000 vendidos): loja OFICIAL bem avaliada já é confiável → conta como "bom"
