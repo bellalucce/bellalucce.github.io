@@ -751,7 +751,11 @@ def pagina_de_produto(link: str) -> bool:
 
 # 30/09: marcas muito falsificadas no marketplace. 07/10: + marcas do Acervo da dona — "Rare Beauty" a R$ 25 em loja comum
 # da Shopee foi ao grupo 06/10 (réplica: o original só vende na Sephora, Soft Pinch R$ 149+); SHEGLAM e rhode idem
-FALSIFICAVEL = re.compile(rf"k[ée]rastase|rare\s*beauty|\brhode\b|she\s?glam|{ganchos.KB}", re.I)
+# 09/10 noite: "Novo Batom Matte Mac 3.5g… Matte Mac Kiss" (R$ 55, loja comum) veio na busca por tipo — maquiagem de grife
+# que o marketplace copia entra na mesma regra (só loja oficial / nota e vendas altas)
+FALSIFICAVEL = re.compile(rf"k[ée]rastase|rare\s*beauty|\brhode\b|she\s?glam|{ganchos.KB}|"
+                          r"(?<![\w.])m\.?a\.?c\b(?! ?(?:book|mini|os\b))|\bnars\b|fenty|huda beauty|urban decay|"
+                          r"charlotte tilbury|anastasia beverly", re.I)
 
 
 VALIDADE = re.compile(r"(?i)(?:exp|val(?:idade)?|venc\w*)\.?\s*[:.]?\s*(?:(20\d\d)[./-](\d{1,2})[./-](\d{1,2})|"
@@ -2567,6 +2571,12 @@ FORA_NICHO_GRUPO = re.compile(
     # 09/10 (dona: "o que foi aquela cola de prótese capilar? não tem nada a ver com a nossa coisa"): prótese (capilar,
     # dentária) e cola/fita de fixação de peruca/mega hair/lace = produto técnico, fora do público "quem ama comprar"
     r"(?i)pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
+    # 09/10 noite (1ª rodada da busca por TIPO na Shopee trouxe, aprovados pelas regras de então): shampoo de piolho,
+    # óleo de massagem "sensual tântrica", shampoo de pet shop na categoria perfume, broca/mandril de manicure (técnico,
+    # como a cabine UV que a revisora vetou), lixador de calos/"creme de pedreiro" e clareador de axila/virilha
+    r"piolhos?|l[êe]ndeas?|t[âa]ntric|massagem (?:sensual|er[óo]tica)|pet ?shop|para (?:c[ãa]es|cachorros?|gatos?|pets?)\b|"
+    r"\bbrocas?\b|mandril|\bcalos?\b|calosidade|rachadur|\bpedreiro\b|"
+    r"clareador\w* (?:de |para |das? |d[eo]s? )?(?:axilas?|virilha)|(?:axilas?|virilha)\b[^|]{0,45}\bclare|"
     r"escovas? (?:de )?dent|escova dental|creme dental|pasta de dente|fio dental|enxaguante|antiss[ée]ptico bucal|"
     r"clareamento dental|irrigador|lava[- ]?roupas?|sab[ãa]o (?:l[íi]quido|em p[óo]|em barra|de coco)|amaciante|"
     r"detergente|desinfetante|alvejante|tira[- ]?manchas|"
@@ -2584,7 +2594,7 @@ FORA_NICHO_GRUPO = re.compile(
     # 09/10 noite: "Escova Massageadora Capilar"/"Massageadora Facial" caíam aqui (a exceção só valia para "massageador ")
     r"cadeira (?:de )?(?:banho|camping|praia)|"
     r"massageador(?!(?:a|as|es)? (?:facial|de rosto|gua ?sha|de couro cabeludo|capilar))|pa[çc]o(?:c|qu)|"
-    r"absorvente|anabolic|magn[ée]sio|suporte (?:de|para) shampoo|"
+    r"absorvente|anabolic|magn[ée]sio|suportes? (?:de|para) shampoo|"
     r"[ôo]mega ?3|arginina|pr[ée][- ]?treino|creatina|\bwhey\b|termog[êe]nic|\bfibras? (?:sol[úu]vel|alimentar|em p[óo])|"
     r"p&p fit|\bbebida\b|leite (?:de am[êe]ndoa|em p[óo])|\d+ ?mg\b|\bcaps\b|softgel|comprimidos?\b|"
     r"col[áa]geno (?:hidrolisado|em p[óo]|verisol)|old spice|\baxe\b|for men\b|\bmen\b|"
@@ -3662,7 +3672,8 @@ def alerta_estoque(est: int, onde: str = "", agora: datetime | None = None) -> s
     if venceu and os.environ.get("HERMES_MAQUINA") != "nuvem":  # a Caixa é do PC (o PC lê o estoque do servidor e avisa)
         try:
             from vendas import caixa
-            if caixa.anotar(f"- [ ] {agora:%Y-%m-%d} · Robô do grupo · {agora:%Hh%M} · {txt}"):
+            # seção "Comigo" (Claude/Guarda resolvem): repor oferta não é tarefa da dona ("Precisa de você" é só dela)
+            if caixa.anotar(f"- [ ] {agora:%Y-%m-%d} · Robô do grupo · {agora:%Hh%M} · {txt}", "Comigo"):
                 na_caixa = agora.isoformat(timespec="seconds")
         except Exception:  # noqa: BLE001 — sem a Caixa, fica só o arquivo
             pass
