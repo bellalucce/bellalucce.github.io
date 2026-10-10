@@ -1755,9 +1755,12 @@ BENEFICIOS = [
      r"contorno (?:d[oa]s? |de )?olhos|creme (?:para |de )?(?:a )?(?:[áa]rea d[oa]s )?olhos|eye cream|[áa]rea dos olhos",
      "PELE LISINHA E COM VIÇO, AMIGA ✨"),
     (r"base|corretivo|concealer|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream|blush|iluminador|"
-     r"contorno(?! (?:d[oa]s? |de )?olhos)|bronzer|cushion", "PELE DE FILTRO NA VIDA REAL 💄"),
-    (r"paleta de sombras?|sombras?|delineador|l[áa]pis de olho|kajal", "OLHAR PODEROSO NO PRECINHO 👁️"),
+     r"contorno(?! (?:d[oa]s? |de )?olhos| labial| (?:d[oa]s? |de |para )?(?:l[áa]bios|boca))|bronzer|cushion",
+     "PELE DE FILTRO NA VIDA REAL 💄"),  # 10/10 (Rita): "Lápis Contorno Labial" saiu ROSTO MAIS DESENHADO
+    (r"paleta de sombras?|sombras?|delineador(?! labial| (?:de |para )?(?:l[áa]bios|boca))|l[áa]pis de olho|kajal",
+     "OLHAR PODEROSO NO PRECINHO 👁️"),
     (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
+     r"lip ?liner|contorno labial|delineador labial|l[áa]pis (?:de |para )?(?:boca|l[áa]bios)|l[áa]pis labial|"
      r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
     (r"escova secadora|secador(?! de (?:lou[çc]a|pratos?))|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
     (r"chapinha|prancha", "LISO PERFEITO EM MINUTOS ✨"),
@@ -2086,6 +2089,13 @@ def gancho_confere(gancho: str, titulo: str, grupo: str | None, novas: bool = Tr
     if re.search(r"LOOK|ROUPINHA|MAM[ÃA]E|BEB[ÊE]", gancho or "", re.I) and BRINQUEDO.search(titulo or "") \
             and not ROUPA_BEBE.search(titulo or ""):
         return False
+    # 10/10 (Rita): "Kit 20 Ecobag Bolsa Sacola" e "Bolsa de copo" com frase de bolsa; "CABE TUDO" em baguete pequena
+    if re.search(r"BOLSA|TOTE", gancho or "", re.I) and re.search(r"(?i)ecobag|\bsacolas?\b|bolsa de copo|porta[- ]copo",
+                                                                 titulo or ""):
+        return False
+    if re.search(r"CABE TUDO|CABE A VIDA", gancho or "", re.I) and re.search(r"(?i)pequen|\bmini\b|baguete|clutch|carteira",
+                                                                          titulo or ""):
+        return False
     for no_gancho, no_titulo in NOME_NO_GANCHO:  # 03/10 (dona): mocassim saiu como "TÊNIS DE MARCA"
         if re.search(no_gancho, gancho or "", re.I) and not re.search(no_titulo, titulo or "", re.I):
             return False
@@ -2176,7 +2186,9 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     s0 = sinais_de(o)  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA…")
     if g := (s0.get("gancho_dona") or "").strip():  # 09/10: `achadinhos pedido --texto` (o gancho_post ainda confere)
         return g
-    if s0.get("origem") == "vitrine_fiel" and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)]):
+    # 10/10 (Rita, 3ª vez no dia): "QUEM VÊ JURA QUE É DE GRIFE" em relógio de R$ 11 → dupe só a partir de DUPE_PRECO_MIN
+    if (s0.get("origem") == "vitrine_fiel" and (preco or 0) >= DUPE_PRECO_MIN
+            and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)])):
         return ganchos.escolher(frases, n, recentes)
     if not de_confiavel(o):
         d = 0  # 02/10: "De" inflado da loja → nada de gancho "XX% OFF"
@@ -2184,6 +2196,10 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         return ganchos.escolher([f.format(d=d) for f in ganchos.OFF], n, recentes)
     m = KIT.search(titulo)
     qtd = int(next(g for g in m.groups() if g)) if m else 0
+    # 10/10 (Rita): "Kit 12/24/36", "KIT 3 e 2", "Kit 28 ou 14" (variação) e "Kit 4 Peças Modelador + Touca + 2
+    # Xuxinhas" (itens diferentes) saíam com "SÓ R$ X CADA" — conta que não existe
+    if KIT_VARIADO.search(titulo):
+        qtd = 0
     if 2 <= qtd <= 12 and preco and preco / qtd <= 30:  # "60 unidades" de lenço/cápsula: "R$ 0,53 CADA" engana
         return ganchos.escolher([f.format(p=_brl(preco / qtd).upper()) for f in ganchos.KIT], n, recentes)
     tipo = beneficio(titulo, o.get("grupo"))
@@ -2313,6 +2329,12 @@ def de_confiavel(o: dict) -> bool:
     return bool(med and o.get("preco_antigo") and o["preco_antigo"] <= 1.2 * med and o.get("preco", 0) < med)
 
 
+DUPE_PRECO_MIN = 35.0
+KIT_VARIADO = re.compile(r"(?i)\b\d{1,3} ?/ ?\d{1,3}\b|\b\d{1,3} (?:ou|e) \d{1,3}\b|\bkit\b[^|]*\+|"
+                         r"\bkit ?\d{1,3} ?pe[çc]as\b")  # "Kit 4 peças Touca Faixa Modelador… com Xuxinhas" = peças diferentes
+PRIME_TESTE = "https://www.amazon.com.br/prime?tag=bellalucce-20"  # 10/10: teste grátis do Prime com a NOSSA etiqueta
+
+
 def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso."""
     gancho = gancho_post(o, n, recentes)
@@ -2324,6 +2346,11 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     # quem paga no cartão acha que o preço é mentira
     if (o.get("sinais") or {}).get("so_pix") if isinstance(o.get("sinais"), dict) else False:
         por += " no Pix"
+    # 10/10 (oferta que a dona mandou: escova Britânia "Mega Oferta Prime"): preço EXCLUSIVO Prime na Amazon — dizer,
+    # senão quem não é Prime abre e vê outro preço; e oferecer o teste grátis pelo NOSSO link (dona, 09/10)
+    so_prime = bool((o.get("sinais") or {}).get("so_prime")) if isinstance(o.get("sinais"), dict) else False
+    if so_prime:
+        por += " pra quem é Prime"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
@@ -2345,6 +2372,8 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
     linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
+    if so_prime:
+        return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
         linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
     elif n % 5 == 2 and not o.get("cupom") and (c := _cupom_shopee_manha(o)):

@@ -219,20 +219,21 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"necessaire", ["NECESSAIRE PRA ARRUMAR A MAKE 👜"]), (r"imperme[áa]vel", ["NEM A CHUVA ATRAPALHA 👜"]),
         (r"\btote\b", ["TOTE BAG QUE CABE A VIDA 👜"])],
     "PÉ LINDO E CONFORTÁVEL 👟": [
-        (r"sand[áa]lia|rasteira|papete|slide", ["SANDÁLIA LINDA PRO CALOR 👡"]),
+        (r"chinelo", ["CHINELO GOSTOSO DE USAR 🩴"]),  # 10/10 (Rita): "Chinelo … slide" saía SANDÁLIA
+        (r"^(?!.*chinelo).*(?:sand[áa]lia|rasteira|papete|slide)", ["SANDÁLIA LINDA PRO CALOR 👡"]),
         (r"salto|scarpin|tamanco", ["SALTO LINDO E CONFORTÁVEL 👠"]),
         (r"pantufa", ["PÉ QUENTINHO EM CASA 🧦"]), (r"chinelo", ["CHINELO GOSTOSO DE USAR 🩴"]),
         (r"corrida|running|caminhada", ["PRA CAMINHAR COM CONFORTO 👟"]),
         (r"academia|treino", ["PRONTO PRO TREINO 👟"]),
         # 03/10: "Espuma" casava com "puma" e um MOCASSIM saiu como "TÊNIS DE MARCA" → palavra inteira + sapato antes
-        (r"mocassim|loafer|oxford|sapatilha|\bsapato", ["SAPATO ELEGANTE PRO DIA A DIA 👞"]),
+        (r"mocassim|loafer|oxford|sapatilha|\bsapato", ["SAPATO ELEGANTE PRO DIA A DIA 🥿"]),
         (r"\b(?:nike|adidas|puma|asics|mizuno|new balance|fila|olympikus|kappa)\b", ["TÊNIS DE MARCA COM DESCONTO 👟"]),
         (r"t[êe]nis", ["TÊNIS NOVO NO PRECINHO 👟"])],
     "BRILHO NO LOOK SEM GASTAR MUITO ✨": [
         (r"alian[çc]a|namoro|compromisso", ["PRA SELAR O AMOR 💍"]),
         (r"ponto de luz", ["PONTO DE LUZ, DELICADO E LINDO ✨"]),
         # 10/10: "Folheado a Prata 925"/"Banho de prata" NÃO é prata de verdade → a frase só vale para prata maciça
-        (r"^(?!.*(?:folhead|banhad|banho|revestid)).*(?:prata 925|prata de lei|prata925)", ["PRATA 925 DE VERDADE ✨"]),
+        (r"^(?!.*(?:folhead|banhad|banho|revestid)).*(?:prata 925|prata de lei|prata925)", ["BRILHO DE PRATA NO LOOK ✨"]),
         # 10/10: "Folheado a Prata 925" saía como BANHADO A OURO → ouro só quando o título fala de ouro/dourado
         (r"(?:banhad|folhead|banho)[^|]*(?:ouro|dourad)|ouro 18k", ["BANHADO A OURO, BRILHO DE JOIA ✨"]),
         (r"(?:banhad|folhead|banho)[^|]*prata", ["BRILHO DE PRATA NO LOOK ✨"]),
@@ -335,7 +336,9 @@ _DUPE_TIPOS = (("sapato", r"sapat|t[êe]nis|sand[áa]lia|mule|tamanco|rasteir|sc
 
 # 08/10 noite (Beto: "QUEM VÊ JURA QUE É DE GRIFE" em tiara, organizador e flor de plástico): gancho de grife/dupe/
 # "parece caro" só em beleza, perfume, bolsa e acessório de moda de verdade — nunca em casa/organização/enfeite barato
-NAO_DUPE = re.compile(r"(?i)organiz|porta[- ]?(?:j[óo]ias|joia|pinc|trecos|maquiagem|batom|cosm|canetas?|escovas?)|"
+NAO_DUPE = re.compile(r"(?i)argila|\bfaixas?(?: la[çc]os?)? (?:de |para )?(?:maquiagem|skin ?care|rosto)|"
+                      r"\bfaixas? la[çc]o|rel[óo]gio[^|]*silicone|\b\d{2,} ?pe[çc]as|"
+                      r"\bkit ?\d{2,}\b|organiz|porta[- ]?(?:j[óo]ias|joia|pinc|trecos|maquiagem|batom|cosm|canetas?|escovas?)|"
                       r"expositor|bandejas?|\bcaixas?\b|gavetas?|tiaras?|\barcos?\b|arquinhos?|piranhas?|presilhas?|"
                       r"\bfaixas? (?:de|para) cabelo|scrunchie|xuxinhas?|el[áa]sticos?|\bflor(?:es)?\b|arranjos?|enfeites?|"
                       r"decora|\bvasos?\b|pl[áa]stic|acr[íi]lic|adesivos?|chaveiros?|lavabo|cabides?|suportes?|"
@@ -432,7 +435,9 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
     if re.search(r"gel de banho|gel douche|sabonete|body wash|shower", titulo, re.I) and tipo == "PELE LISINHA E COM VIÇO, AMIGA ✨":
         return ["BANHO GOSTOSO E PELE MACIA 🧴", "PELE MACIA DESDE O BANHO 🧴"]  # 05/10: banho não é skincare de rosto
     if re.search(r"sapatilha|mocassim|loafer|oxford", titulo, re.I):  # 05/10: "Sapatilha … Salto Baixo" saía "SALTO"/"SANDÁLIA"
-        out = [f for f in out if not re.search(r"SALTO|SANDÁLIA", f)] or ["SAPATO ELEGANTE PRO DIA A DIA 👞"]
+        out = [f for f in out if not re.search(r"SALTO|SANDÁLIA", f)] or ["SAPATO ELEGANTE PRO DIA A DIA 🥿"]
+    if re.search(r"sapatilha|mocassim|loafer|oxford|slingback|\bsapato", titulo, re.I):
+        out = [f.replace("👟", "🥿") for f in out]  # 10/10 (Rita): sapatilha saía com emoji de tênis
     if re.search(r"sand[áa]lia|rasteir|chinelo|tamanco|papete|birken", titulo, re.I):
         out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
     if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
@@ -444,6 +449,8 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
     if tipo == "CABELO MACIO DE SALÃO EM CASA 💆‍♀️":
         # 05/10 (dona, print do grupo): "Tintura Masculina" saiu "CRONOGRAMA CAPILAR SEM GASTAR MUITO" — cor não é
         # hidratação; e cronograma só para máscara/hidratação/nutrição/reconstrução
+        if re.search(r"matiz", titulo, re.I):  # 10/10 (Rita): matizar tira o amarelado, não muda a cor
+            return ["MATIZA EM CASA, SEM IR AO SALÃO 💜", "TCHAU, AMARELADO 💜"]
         if TINTURA.search(titulo):
             return (["COR DE BARBEARIA EM CASA 💈", "CABELO E BARBA EM DIA 💈"]
                     if re.search(r"mascul|\bmen\b|homem|barba", titulo, re.I) else
