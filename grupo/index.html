@@ -19,7 +19,11 @@
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; font-family: "Josefin Sans", "Segoe UI", system-ui, sans-serif; background: var(--creme);
          color: var(--texto); overflow-x: hidden; }
-  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 36px; text-align: center; }
+  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 104px; text-align: center; }
+  /* 10/10 noite: quem rola a página perdia o botão de vista (4 visitas do anúncio, 0 toque) → botão sempre na tela */
+  .fixo { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: rgba(244, 232, 210, .97);
+          border-top: 1px solid rgba(185, 104, 60, .35); padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); }
+  .fixo a.botao { max-width: 448px; margin: 0 auto; padding: 14px 12px; text-align: center; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
   h1 { font-size: 1.95rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.1; }
@@ -168,6 +172,7 @@
   } catch (e) {}
 })();
 </script>
+<div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo grátis</a></div>
 <script>
 /* 10/10 — contador grátis (GoatCounter, sem cookie): visitas por origem (?de=fb19, ?de=amiga…) e toques no botão
    "Entrar no grupo". Sem dado pessoal: só página, origem e hora. Se o contador estiver fora do ar, nada quebra. */
