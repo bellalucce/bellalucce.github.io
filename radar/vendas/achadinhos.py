@@ -376,6 +376,17 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s+\b[A-Z]{2,4}\d{3,}[A-Z\d]*\b\s*(?=[-–]\s)", " ", t).strip()
     if t.count("|") >= 2 and len(t.split("|")[0].split()) >= 3:
         t = t.split("|")[0].strip(" -–|:/")
+    # 10/10 (Rita, auditoria da fila inteira — produto bom vetado só pelo título): grito de anúncio no começo
+    # ("PROMOÇAO!! Sapatilha…", "Lançamento Da Moda…"), "!!", ano/"importado 2024", 1 barra só com legenda de venda
+    # depois ("Lápis… (Preto) | Definição e Precisão") e grade de numeração no fim ("… 34 Ao 40")
+    t = re.sub(r"^\s*(?:promo[çc][ãa]o|oferta|lan[çc]amento(?: da moda)?|novidade|queima(?: de estoque)?)\b[\s!:.\-–]*",
+               "", t, flags=re.I)
+    t = re.sub(r"\s*!{1,}", "", t)
+    t = re.sub(r"\s+(?:importad[oa]\s+)?20[2-3]\d\b(?!\s*(?:ml|g|un|w)\b)", "", t, flags=re.I)
+    if t.count("|") == 1 and len(t.split("|")[0].split()) >= 4:
+        t = t.split("|")[0]
+    t = re.sub(r"\s+(?:n[ºo°.]?\s*)?\d{2}\s+(?:ao?|at[ée])\s+\d{2}\s*$", "", t, flags=re.I)
+    t = re.sub(r"\s{2,}", " ", t).strip(" -–|:/,")
     t = sem_lista_de_palavras(t)
     # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior — 06/10 (Rita): a IGUAL com
     # maiúscula é parte do nome ("Amor Amor" virava "Amor Cacharel"; "Bora Bora") → fica
