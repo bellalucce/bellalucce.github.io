@@ -4410,7 +4410,13 @@ def publicar_site() -> str:
     # execução e só veria a Promobit daquele instante — 30/09: 12 Amazon no site × 88 no PC). No máx. 1×/hora: cada
     # troca vira um commit de ~2 MB no repositório público.
     arq = radar / "dados" / "ml.json"
-    if not arq.exists() or time.time() - arq.stat().st_mtime > 55 * 60:
+    # 10/10: a Océane foi relida DEPOIS do último ml.json → manda já (senão a área /oceane/ ficava até 1 h vazia)
+    oce = db.consultar("SELECT MAX(atualizado_em) AS u FROM ofertas WHERE fonte = 'oceane_afiliados'")
+    try:
+        oce_nova = arq.exists() and datetime.fromisoformat(str(oce[0]["u"])).timestamp() > arq.stat().st_mtime
+    except (ValueError, TypeError, IndexError, KeyError):
+        oce_nova = False
+    if not arq.exists() or oce_nova or time.time() - arq.stat().st_mtime > 55 * 60:
         ofs = db.consultar("SELECT * FROM ofertas WHERE atualizado_em >= datetime('now', 'localtime', '-36 hours') "
                            "AND (fonte = 'ml_afiliados' OR (aprovada = 1 AND link_loja IS NOT NULL)) ORDER BY id")
         for r in ofs:
