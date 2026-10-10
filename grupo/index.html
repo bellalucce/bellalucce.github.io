@@ -168,5 +168,26 @@
   } catch (e) {}
 })();
 </script>
+<script>
+/* 10/10 — contador grátis (GoatCounter, sem cookie): visitas por origem (?de=fb19, ?de=amiga…) e toques no botão
+   "Entrar no grupo". Sem dado pessoal: só página, origem e hora. Se o contador estiver fora do ar, nada quebra. */
+(function () {
+  var de = "";
+  try { de = (new URLSearchParams(location.search).get("de") || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 24); } catch (e) {}
+  window.goatcounter = { path: function () { return "/grupo/" + (de ? "?de=" + de : ""); } };
+  var botoes = document.querySelectorAll('a[href*="chat.whatsapp.com"], a[href*="whatsapp.com/channel"]');
+  for (var i = 0; i < botoes.length; i++) {
+    botoes[i].addEventListener("click", function () {
+      try {
+        var canal = this.href.indexOf("/channel/") > 0 ? "canal" : "grupo";
+        if (window.goatcounter && window.goatcounter.count) {
+          window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
+        }
+      } catch (e) {}
+    });
+  }
+})();
+</script>
+<script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
