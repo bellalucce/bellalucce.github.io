@@ -180,17 +180,18 @@
   var de = "";
   try { de = (new URLSearchParams(location.search).get("de") || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 24); } catch (e) {}
   window.goatcounter = { path: function () { return "/grupo/" + (de ? "?de=" + de : ""); } };
-  var botoes = document.querySelectorAll('a[href*="chat.whatsapp.com"], a[href*="whatsapp.com/channel"]');
-  for (var i = 0; i < botoes.length; i++) {
-    botoes[i].addEventListener("click", function () {
-      try {
-        var canal = this.href.indexOf("/channel/") > 0 ? "canal" : "grupo";
-        if (window.goatcounter && window.goatcounter.count) {
-          window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
-        }
-      } catch (e) {}
-    });
-  }
+  /* 11/10: o toque era ligado só nos botões que já existiam; os cartões de oferta entram depois (fetch) e levam ao
+     mesmo convite, mas não eram contados. Agora conta qualquer toque em link do WhatsApp, onde quer que esteja. */
+  document.addEventListener("click", function (ev) {
+    try {
+      var a = ev.target && ev.target.closest ? ev.target.closest('a[href*="chat.whatsapp.com"], a[href*="whatsapp.com/channel"]') : null;
+      if (!a) return;
+      var canal = a.href.indexOf("/channel/") > 0 ? "canal" : "grupo";
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
+      }
+    } catch (e) {}
+  }, true);
 })();
 </script>
 <script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
