@@ -1675,13 +1675,13 @@ def vitrine(horas: int = 36) -> str:
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos de Beleza | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
 <link rel="canonical" href="https://bellalucce.github.io/">
-<meta property="og:title" content="Achadinhos Bella Lucce ✨"><meta property="og:type" content="website">
+<meta property="og:title" content="Achadinhos de Beleza ✨ | Bella Lucce"><meta property="og:type" content="website">
 <meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume e cabelo com desconto de verdade.">
 <meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume e cabelo da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
 <style>
