@@ -1645,6 +1645,8 @@ const filtrar=()=>{{const q=Q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').
 const mais=()=>{{document.getElementById('lista').insertAdjacentHTML('beforeend',F.slice(N,N+P).map((o,j)=>card(o,N+j)).join('')||(N?'':'<p>Nenhuma oferta aqui agora.</p>'));N+=P;document.getElementById('mais').style.display=N<F.length?'':'none'}};
 document.getElementById('mais').onclick=mais;document.getElementById('q').oninput=e=>{{Q=e.target.value;filtrar()}};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));G=b.dataset.g;filtrar()}});
+/* 11/10: link que já abre numa aba (pins do Pinterest por tipo de produto): /?aba=<código da aba> */
+(()=>{{const a=new URLSearchParams(location.search).get('aba');if(!a)return;const b=[...document.querySelectorAll('nav button')].find(x=>x.dataset.g===a);if(b){{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));G=a}}}})();
 fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}});
 </script>
 {CONTADOR_SITE}
