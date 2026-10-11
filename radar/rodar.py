@@ -55,6 +55,12 @@ def main() -> None:
         shutil.copytree(REPO / "links", SAIDA / "links", dirs_exist_ok=True)
     if (REPO / "grupo").exists():  # página de entrada do grupo/canal (link dos pins) — 02/10: dava 404, não era copiada
         shutil.copytree(REPO / "grupo", SAIDA / "grupo", dirs_exist_ok=True)
+        try:  # 11/10: 3 ofertas reais gravadas na 1ª dobra da /grupo, antes do botão (a página não espera o ofertas.json)
+            n_faixa = a.embutir_faixa_grupo(SAIDA / "grupo" / "index.html",
+                                            json.loads((SAIDA / "ofertas.json").read_text(encoding="utf-8")))
+            print(f"faixa da /grupo: {n_faixa} ofertas")
+        except Exception as e:  # a faixa é um extra: sem ela a página sai como está no repositório
+            print("faixa da /grupo falhou:", e)
     if (REPO / "p").exists():  # 02/10: página nossa de cada produto do Pinterest (scripts/pinterest/pagina_produto.py)
         shutil.copytree(REPO / "p", SAIDA / "p", dirs_exist_ok=True)
     if (REPO / "iris").exists():  # 05/10: fotos dos posts da Íris (o Instagram lê daqui) — davam 404, não eram copiadas

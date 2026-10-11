@@ -1556,6 +1556,76 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
     return out
 
 
+# 11/10 (dona: "não tem ninguém clicando no anúncio, o que tá acontecendo"; Vitória): a 1ª dobra da /grupo não mostrava
+# nenhuma oferta até o ofertas.json carregar. Agora 3 miniaturas reais vão GRAVADAS no HTML na hora de publicar, antes
+# do botão — a pessoa vê o que tem no grupo sem esperar nada. Mesmas travas da grade da página (desconto crível, até
+# R$ 150, 1 por marca) e SEM Amazon (preço da Amazon em página exige data e hora) nem Mercado Livre.
+FAIXA_GRUPO_INI, FAIXA_GRUPO_FIM = "<!--FAIXA-INI-->", "<!--FAIXA-FIM-->"
+_FAIXA_RUIM = re.compile(r"infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|"
+                         r"primeira linha|1ª linha|\btipo ", re.I)
+
+
+def _num_brl(s) -> float:
+    try:
+        return float(re.sub(r"[^\d,]", "", str(s or "")).replace(",", ".") or 0)
+    except ValueError:
+        return 0.0
+
+
+def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
+    """As `n` ofertas da faixa: `dados` = itens do ofertas.json ({"g","k","l","t","p","a","f"…})."""
+    cand = []
+    for o in dados or []:
+        loja, foto, titulo = str(o.get("l") or ""), str(o.get("f") or ""), str(o.get("t") or "")
+        if not loja or re.search(r"mercado\s*livre|amazon", loja, re.I) or o.get("g") not in ("beleza", "perfume", "cabelo"):
+            continue
+        if not foto.startswith("https://") or "i.promobit.com.br" in foto or not titulo or _FAIXA_RUIM.search(titulo):
+            continue
+        p, a = _num_brl(o.get("p")), _num_brl(o.get("a"))
+        if not (0 < p < a) or p > 150 or re.search(r"\w\s*/\s*\w", titulo):
+            continue
+        d = round((1 - p / a) * 100)
+        if 20 <= d <= 50:
+            cand.append((d, o))
+    cand.sort(key=lambda x: -x[0])
+    out, marcas, tipos = [], set(), set()
+    for d, o in cand:
+        marca, tipo = o["t"].lower().split()[0], o.get("k") or o.get("g")
+        if marca in marcas or tipo in tipos:
+            continue
+        marcas.add(marca)
+        tipos.add(tipo)
+        out.append({**o, "_d": d})
+        if len(out) >= n:
+            break
+    return out if len(out) >= n else []
+
+
+def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
+    """Regrava, entre os marcadores da /grupo, a faixa "Achados de hoje" (3 miniaturas que levam ao MESMO convite do
+    botão da página). Sem 3 ofertas boas ou sem os marcadores, a faixa fica vazia e o resto da página não muda."""
+    from pathlib import Path
+    pagina = Path(pagina)
+    if not pagina.exists():
+        return 0
+    html = pagina.read_text(encoding="utf-8")
+    if FAIXA_GRUPO_INI not in html or FAIXA_GRUPO_FIM not in html:
+        return 0
+    convite = re.search(r'href="(https://chat\.whatsapp\.com/[A-Za-z0-9]+)"', html)
+    sel = escolher_faixa_grupo(dados) if convite else []
+    e = _html.escape
+    faixa = ""
+    if sel:
+        minis = "".join(
+            f'<a class="mini" href="{convite.group(1)}"><img src="{e(o["f"], quote=True)}" alt="{e(o["t"][:60], quote=True)}" '
+            f'width="96" height="96" referrerpolicy="no-referrer"><b>-{o["_d"]}%</b><span>por {e(str(o["p"]))}</span></a>'
+            for o in sel)
+        faixa = f'<div class="faixa"><span class="rot">Achados de hoje:</span><div class="minis">{minis}</div></div>'
+    ini, fim = html.index(FAIXA_GRUPO_INI) + len(FAIXA_GRUPO_INI), html.index(FAIXA_GRUPO_FIM)
+    pagina.write_text(html[:ini] + faixa + html[fim:], encoding="utf-8")
+    return len(sel)
+
+
 def vitrine(horas: int = 36) -> str:
     """Gera dados/achadinhos/site/index.html (celular primeiro). Só ofertas aprovadas, com link, do nosso nicho."""
     ofs = selecionar_vitrine(horas)

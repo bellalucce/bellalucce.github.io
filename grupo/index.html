@@ -26,12 +26,23 @@
   .fixo a.botao { max-width: 448px; margin: 0 auto; padding: 14px 12px; text-align: center; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
-  h1 { font-size: 1.95rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.1; }
-  p.sub { margin: 0 0 12px; line-height: 1.4; font-size: 1rem; }
-  a.botao { display: block; padding: 16px 12px; margin: 10px 0 8px; border-radius: 40px; font-size: 1.15rem; font-weight: 600;
+  h1 { font-size: 1.62rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.12; }
+  p.sub { margin: 0 0 10px; line-height: 1.4; font-size: .98rem; }
+  a.botao { display: block; padding: 16px 12px; margin: 10px 0 8px; border-radius: 40px; font-size: 1.12rem; font-weight: 600;
             text-decoration: none; color: #fff; background: var(--caramelo); letter-spacing: .02em;
             box-shadow: 0 6px 16px rgba(142, 74, 38, .28); }
   a.botao:active { background: var(--caramelo-esc); }
+  a.botao svg { width: 1.25em; height: 1.25em; vertical-align: -0.28em; margin-right: .4em; fill: #fff; }
+  /* 11/10 (Vitória): 3 ofertas reais ANTES do botão, gravadas no HTML na publicação (sem esperar o ofertas.json) */
+  .faixa { margin: 2px 0 8px; }
+  .faixa .rot { display: block; font-size: .8rem; color: #7a5a44; margin-bottom: 6px; letter-spacing: .04em; }
+  .faixa .minis { display: flex; gap: 8px; justify-content: center; }
+  a.mini { flex: 1 1 0; max-width: 104px; min-width: 0; background: #fff; border: 1.5px solid var(--caramelo); border-radius: 12px;
+           overflow: hidden; text-decoration: none; color: var(--texto); position: relative; display: flex; flex-direction: column; }
+  a.mini img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; display: block; background: #fff; }
+  a.mini b { position: absolute; top: 5px; left: 5px; background: var(--caramelo); color: #fff; font-size: .68rem; font-weight: 600;
+             padding: 2px 6px 1px; border-radius: 12px; }
+  a.mini span { font-size: .76rem; font-weight: 600; color: var(--caramelo-esc); padding: 3px 2px 5px; }
   p.confianca { margin: 0 0 14px; font-size: .82rem; line-height: 1.45; color: #6b4a33; }
   #achados h2 { font-size: 1.45rem; margin: 6px 0 2px; }
   #achados .data { margin: 0 0 10px; font-size: .78rem; color: #7a5a44; }
@@ -57,23 +68,25 @@
 <body>
 <main>
   <img class="logo" src="../logo.png" alt="Bella Lucce" width="56" height="56">
-  <h1>Achadinhos Bella Lucce</h1>
-  <p class="sub">Achadinhos de beleza com <b>desconto de verdade</b>, todo dia.</p>
-  <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo grátis</a>
-  <p class="confianca">Só a loja posta · links oficiais Shopee, Amazon e Magalu · você sai quando quiser</p>
+  <!-- 11/10 (dona: "não tem ninguém clicando"; Vitória): a 1ª dobra repete a promessa do anúncio e diz WHATSAPP;
+       3 ofertas reais antes do botão; o plano B do número (canal) logo abaixo do botão. -->
+  <h1>Grupo de achadinhos de beleza no WhatsApp</h1>
+  <p class="sub">Make, skincare e perfume com <b>desconto de verdade</b>, todo dia. É grátis e você sai quando quiser.</p>
+  <!--FAIXA-INI--><!--FAIXA-FIM-->
+  <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.26.86 5.82 2.42a8.2 8.2 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.19 8.19 0 0 1-1.26-4.38c.01-4.54 3.7-8.24 8.25-8.24zM8.53 7.33c-.16 0-.43.06-.66.31-.22.25-.87.86-.87 2.07 0 1.22.89 2.39 1 2.56.14.17 1.76 2.67 4.25 3.73.59.27 1.05.42 1.41.53.59.19 1.13.16 1.56.1.48-.07 1.46-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.07-.1-.23-.16-.48-.27-.25-.14-1.47-.74-1.69-.82-.23-.08-.37-.12-.56.12-.16.25-.64.81-.78.97-.15.17-.29.19-.53.07-.26-.13-1.06-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.12-.24-.01-.39.11-.5.11-.11.27-.29.37-.44.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.11-.56-1.35-.77-1.84-.2-.48-.4-.42-.56-.43-.14 0-.3-.01-.47-.01z"/></svg>Entrar no grupo do WhatsApp</a>
+  <p class="confianca">Só a loja posta · links oficiais Shopee, Amazon e Magalu</p>
+  <p class="canal" style="margin:0 0 6px">Não quer mostrar seu número? <a href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q">Siga o canal</a>: as mesmas ofertas e ninguém vê o seu número.</p>
 
   <section id="achados" hidden>
     <h2>Achados de hoje</h2>
     <p class="data" id="data-precos" hidden></p>
     <div class="grade" id="grade"></div>
-    <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo grátis</a>
+    <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a>
   </section>
-
-  <p class="canal">Prefere não mostrar seu número? <a href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q">Siga o canal</a></p>
 
   <h2 style="font-size:1.4rem;margin-top:28px">Perguntas frequentes</h2>
   <div class="faq">
-    <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo grátis" acima. É grátis e você sai quando quiser.</p>
+    <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo do WhatsApp" acima. É grátis e você sai quando quiser.</p>
     <p><b>Que tipo de promoção aparece?</b><br>Achadinhos de beleza da Shopee, Amazon, Magalu e outras lojas: maquiagem, skincare, dermocosméticos, perfume e cabelo.</p>
     <p><b>Prefere não mostrar o número?</b><br>Siga o canal do WhatsApp: as mesmas ofertas e ninguém vê o seu número.</p>
     <p><b>Quantas mensagens por dia?</b><br>Várias ofertas por hora, das 8h às 22h. Você olha quando quiser.</p>
@@ -168,11 +181,12 @@
         p.hidden = false;
       }
       document.getElementById("achados").hidden = false;
+      try { if (window.__blEvento) window.__blEvento("achados-ok", "Grade de achados apareceu"); } catch (e) {}
     }).catch(function () {});
   } catch (e) {}
 })();
 </script>
-<div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo grátis</a></div>
+<div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a></div>
 <script>
 /* 10/10 — contador grátis (GoatCounter, sem cookie): visitas por origem (?de=fb19, ?de=amiga…) e toques no botão
    "Entrar no grupo". Sem dado pessoal: só página, origem e hora. Se o contador estiver fora do ar, nada quebra. */
@@ -187,21 +201,52 @@
       var a = ev.target && ev.target.closest ? ev.target.closest('a[href*="chat.whatsapp.com"], a[href*="whatsapp.com/channel"]') : null;
       if (!a) return;
       var canal = a.href.indexOf("/channel/") > 0 ? "canal" : "grupo";
+      tocou = Date.now();
       if (window.goatcounter && window.goatcounter.count) {
         window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
       }
     } catch (e) {}
   }, true);
+  var tocou = 0;
   /* 11/10 15h — o anúncio trouxe 15 visitas de celular e 0 toque. Para saber se a pessoa sai na hora (ou se a
      "visita" é só o Instagram pré-carregando a página) ou se ela lê e não toca: conta, 1 vez por visita,
      "ficou 5 s com a página visível" e "rolou a página". Sem dado pessoal. */
-  function evento(nome, titulo) {
+  function evento(nome, titulo, n) {
     try {
       if (window.goatcounter && window.goatcounter.count) {
         window.goatcounter.count({ path: nome + (de ? "-" + de : ""), title: titulo, event: true });
+      } else if ((n || 0) < 16) {  // o contador carrega depois (async): espera até 4 s em vez de perder o evento
+        setTimeout(function () { evento(nome, titulo, (n || 0) + 1); }, 250);
       }
     } catch (e) {}
   }
+  /* 11/10 15h40 (Vitória) — funil completo: visita → VISÍVEL (se a visita é só pré-carga do Instagram, este não vem)
+     → ficou 5 s → rolou → ACHADOS apareceram → toque → VOLTOU (tocou e a página reapareceu em até 30 s: o WhatsApp
+     não abriu ou a pessoa desistiu na tela do convite). Cada um conta 1 vez por visita. */
+  window.__blEvento = evento;
+  // o botão fixo do rodapé só aparece quando o botão principal saiu da tela (dois botões iguais juntos confundem)
+  try {
+    var principal = document.querySelector("main > a.botao"), fixo = document.querySelector(".fixo");
+    if (principal && fixo && "IntersectionObserver" in window) {
+      new IntersectionObserver(function (es) { fixo.style.display = es[0].isIntersecting ? "none" : ""; },
+                               { threshold: 0.6 }).observe(principal);
+    }
+  } catch (e) {}
+  var viu = false, voltou = false;
+  function aoVer() {
+    if (document.visibilityState !== "visible") return;
+    if (!viu) {
+      viu = true;
+      evento("visivel", "Página ficou visível");
+    }
+    if (tocou && !voltou && Date.now() - tocou < 30000 && Date.now() - tocou > 1500) {
+      voltou = true;
+      evento("voltou", "Tocou em Entrar e voltou para a página");
+    }
+  }
+  document.addEventListener("visibilitychange", aoVer);
+  window.addEventListener("pageshow", aoVer);
+  aoVer();
   var visivel = 0, marcou5 = false, rolou = false;
   setInterval(function () {
     if (marcou5 || document.visibilityState !== "visible") return;
