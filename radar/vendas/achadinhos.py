@@ -1604,7 +1604,7 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
             continue
         # 11/10 (Cecília, 2ª rodada): "Kit base + máscara" a R$ 25,99 na 1ª tela — preço de kit/combinação pode ser
         # o da variação mais barata; sem como conferir na loja, kit e "A + B" ficam fora da faixa
-        if re.search(r"\bkit\b|\s\+\s", titulo, re.I):
+        if re.search(r"\bkits?\b|\bconjunto\b|\bcombo\b|\s\+\s", titulo, re.I):  # 19h15: "conjunto"/"kits"/"combo" também
             continue
         # 11/10 (Rita, 4ª rodada): "de" que é EXATAMENTE o dobro do preço (69,98 → 34,99) é o padrão do preço inflado;
         # o mesmo produto estava em outra loja de R$ 32,90 por R$ 29,61. Debaixo de "desconto de verdade" não entra.
