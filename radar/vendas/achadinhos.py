@@ -1229,6 +1229,9 @@ def melhores(horas: int = 24, limite: int = 60, grupo: str | None = None) -> lis
 NOMES = {"beleza": "Beleza", "cabelo": "Cabelo", "perfume": "Perfumes", "esporte": "Fitness", "casa": "Casa",
          "infantil": "Bebê & Infantil", "moda": "Moda", "pet": "Pet", "eletronicos": "Eletrônicos"}
 SITE = config.DADOS / "achadinhos" / "site"
+# 11/10 (Vitória: só a /grupo media visita; sem contador não dá para saber se Pinterest/Linktree/Shopee trazem alguém):
+# contador grátis e sem cookie (GoatCounter) em todas as páginas montadas. Se o serviço cair, nada quebra.
+CONTADOR_SITE = '<script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>'
 
 
 def _brl(v) -> str:
@@ -1620,6 +1623,7 @@ document.getElementById('mais').onclick=mais;document.getElementById('q').oninpu
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));G=b.dataset.g;filtrar()}});
 fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}});
 </script>
+{CONTADOR_SITE}
 </body></html>"""
     SITE.mkdir(parents=True, exist_ok=True)
     (SITE / "index.html").write_text(pagina, encoding="utf-8")
@@ -1739,6 +1743,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:16px 16px 24px}}
 {blocos}
 <footer>#publi · Links de afiliada da Bella Lucce: a Océane pode nos pagar uma comissão, sem custo a mais para você. Preços da loja oficial; podem mudar a qualquer momento — confira no site antes de comprar.</footer>
 {OCEANE_JS}
+{CONTADOR_SITE}
 </body></html>"""
     pasta = SITE / "oceane"
     pasta.mkdir(parents=True, exist_ok=True)
