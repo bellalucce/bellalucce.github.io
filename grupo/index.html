@@ -206,20 +206,30 @@
     }
     return sel;
   }
+  /* 11/10 (Rita): o título vem cru do vendedor ("… Adversa - Escolha Seu Tom", "Lola Morte Subita 450g - Lola
+     Cosmetics"). Fica só a parte antes do " - " e voltam os acentos mais comuns que os vendedores comem. */
+  var ACENTOS = [[/\bsubita\b/gi, "Súbita"], [/\bmascara\b/gi, "Máscara"], [/\bliquid([oa])\b/gi, "Líquid$1"],
+                 [/\bhidratacao\b/gi, "Hidratação"], [/\bcilios\b/gi, "Cílios"], [/\boleo\b/gi, "Óleo"],
+                 [/\bbatom liquido\b/gi, "Batom Líquido"], [/\bpo\b(?= compacto| solto| transl)/gi, "Pó"]];
+  function tituloLimpo(t) {
+    var s = String(t || "").split(/\s[-–|]\s/)[0].replace(/\s+/g, " ").trim();
+    for (var q = 0; q < ACENTOS.length; q++) s = s.replace(ACENTOS[q][0], ACENTOS[q][1]);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
   function cartao(c) {
     var o = c.o, a = el("a", "card");
     a.href = CONVITE;
     var foto = el("div", "foto"), img = el("img");
     // 11/10 (auditoria): foto da Shopee na versão pequena (_tn, ~30 KB em vez de até 500 KB)
     img.src = /^https:\/\/[^\/]*(shopee\.com\.br|susercontent\.com)\/file\/[A-Za-z0-9_-]+$/.test(o.f) && !/_tn$/.test(o.f) ? o.f + "_tn" : o.f;
-    img.alt = o.t; img.loading = "lazy"; img.decoding = "async";
+    var nome = tituloLimpo(o.t);
+    img.alt = nome; img.loading = "lazy"; img.decoding = "async";
     img.referrerPolicy = "no-referrer";
     img.onerror = function () { if (a.parentNode) a.parentNode.removeChild(a); };
     foto.appendChild(img);
     a.appendChild(foto);
     a.appendChild(el("span", "pct", "-" + c.d + "%"));
     var info = el("div", "info");
-    var nome = o.t.charAt(0).toUpperCase() + o.t.slice(1);
     info.appendChild(el("span", "nome", nome));
     info.appendChild(el("span", "de", "de " + o.a));
     info.appendChild(el("span", "por", "por " + o.p));
