@@ -1635,7 +1635,7 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
 
 
 def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
-    """Regrava, entre os marcadores da /grupo, a faixa "Achados de hoje" (3 miniaturas que levam ao MESMO convite do
+    """Regrava, entre os marcadores da /grupo, a faixa "Em promoção hoje" (3 miniaturas que levam ao MESMO convite do
     botão da página). Sem 3 ofertas boas ou sem os marcadores, a faixa fica vazia e o resto da página não muda."""
     from pathlib import Path
     pagina = Path(pagina)
@@ -1658,7 +1658,9 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
             for o in sel)
         # 11/10 (painel): a data prova que o grupo está vivo — hora de Brasília (a nuvem roda em UTC)
         hoje = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m")
-        faixa = (f'<div class="faixa"><span class="rot">Achados de hoje, {hoje}:</span>'
+        # "Em promoção hoje" e não "Achados de hoje": são ofertas da vitrine com o preço de hoje, nem todas saíram
+        # no grupo neste dia (Rita, 11/10 3ª rodada)
+        faixa = (f'<div class="faixa"><span class="rot">Em promoção hoje, {hoje}:</span>'
                  f'<div class="minis">{minis}</div></div>')
     ini, fim = html.index(FAIXA_GRUPO_INI) + len(FAIXA_GRUPO_INI), html.index(FAIXA_GRUPO_FIM)
     pagina.write_text(html[:ini] + faixa + html[fim:], encoding="utf-8")
