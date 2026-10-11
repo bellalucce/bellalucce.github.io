@@ -1597,17 +1597,21 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
         if 20 <= d <= 50:
             cand.append((d, o))
     cand.sort(key=lambda x: -x[0])
-    out, marcas, tipos = [], set(), set()
-    for d, o in cand:
-        marca, tipo = o["t"].lower().split()[0], o.get("k") or o.get("g")
-        if marca in marcas or tipo in tipos:
-            continue
-        marcas.add(marca)
-        tipos.add(tipo)
-        out.append({**o, "_d": d})
-        if len(out) >= n:
-            break
-    return out if len(out) >= n else []
+    # 11/10 (revisão): três selos "-50%" lado a lado parecem desconto inventado → 1ª tentativa com % diferentes;
+    # só se não der para fechar as n é que vale repetir a porcentagem.
+    for pct_diferente in (True, False):
+        out, marcas, tipos, pcts = [], set(), set(), set()
+        for d, o in cand:
+            marca, tipo = o["t"].lower().split()[0], o.get("k") or o.get("g")
+            if marca in marcas or tipo in tipos or (pct_diferente and d in pcts):
+                continue
+            marcas.add(marca)
+            tipos.add(tipo)
+            pcts.add(d)
+            out.append({**o, "_d": d})
+            if len(out) >= n:
+                return out
+    return []
 
 
 def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:

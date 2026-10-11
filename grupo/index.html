@@ -38,6 +38,14 @@
                   background: #fff; color: var(--caramelo-esc); cursor: pointer; }
   .aviso button.sim { background: var(--caramelo); color: #fff; }
   small[hidden] { display: none; }
+  /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
+  @media (max-width: 350px) {
+    h1 { font-size: 1.42rem; }
+    a.botao { font-size: .98rem; letter-spacing: 0; padding: 15px 8px; }
+    a.botao.sec { font-size: .78rem; }
+    .aviso { font-size: .7rem; gap: 6px; padding: 6px 10px; }
+    .aviso button { padding: 6px 9px 5px; }
+  }
   small a { color: inherit; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
@@ -99,7 +107,7 @@
   <a class="botao sec" href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q">Prefiro o canal · ninguém vê meu número</a>
 
   <section id="achados" hidden>
-    <h2>Achados de hoje</h2>
+    <h2>Mais achados de hoje</h2>
     <p class="data" id="data-precos" hidden></p>
     <div class="grade" id="grade"></div>
     <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a>
@@ -111,7 +119,7 @@
     <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo do WhatsApp" acima. É grátis e você sai quando quiser.</p>
     <p><b>Que tipo de promoção aparece?</b><br>Achadinhos de beleza da Shopee, Amazon, Magalu e outras lojas: maquiagem, skincare, dermocosméticos, perfume e cabelo.</p>
     <p><b>Prefere não mostrar o número?</b><br>Siga o canal do WhatsApp: as mesmas ofertas e ninguém vê o seu número.</p>
-    <p><b>Quantas mensagens por dia?</b><br>Várias ofertas por hora, das 8h às 22h. Você olha quando quiser.</p>
+    <p><b>Quantas mensagens por dia?</b><br>Várias ofertas por hora, das 8h às 22h. Dá para silenciar o grupo e olhar só quando quiser.</p>
   </div>
   <small>Os preços são os da hora em que foram conferidos e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
   <small id="priv" hidden>Privacidade: contamos as visitas sem cookie e sem dado pessoal. Só se você aceitar, o Pixel da Meta registra a visita e o toque em "Entrar" para medirmos nossos anúncios. <a href="#" id="aviso-mudar">Mudar minha escolha</a></small>
@@ -151,11 +159,12 @@
       cand.push({ o: o, d: d });
     }
     cand.sort(function (x, y) { return y.d - x.d; });
-    var porLoja = {}, porTipo = {}, marcas = {}, sel = [];
+    var porLoja = {}, porTipo = {}, marcas = {}, porPct = {}, sel = [];
     for (var j = 0; j < cand.length && sel.length < MAX; j++) {
       var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
       var marca = c.o.t.toLowerCase().split(/\s+/)[0];  // 06/10: 1 por marca (2 palavras deixava passar 2 Lancôme)
-      if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca]) continue;
+      if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca] || (porPct[c.d] || 0) >= 2) continue;
+      porPct[c.d] = (porPct[c.d] || 0) + 1;
       porLoja[lj] = (porLoja[lj] || 0) + 1;
       porTipo[tipo] = (porTipo[tipo] || 0) + 1;
       marcas[marca] = 1;
