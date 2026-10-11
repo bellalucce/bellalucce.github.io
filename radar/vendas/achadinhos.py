@@ -17,7 +17,7 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -1631,7 +1631,10 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
             # foto que não carrega some sozinha (a miniatura não vira um quadrado quebrado na 1ª tela do anúncio)
             f'onerror="this.parentNode.style.display=\'none\'"><b>-{o["_d"]}%</b><span>por {e(str(o["p"]))}</span></a>'
             for o in sel)
-        faixa = f'<div class="faixa"><span class="rot">Achados de hoje:</span><div class="minis">{minis}</div></div>'
+        # 11/10 (painel): a data prova que o grupo está vivo — hora de Brasília (a nuvem roda em UTC)
+        hoje = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m")
+        faixa = (f'<div class="faixa"><span class="rot">Achados de hoje, {hoje}:</span>'
+                 f'<div class="minis">{minis}</div></div>')
     ini, fim = html.index(FAIXA_GRUPO_INI) + len(FAIXA_GRUPO_INI), html.index(FAIXA_GRUPO_FIM)
     pagina.write_text(html[:ini] + faixa + html[fim:], encoding="utf-8")
     return len(sel)
