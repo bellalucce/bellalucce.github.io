@@ -12,7 +12,10 @@
 <link rel="icon" href="../favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600&display=swap" rel="stylesheet">
+<!-- 11/10 (auditoria): com o Google Fonts sem responder a página ficava 20 s EM BRANCO, sem botão. Agora a folha das
+     fontes carrega sem segurar a pintura: a página aparece na hora com a letra do aparelho e troca quando a fonte chega. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600&display=swap" rel="stylesheet"></noscript>
 <style>
   :root { --caramelo: #B9683C; --caramelo-esc: #8E4A26; --creme: #F4E8D2; --creme-claro: #FBF4E6; --texto: #4A2C1A; }
   * { box-sizing: border-box; }
@@ -144,7 +147,9 @@
     var o = c.o, a = el("a", "card");
     a.href = CONVITE;
     var foto = el("div", "foto"), img = el("img");
-    img.src = o.f; img.alt = o.t; img.loading = "lazy"; img.decoding = "async";
+    // 11/10 (auditoria): foto da Shopee na versão pequena (_tn, ~30 KB em vez de até 500 KB)
+    img.src = /^https:\/\/[^\/]*(shopee\.com\.br|susercontent\.com)\/file\/[A-Za-z0-9_-]+$/.test(o.f) && !/_tn$/.test(o.f) ? o.f + "_tn" : o.f;
+    img.alt = o.t; img.loading = "lazy"; img.decoding = "async";
     img.referrerPolicy = "no-referrer";
     img.onerror = function () { if (a.parentNode) a.parentNode.removeChild(a); };
     foto.appendChild(img);

@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8"><meta name="lomadee" content="2324685">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; script-src 'unsafe-inline'; connect-src 'self'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'">
+<!-- 11/10 (auditoria): a regra antiga barrava o contador de visitas (gc.zgo.at/count.js) — as visitas da bio não
+     eram contadas. Liberados só o script do contador e o endereço para onde ele manda a contagem. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https://bellalucce.goatcounter.com; script-src 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Bella Lucce · Links</title>
 <meta name="description" content="Achadinhos de make, skincare, perfume, cabelo e dermo com desconto de verdade — grupo de ofertas, achados dos posts e nossa loja.">
 <link rel="icon" href="../favicon.png">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Josefin+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Josefin+Sans:wght@400;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Josefin+Sans:wght@400;600&display=swap" rel="stylesheet"></noscript>
 <style>
   :root { --rosa: #B9683C; --rosa-esc: #8E4A26; --tinta: #4A2C1A; --fundo: #F4E8D2; --cartao: #FBF4E6; }
   * { box-sizing: border-box; }

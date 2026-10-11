@@ -1572,6 +1572,15 @@ def _num_brl(s) -> float:
         return 0.0
 
 
+def miniatura_shopee(url: str) -> str:
+    """Foto da Shopee na versão pequena (`_tn`, ~320 px, ~30 KB). 11/10 (auditoria): a /grupo baixava a foto inteira
+    (até 508 KB) para mostrar 96 px — 1 MB de imagem numa página de anúncio. Outras lojas: devolve igual."""
+    u = str(url or "")
+    if re.search(r"https://[^/]*(?:shopee\.com\.br|susercontent\.com)/file/[A-Za-z0-9_-]+$", u) and not u.endswith("_tn"):
+        return u + "_tn"
+    return u
+
+
 def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
     """As `n` ofertas da faixa: `dados` = itens do ofertas.json ({"g","k","l","t","p","a","f"…})."""
     cand = []
@@ -1617,8 +1626,10 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
     faixa = ""
     if sel:
         minis = "".join(
-            f'<a class="mini" href="{convite.group(1)}"><img src="{e(o["f"], quote=True)}" alt="{e(o["t"][:60], quote=True)}" '
-            f'width="96" height="96" referrerpolicy="no-referrer"><b>-{o["_d"]}%</b><span>por {e(str(o["p"]))}</span></a>'
+            f'<a class="mini" href="{convite.group(1)}"><img src="{e(miniatura_shopee(o["f"]), quote=True)}" '
+            f'alt="{e(o["t"][:60], quote=True)}" width="96" height="96" referrerpolicy="no-referrer" '
+            # foto que não carrega some sozinha (a miniatura não vira um quadrado quebrado na 1ª tela do anúncio)
+            f'onerror="this.parentNode.style.display=\'none\'"><b>-{o["_d"]}%</b><span>por {e(str(o["p"]))}</span></a>'
             for o in sel)
         faixa = f'<div class="faixa"><span class="rot">Achados de hoje:</span><div class="minis">{minis}</div></div>'
     ini, fim = html.index(FAIXA_GRUPO_INI) + len(FAIXA_GRUPO_INI), html.index(FAIXA_GRUPO_FIM)
@@ -4626,6 +4637,13 @@ def publicar_site() -> str:
         fonte = nova / destino if (nova / destino).exists() else config.DADOS / "marca" / origem
         if fonte.exists():
             shutil.copyfile(fonte, pasta / destino)
+    # 11/10 (auditoria): o workflow da nuvem só dispara com mudança em radar/**. Um conserto SÓ na /grupo ou na /links
+    # (ex.: a guarda trocando o convite) não publicava sozinho → a impressão digital dessas páginas mora em radar/dados
+    # e muda junto com elas.
+    import hashlib
+    digitais = [f"{sub} {hashlib.sha256((pasta / sub / 'index.html').read_bytes()).hexdigest()[:16]}"
+                for sub in ("grupo", "links") if (pasta / sub / "index.html").exists()]
+    (radar / "dados" / "paginas.txt").write_text("\n".join(digitais) + "\n", encoding="utf-8")
     git = ["git", "-C", str(pasta), "-c", "user.name=bellalucce", "-c", "user.email=bellalucce@users.noreply.github.com",
            "-c", "credential.helper=", "-c", "credential.helper=manager"]
     # 09/10: o PC desligou no meio de um push (08/10 17:32) e zerou index/refs do .git → site parado 3 h. O clone
@@ -4638,6 +4656,14 @@ def publicar_site() -> str:
     if r.returncode != 0:
         raise RuntimeError(f"git add falhou: {r.stderr.strip()[:200]}")
     if subprocess.run(git + ["diff", "--cached", "--quiet"]).returncode == 0:
+        # 11/10 (auditoria do caminho do anúncio): push que falhava NÃO era repetido — o commit ficava só no PC até
+        # aparecer outra mudança (um conserto do convite podia ficar horas sem ir ao ar)
+        adiante = subprocess.run(git + ["rev-list", "--count", "origin/main..HEAD"], capture_output=True, text=True)
+        if adiante.returncode == 0 and adiante.stdout.strip() not in ("", "0"):
+            subprocess.run(git + ["pull", "-q", "--rebase", "origin", "main"], capture_output=True, text=True, timeout=120)
+            r = subprocess.run(git + ["push", "-q", "origin", "main"], capture_output=True, text=True, timeout=120)
+            return ("radar na nuvem atualizado (push repetido)" if r.returncode == 0
+                    else f"push falhou de novo: {r.stderr.strip()[:200]}")
         return "radar na nuvem: nada novo"
     subprocess.run(git + ["commit", "-qm", "Radar: dados/código do PC"], check=True)
     subprocess.run(git + ["pull", "-q", "--rebase", "origin", "main"], capture_output=True, text=True, timeout=120)
