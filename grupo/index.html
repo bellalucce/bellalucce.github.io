@@ -192,6 +192,27 @@
       }
     } catch (e) {}
   }, true);
+  /* 11/10 15h — o anúncio trouxe 15 visitas de celular e 0 toque. Para saber se a pessoa sai na hora (ou se a
+     "visita" é só o Instagram pré-carregando a página) ou se ela lê e não toca: conta, 1 vez por visita,
+     "ficou 5 s com a página visível" e "rolou a página". Sem dado pessoal. */
+  function evento(nome, titulo) {
+    try {
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: nome + (de ? "-" + de : ""), title: titulo, event: true });
+      }
+    } catch (e) {}
+  }
+  var visivel = 0, marcou5 = false, rolou = false;
+  setInterval(function () {
+    if (marcou5 || document.visibilityState !== "visible") return;
+    visivel += 1;
+    if (visivel >= 5) { marcou5 = true; evento("ficou5s", "Ficou 5 s na página"); }
+  }, 1000);
+  window.addEventListener("scroll", function () {
+    if (rolou || (window.pageYOffset || 0) < 250) return;
+    rolou = true;
+    evento("rolou", "Rolou a página");
+  }, { passive: true });
 })();
 </script>
 <script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
