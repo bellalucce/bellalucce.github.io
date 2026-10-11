@@ -240,7 +240,7 @@
   var tocou = 0;
   /* 11/10 — Pixel da Meta (dona: "Pixel da meta sim"). Só carrega DEPOIS do "Aceitar"; com PIXEL vazio fica tudo
      desligado e o aviso nem aparece. Manda PageView ao aceitar e Lead no toque em "Entrar no grupo". */
-  var PIXEL = "";
+  var PIXEL = "4449121092071476";
   var TEM_PIXEL = /^\d{10,20}$/.test(PIXEL);
   function escolha() { try { return localStorage.getItem("bl_pixel") || ""; } catch (e) { return ""; } }
   function guardar(v) { try { if (v) localStorage.setItem("bl_pixel", v); else localStorage.removeItem("bl_pixel"); } catch (e) {} }
