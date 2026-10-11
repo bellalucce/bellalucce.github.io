@@ -210,9 +210,18 @@
      Cosmetics"). Fica só a parte antes do " - " e voltam os acentos mais comuns que os vendedores comem. */
   var ACENTOS = [[/\bsubita\b/gi, "Súbita"], [/\bmascara\b/gi, "Máscara"], [/\bliquid([oa])\b/gi, "Líquid$1"],
                  [/\bhidratacao\b/gi, "Hidratação"], [/\bcilios\b/gi, "Cílios"], [/\boleo\b/gi, "Óleo"],
-                 [/\bbatom liquido\b/gi, "Batom Líquido"], [/\bpo\b(?= compacto| solto| transl)/gi, "Pó"]];
+                 [/\bpo\b(?= compacto| solto| transl| facial| banana)/gi, "Pó"], [/\barabe\b/gi, "Árabe"],
+                 [/\bcitric([oa])\b/gi, "Cítric$1"]];
+  /* Só corta o rabo depois do " - " quando ele é enfeite do vendedor ("Escolha Seu Tom", "Lola Cosmetics",
+     "Pronta Entrega"…). Se o rabo diz O QUE é o produto ("… Nutri-Enrich - Máscara Capilar 150ml"), fica. */
+  var RABO = /^(escolha|escolher|v[aá]rias? cores?|diversas? cores?|cores?|tons?|original|pronta entrega|envio|frete|oficial|lan[cç]amento|promo[cç][aã]o|lola cosmetics|[a-zà-ú]+ (cosmetics|cosm[eé]ticos|oficial|store|beauty))\b/i;
   function tituloLimpo(t) {
-    var s = String(t || "").split(/\s[-–|]\s/)[0].replace(/\s+/g, " ").trim();
+    var partes = String(t || "").split(/\s[-–|]\s/), s = partes[0];
+    for (var r = 1; r < partes.length; r++) {
+      if (RABO.test(partes[r].trim())) break;
+      s += " - " + partes[r];
+    }
+    s = s.replace(/\s+/g, " ").trim();
     for (var q = 0; q < ACENTOS.length; q++) s = s.replace(ACENTOS[q][0], ACENTOS[q][1]);
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
