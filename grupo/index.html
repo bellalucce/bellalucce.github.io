@@ -22,11 +22,23 @@
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; font-family: "Josefin Sans", "Segoe UI", system-ui, sans-serif; background: var(--creme);
          color: var(--texto); overflow-x: hidden; }
-  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 104px; text-align: center; }
+  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 150px; text-align: center; }
   /* 10/10 noite: quem rola a página perdia o botão de vista (4 visitas do anúncio, 0 toque) → botão sempre na tela */
-  .fixo { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: rgba(244, 232, 210, .97);
+  .rodape { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; }
+  .fixo { background: rgba(244, 232, 210, .97);
           border-top: 1px solid rgba(185, 104, 60, .35); padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); }
   .fixo a.botao { max-width: 448px; margin: 0 auto; padding: 14px 12px; text-align: center; }
+  /* 11/10: aviso do Pixel da Meta (só aparece quando existe Pixel e a pessoa ainda não escolheu). Dois botões do mesmo
+     tamanho, sem empurrar ninguém para o "Aceitar"; fino, para não tampar o botão de entrar. */
+  .aviso { display: flex; align-items: center; gap: 8px; background: #fff; border-top: 1px solid rgba(185, 104, 60, .35);
+           padding: 7px 12px; font-size: .76rem; line-height: 1.3; text-align: left; color: #6b4a33; }
+  .aviso[hidden] { display: none; }
+  .aviso span { flex: 1; min-width: 0; }
+  .aviso button { font: inherit; font-weight: 600; border-radius: 20px; padding: 7px 11px 6px; border: 1.5px solid var(--caramelo);
+                  background: #fff; color: var(--caramelo-esc); cursor: pointer; }
+  .aviso button.sim { background: var(--caramelo); color: #fff; }
+  small[hidden] { display: none; }
+  small a { color: inherit; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
   h1 { font-size: 1.62rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.12; }
@@ -95,6 +107,7 @@
     <p><b>Quantas mensagens por dia?</b><br>Várias ofertas por hora, das 8h às 22h. Você olha quando quiser.</p>
   </div>
   <small>Os preços são os da hora em que foram conferidos e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
+  <small id="priv" hidden>Privacidade: contamos as visitas sem cookie e sem dado pessoal. Só se você aceitar, o Pixel da Meta registra a visita e o toque em "Entrar" para medirmos nossos anúncios. <a href="#" id="aviso-mudar">Mudar minha escolha</a></small>
 </main>
 <script>
 (function () {
@@ -191,7 +204,10 @@
   } catch (e) {}
 })();
 </script>
-<div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a></div>
+<div class="rodape">
+  <div class="aviso" id="aviso" hidden><span>Podemos usar o Pixel da Meta para medir nossos anúncios?</span><button type="button" id="aviso-nao">Recusar</button><button type="button" class="sim" id="aviso-sim">Aceitar</button></div>
+  <div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a></div>
+</div>
 <script>
 /* 10/10 — contador grátis (GoatCounter, sem cookie): visitas por origem (?de=fb19, ?de=amiga…) e toques no botão
    "Entrar no grupo". Sem dado pessoal: só página, origem e hora. Se o contador estiver fora do ar, nada quebra. */
@@ -210,9 +226,50 @@
       if (window.goatcounter && window.goatcounter.count) {
         window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
       }
+      // Pixel (só existe se a pessoa aceitou): o toque em "Entrar no grupo" é a conversão que o anúncio persegue
+      if (canal === "grupo" && window.fbq) window.fbq("track", "Lead", { content_name: "grupo-whatsapp" });
     } catch (e) {}
   }, true);
   var tocou = 0;
+  /* 11/10 — Pixel da Meta (dona: "Pixel da meta sim"). Só carrega DEPOIS do "Aceitar"; com PIXEL vazio fica tudo
+     desligado e o aviso nem aparece. Manda PageView ao aceitar e Lead no toque em "Entrar no grupo". */
+  var PIXEL = "";
+  var TEM_PIXEL = /^\d{10,20}$/.test(PIXEL);
+  function escolha() { try { return localStorage.getItem("bl_pixel") || ""; } catch (e) { return ""; } }
+  function guardar(v) { try { if (v) localStorage.setItem("bl_pixel", v); else localStorage.removeItem("bl_pixel"); } catch (e) {} }
+  function ligarPixel() {
+    if (!TEM_PIXEL || window.fbq) return;
+    try {
+      var n = window.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+      window._fbq = n; n.push = n; n.loaded = true; n.version = "2.0"; n.queue = [];
+      var s = document.createElement("script");
+      s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
+      document.head.appendChild(s);
+      n("init", PIXEL);
+      n("track", "PageView");
+    } catch (e) {}
+  }
+  function perguntar() {
+    var av = document.getElementById("aviso");
+    if (!av || av.__ligado) { if (av) av.hidden = false; return; }
+    av.__ligado = true;
+    av.hidden = false;
+    document.getElementById("aviso-sim").addEventListener("click", function () {
+      guardar("sim"); av.hidden = true; ligarPixel(); evento("pixel-sim", "Aceitou o Pixel");
+    });
+    document.getElementById("aviso-nao").addEventListener("click", function () {
+      guardar("nao"); av.hidden = true; evento("pixel-nao", "Recusou o Pixel");
+    });
+  }
+  try {
+    if (TEM_PIXEL) {
+      var priv = document.getElementById("priv");
+      if (priv) priv.hidden = false;
+      var mudar = document.getElementById("aviso-mudar");
+      if (mudar) mudar.addEventListener("click", function (ev) { ev.preventDefault(); guardar(""); perguntar(); });
+      if (escolha() === "sim") ligarPixel(); else if (escolha() !== "nao") perguntar();
+    }
+  } catch (e) {}
   /* 11/10 15h — o anúncio trouxe 15 visitas de celular e 0 toque. Para saber se a pessoa sai na hora (ou se a
      "visita" é só o Instagram pré-carregando a página) ou se ela lê e não toca: conta, 1 vez por visita,
      "ficou 5 s com a página visível" e "rolou a página". Sem dado pessoal. */
