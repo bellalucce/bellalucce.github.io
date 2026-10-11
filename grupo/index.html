@@ -43,7 +43,7 @@
   small a { color: inherit; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
-  h1 { font-size: 1.62rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.12; }
+  h1 { font-size: 1.62rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.12; text-wrap: balance; }
   p.sub { margin: 0 0 10px; line-height: 1.4; font-size: .98rem; }
   a.botao { display: block; padding: 16px 12px; margin: 10px 0 8px; border-radius: 40px; font-size: 1.12rem; font-weight: 600;
             text-decoration: none; color: #fff; background: var(--caramelo); letter-spacing: .02em;
@@ -72,7 +72,8 @@
            border-radius: 14px; overflow: hidden; text-decoration: none; color: var(--texto); position: relative; }
   a.card .foto { aspect-ratio: 1 / 1; background: #fff; display: flex; align-items: center; justify-content: center; }
   a.card img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  a.card .pct { position: absolute; top: 8px; left: 8px; background: var(--caramelo); color: #fff; font-weight: 600;
+  /* 11/10 (Cecília): o selo fica ABAIXO da foto — em cima dela tampava a marca na embalagem */
+  a.card .pct { align-self: flex-start; margin: 8px 0 0 9px; background: var(--caramelo); color: #fff; font-weight: 600;
                 font-size: .8rem; padding: 4px 7px 3px; border-radius: 20px; }
   a.card .info { padding: 8px 9px 10px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
   a.card .nome { font-size: .8rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -183,6 +184,10 @@
       // 06/10 (Vitória): desconto crível (20–50%), preço de achadinho (até R$ 150) e nada de título com várias versões
       // ("Mini/Original", "30ml / 50ml") — o preço mostrado pode ser o da versão menor
       if (d < 20 || d > 50 || p > 150 || /\w\s*\/\s*\w/.test(o.t)) continue;
+      // 11/10 (Rita): "de" exatamente o dobro do preço (69,98 → 34,99) é o padrão do preço inflado → fora
+      if (Math.abs(a / p - 2) < 0.011) continue;
+      // 11/10 (Cecília): kit e "A + B" fora também da grade — o preço pode ser o da variação mais barata
+      if (/\bkit\b|\s\+\s/i.test(o.t)) continue;
       cand.push({ o: o, d: d, m: MARCA.test(o.t) ? 1 : 0 });
     }
     cand.sort(function (x, y) { return (y.m - x.m) || (y.d - x.d); });
@@ -230,6 +235,7 @@
     }).then(function (res) {
       var lista = Array.isArray(res.j) ? res.j : (res.j && Array.isArray(res.j.ofertas) ? res.j.ofertas : []);
       var sel = escolher(lista);
+      if (sel.length % 2) sel.pop();  // grade de 2 colunas: número par, sem buraco na última linha
       if (sel.length < MIN) return;
       var grade = document.getElementById("grade");
       for (var i = 0; i < sel.length; i++) grade.appendChild(cartao(sel[i]));

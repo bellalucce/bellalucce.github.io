@@ -1606,6 +1606,10 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
         # o da variação mais barata; sem como conferir na loja, kit e "A + B" ficam fora da faixa
         if re.search(r"\bkit\b|\s\+\s", titulo, re.I):
             continue
+        # 11/10 (Rita, 4ª rodada): "de" que é EXATAMENTE o dobro do preço (69,98 → 34,99) é o padrão do preço inflado;
+        # o mesmo produto estava em outra loja de R$ 32,90 por R$ 29,61. Debaixo de "desconto de verdade" não entra.
+        if abs(a / p - 2) < 0.011:
+            continue
         d = round((1 - p / a) * 100)
         if 20 <= d <= 50:
             cand.append((d, o))
