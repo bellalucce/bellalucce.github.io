@@ -1562,7 +1562,13 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
 # R$ 150, 1 por marca) e SEM Amazon (preço da Amazon em página exige data e hora) nem Mercado Livre.
 FAIXA_GRUPO_INI, FAIXA_GRUPO_FIM = "<!--FAIXA-INI-->", "<!--FAIXA-FIM-->"
 _FAIXA_RUIM = re.compile(r"infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|"
-                         r"primeira linha|1ª linha|\btipo ", re.I)
+                         r"primeira linha|1ª linha|\btipo |brand collection|clareamento|melasma|manchas escuras", re.I)
+# 11/10 (revisão): a faixa é a 1ª tela do anúncio pago → marca que a visitante reconhece vem primeiro
+_FAIXA_MARCA = re.compile(r"boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|"
+                          r"creamy|sallve|eudora|natura|botic[aá]rio|l.or[eé]al|neutrogena|la roche|cerave|nivea|garnier|"
+                          r"maybelline|salon line|skala|novex|lola|wella|truss|hidrabene|kokeshi|max love|vizzela|tracta|avon|"
+                          r"isdin|cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|"
+                          r"bra[eé]\b|amend|cadiveu|dove|quem disse|niina|adcos|ricca|fenzza|adversa", re.I)
 
 
 def _num_brl(s) -> float:
@@ -1604,10 +1610,15 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
     # só se não der para fechar as n é que vale repetir a porcentagem.
     # 11/10 18h (revisão no ar): com "% diferentes" a faixa pegou dois itens de R$ 114 — faixa de ACHADINHO primeiro
     # tenta só até R$ 80; o teto de R$ 150 fica como reserva.
-    for teto, pct_diferente in ((80, True), (80, False), (150, True), (150, False)):
+    for so_marca, teto, pct_diferente in ((True, 80, True), (True, 80, False), (True, 150, True), (False, 80, True),
+                                          (False, 80, False), (False, 150, True), (False, 150, False)):
         out, marcas, tipos, pcts = [], set(), set(), set()
         for d, o in cand:
-            marca, tipo = o["t"].lower().split()[0], o.get("k") or o.get("g")
+            achou = _FAIXA_MARCA.search(o["t"])
+            # 1 por marca: a marca reconhecida, quando existe (dois "Boca Rosa" com títulos diferentes não passam)
+            marca, tipo = (achou.group(0).lower() if achou else o["t"].lower().split()[0]), o.get("k") or o.get("g")
+            if so_marca and not achou:
+                continue
             if _num_brl(o.get("p")) > teto or marca in marcas or tipo in tipos or (pct_diferente and d in pcts):
                 continue
             marcas.add(marca)

@@ -131,7 +131,9 @@
 (function () {
   var CONVITE = "https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi";
   var GRUPOS = { beleza: 1, perfume: 1, cabelo: 1 };
-  var RUIM = /infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|primeira linha|1ª linha|\btipo /i;
+  var RUIM = /infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|primeira linha|1ª linha|\btipo |brand collection|clareamento|melasma|manchas escuras/i;
+  // 11/10 (revisão): página do anúncio pago → marca que a visitante reconhece aparece primeiro (mesma lista da faixa)
+  var MARCA = /boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|creamy|sallve|eudora|natura|botic[aá]rio|l.or[eé]al|neutrogena|la roche|cerave|nivea|garnier|maybelline|salon line|skala|novex|lola|wella|truss|hidrabene|kokeshi|max love|vizzela|tracta|avon|isdin|cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|bra[eé]\b|amend|cadiveu|dove|quem disse|niina|adcos|ricca|fenzza|adversa/i;
   var MAX = 6, MIN = 3, POR_LOJA = 4, POR_TIPO = 2;
 
   function num(s) {
@@ -179,13 +181,14 @@
       // 06/10 (Vitória): desconto crível (20–50%), preço de achadinho (até R$ 150) e nada de título com várias versões
       // ("Mini/Original", "30ml / 50ml") — o preço mostrado pode ser o da versão menor
       if (d < 20 || d > 50 || p > 150 || /\w\s*\/\s*\w/.test(o.t)) continue;
-      cand.push({ o: o, d: d });
+      cand.push({ o: o, d: d, m: MARCA.test(o.t) ? 1 : 0 });
     }
-    cand.sort(function (x, y) { return y.d - x.d; });
+    cand.sort(function (x, y) { return (y.m - x.m) || (y.d - x.d); });
     var porLoja = {}, porTipo = {}, marcas = {}, porPct = {}, sel = [];
     for (var j = 0; j < cand.length && sel.length < MAX; j++) {
       var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
-      var marca = c.o.t.toLowerCase().split(/\s+/)[0];  // 06/10: 1 por marca (2 palavras deixava passar 2 Lancôme)
+      var achou = c.o.t.match(MARCA);  // 1 por marca: a reconhecida, quando existe; senão a 1ª palavra do título
+      var marca = achou ? achou[0].toLowerCase() : c.o.t.toLowerCase().split(/\s+/)[0];
       if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca] || (porPct[c.d] || 0) >= 2) continue;
       if (repetido(c.o.t, sel)) continue;
       porPct[c.d] = (porPct[c.d] || 0) + 1;
