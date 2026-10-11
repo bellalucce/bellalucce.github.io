@@ -1586,7 +1586,10 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
     cand = []
     for o in dados or []:
         loja, foto, titulo = str(o.get("l") or ""), str(o.get("f") or ""), str(o.get("t") or "")
-        if not loja or re.search(r"mercado\s*livre|amazon", loja, re.I) or o.get("g") not in ("beleza", "perfume", "cabelo"):
+        # 11/10 (Cecília): página do anúncio PAGO → Océane fora (o contrato proíbe a marca em mídia paga)
+        if not loja or re.search(r"mercado\s*livre|amazon|oc[eé]ane", loja, re.I) or re.search(r"oc[eé]ane", titulo, re.I):
+            continue
+        if o.get("g") not in ("beleza", "perfume", "cabelo"):
             continue
         if not foto.startswith("https://") or "i.promobit.com.br" in foto or not titulo or _FAIXA_RUIM.search(titulo):
             continue

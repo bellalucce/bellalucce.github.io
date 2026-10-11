@@ -9,6 +9,8 @@
 <meta property="og:title" content="Achadinhos de Beleza: grupo de ofertas no WhatsApp | Bella Lucce">
 <meta property="og:description" content="Make, skincare e cabelo com desconto de verdade, todo dia. Entrar é grátis.">
 <meta property="og:image" content="https://bellalucce.github.io/grupo/convite.jpg">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="https://bellalucce.github.io/grupo/"><meta property="og:type" content="website">
 <link rel="icon" href="../favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,10 +43,11 @@
   /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
   @media (max-width: 350px) {
     h1 { font-size: 1.42rem; }
-    a.botao { font-size: .98rem; letter-spacing: 0; padding: 15px 8px; }
-    a.botao.sec { font-size: .78rem; }
+    a.botao { font-size: .9rem; letter-spacing: 0; padding: 15px 6px; white-space: nowrap; }
+    a.botao svg { margin-right: .3em; }
+    a.botao.sec { font-size: .76rem; }
     .aviso { font-size: .7rem; gap: 6px; padding: 6px 10px; }
-    .aviso button { padding: 6px 9px 5px; }
+    .aviso button { padding: 8px 9px 7px; min-height: 34px; }
   }
   small a { color: inherit; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
@@ -142,12 +145,32 @@
     return e;
   }
   function escolher(lista) {
-    var cand = [];
+    var cand = [], naFaixa = {};
+    var minis = document.querySelectorAll(".faixa a.mini img");
+    for (var m = 0; m < minis.length; m++) naFaixa[String(minis[m].getAttribute("src") || "").replace(/_tn$/, "")] = 1;
+    // 11/10 (Cecília): a mesma escova apareceu 2× (Shopee e Amazon, preços diferentes). Mesmo produto = 3 ou mais
+    // palavras grandes em comum no título, seja qual for a ordem ou a loja.
+    function palavras(t) {
+      var w = String(t || "").toLowerCase().replace(/[^a-z0-9à-ú ]/g, " ").split(/\s+/), out = {};
+      for (var q = 0; q < w.length; q++) if (w[q].length >= 4) out[w[q]] = 1;
+      return out;
+    }
+    function repetido(t, escolhidas) {
+      var a = palavras(t);
+      for (var q = 0; q < escolhidas.length; q++) {
+        var b = palavras(escolhidas[q].o.t), n = 0;
+        for (var k in a) if (b[k]) n++;
+        if (n >= 3) return true;
+      }
+      return false;
+    }
     for (var i = 0; i < lista.length; i++) {
       var o = lista[i] || {};
       var loja = String(o.l || "");
-      if (!loja || /mercado\s*livre/i.test(loja)) continue;
+      // 11/10 (Cecília): esta é a página do anúncio PAGO → Océane fora (o contrato proíbe a marca em mídia paga)
+      if (!loja || /mercado\s*livre|oc[eé]ane/i.test(loja) || /oc[eé]ane/i.test(o.t || "")) continue;
       if (!GRUPOS[o.g]) continue;
+      if (naFaixa[String(o.f || "").replace(/_tn$/, "")]) continue;  // já está nas 3 miniaturas de cima
       if (!/^https:\/\//.test(o.f || "") || /i\.promobit\.com\.br/.test(o.f)) continue;
       if (!o.t || RUIM.test(o.t)) continue;
       var p = num(o.p), a = num(o.a);
@@ -164,6 +187,7 @@
       var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
       var marca = c.o.t.toLowerCase().split(/\s+/)[0];  // 06/10: 1 por marca (2 palavras deixava passar 2 Lancôme)
       if ((porLoja[lj] || 0) >= POR_LOJA || (porTipo[tipo] || 0) >= POR_TIPO || marcas[marca] || (porPct[c.d] || 0) >= 2) continue;
+      if (repetido(c.o.t, sel)) continue;
       porPct[c.d] = (porPct[c.d] || 0) + 1;
       porLoja[lj] = (porLoja[lj] || 0) + 1;
       porTipo[tipo] = (porTipo[tipo] || 0) + 1;
