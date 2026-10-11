@@ -417,6 +417,17 @@ def cortar(t: str, n: int) -> str:
             if not TAMANHO_TITULO.search(nome) and (tam := TAMANHO_TITULO.search(t[len(nome):])) \
                     and len(nome) + len(tam.group(0)) < n:
                 nome += " " + tam.group(0)
+            # 11/10 (Rita, 3× em 10/10: "Creme Hidratante Facial Antirugas Diurno 49g" — era Revitalift L'Oréal Paris,
+            # com a MARCA depois da vírgula): sem a marca o post perde o que dá confiança → volta o pedaço que tem a
+            # marca (se curto e couber) ou só o nome da marca
+            if not _marca_em(nome):
+                resto = [p for p in partes if p not in nome.split(", ") and _marca_em(p)]
+                if resto:
+                    pedaco = resto[0].strip()
+                    if len(pedaco.split()) <= 5 and len(nome) + 2 + len(pedaco) <= n:
+                        nome += ", " + pedaco
+                    elif (m := _marca_em(pedaco)) and len(nome) + 1 + len(m.group(0)) <= n:
+                        nome += " " + m.group(0)
             return _fim_limpo(nome)
     t = t[:n + 1].rsplit(" ", 1)[0] if " " in t[:n + 1] else t[:n]
     if t.count("(") > t.count(")"):  # 06/10 (Rita): "… Kit (3" — parêntese aberto pelo corte
@@ -436,6 +447,19 @@ def cortar(t: str, n: int) -> str:
 
 
 TAMANHO_TITULO = re.compile(r"(?i)(?<![\w,.])\d+(?:[.,]\d+)?\s?(?:ml|g|kg|l|oz)(?!\w)")
+
+
+def _marca_em(texto: str):
+    """Marca conhecida no texto (MARCAS, MARCAS_SKINCARE ou MARCA_EXTRA) como PALAVRA inteira, ou None
+    ("Natural" não é a Natura; "Dovela" não é a Dove)."""
+    texto = texto or ""
+    for rx in (MARCAS, MARCAS_SKINCARE, MARCA_EXTRA):
+        for m in rx.finditer(texto):
+            antes = texto[m.start() - 1] if m.start() else " "
+            depois = texto[m.end()] if m.end() < len(texto) else " "
+            if not antes.isalnum() and not depois.isalnum():
+                return m
+    return None
 
 
 def _fim_limpo(t: str) -> str:
@@ -1817,7 +1841,10 @@ BENEFICIOS = [
     (r"toalha|toalh[ãa]o", "TOALHA FOFINHA DE HOTEL 🛁"),
     (r"panela(?! (?:de )?cera)|frigideira|air ?fryer|fritadeira|mixer|processador de alimentos|liquidificador|cafeteira|"
      r"sanduicheira|batedeira|potes? herm[ée]ticos?|formas? de silicone|travessas?", "COZINHA LINDA GASTANDO POUCO 🍳"),
-    (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby(?![- ]?doll)|porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),  # "canguru": moletom
+    # 11/10: "Kit Baby Glance Care Sabonete + Demaquilante" (skincare) saía com "BANHO GOSTOSO PRO BEBÊ" — "baby"
+    # seguido de termo de maquiagem/cabelo/pele não é bebê
+    (r"fralda|len[çc]os? umedecidos?|beb[êe]|baby(?![- ]?(?:doll|glance|skin|face|lips?|hair|pink|liss|look|glow|blush))|"
+     r"porta beb[êe]", "MAMÃE, CORRE QUE TÁ BARATO 👶"),  # "canguru": moletom
     (r"bolsa(?:s)?(?! (?:de )?(?:t[ée]rmica|isot[ée]rmica|ferramentas?|maternidade|marmita|lancheira))",
      "A BOLSA QUE COMBINA COM TUDO 👜"),
     # 01/10: scarpin de salto alto saía "PÉ LINDO E CONFORTÁVEL 👟" (a variação do salto já tinha saído) → tipo próprio

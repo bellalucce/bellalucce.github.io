@@ -432,6 +432,12 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
         out = ["CUIDADO DE DIA E DE NOITE 🌙" if "DORME" in f else f for f in out]
     elif re.search(r"diurn|\bday\b", titulo, re.I):
         out = [f for f in out if "DORME" not in f] or out
+    # 11/10 (Rita, 5ª vez desde 07/10): sabonete de ROSTO (Dermachem Ácido Salicílico, Nivea Sabonete Facial) saía com
+    # "BANHO GOSTOSO" — sabonete facial é limpeza de pele, não banho
+    sabonete_de_rosto = re.search(r"sabonete[^|]{0,40}(?:facial|rosto|\bface\b|salic[íi]lico|acne|antiacne|oleos|limpeza)|"
+                                  r"(?:facial|rosto|\bface\b|limpeza)[^|]{0,30}sabonete", titulo, re.I)
+    if sabonete_de_rosto and tipo == "PELE LISINHA E COM VIÇO, AMIGA ✨":
+        return ["PELE LIMPINHA SEM REPUXAR ✨", "LIMPEZA DE PELE EM CASA ✨"]
     if re.search(r"gel de banho|gel douche|sabonete|body wash|shower", titulo, re.I) and tipo == "PELE LISINHA E COM VIÇO, AMIGA ✨":
         return ["BANHO GOSTOSO E PELE MACIA 🧴", "PELE MACIA DESDE O BANHO 🧴"]  # 05/10: banho não é skincare de rosto
     if re.search(r"sapatilha|mocassim|loafer|oxford", titulo, re.I):  # 05/10: "Sapatilha … Salto Baixo" saía "SALTO"/"SANDÁLIA"
