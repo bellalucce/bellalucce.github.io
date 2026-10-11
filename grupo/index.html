@@ -40,15 +40,6 @@
                   background: #fff; color: var(--caramelo-esc); cursor: pointer; }
   .aviso button.sim { background: var(--caramelo); color: #fff; }
   small[hidden] { display: none; }
-  /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
-  @media (max-width: 350px) {
-    h1 { font-size: 1.42rem; }
-    a.botao { font-size: .82rem; letter-spacing: 0; padding: 15px 4px; white-space: nowrap; }
-    a.botao svg { margin-right: .3em; }
-    a.botao.sec { font-size: .76rem; }
-    .aviso { font-size: .7rem; gap: 6px; padding: 6px 10px; }
-    .aviso button { padding: 8px 9px 7px; min-height: 34px; }
-  }
   small a { color: inherit; }
   img.logo { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--caramelo); background: var(--creme-claro); }
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
@@ -93,6 +84,16 @@
   .faq { text-align: left; line-height: 1.55; font-size: .95rem; }
   .faq a { color: var(--caramelo-esc); }
   small { display: block; margin-top: 18px; color: #7a5a44; line-height: 1.4; }
+  /* fica por ÚLTIMO de propósito: antes das regras normais ela perdia (11/10 18h10) */
+  /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
+  @media (max-width: 350px) {
+    h1 { font-size: 1.42rem; }
+    a.botao { font-size: .82rem; letter-spacing: 0; padding: 15px 4px; white-space: nowrap; }
+    a.botao svg { margin-right: .3em; }
+    a.botao.sec { font-size: .76rem; }
+    .aviso { font-size: .7rem; gap: 6px; padding: 6px 10px; }
+    .aviso button { padding: 8px 9px 7px; min-height: 34px; }
+  }
 </style>
 </head>
 <body>
