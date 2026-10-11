@@ -1602,6 +1602,10 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
         p, a = _num_brl(o.get("p")), _num_brl(o.get("a"))
         if not (0 < p < a) or p > 150 or re.search(r"\w\s*/\s*\w", titulo):
             continue
+        # 11/10 (Cecília, 2ª rodada): "Kit base + máscara" a R$ 25,99 na 1ª tela — preço de kit/combinação pode ser
+        # o da variação mais barata; sem como conferir na loja, kit e "A + B" ficam fora da faixa
+        if re.search(r"\bkit\b|\s\+\s", titulo, re.I):
+            continue
         d = round((1 - p / a) * 100)
         if 20 <= d <= 50:
             cand.append((d, o))
@@ -1649,7 +1653,8 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
             f'<a class="mini" href="{convite.group(1)}"><img src="{e(miniatura_shopee(o["f"]), quote=True)}" '
             f'alt="{e(o["t"][:60], quote=True)}" width="96" height="96" referrerpolicy="no-referrer" '
             # foto que não carrega some sozinha (a miniatura não vira um quadrado quebrado na 1ª tela do anúncio)
-            f'onerror="this.parentNode.style.display=\'none\'"><b>-{o["_d"]}%</b><span>por {e(str(o["p"]))}</span></a>'
+            # o selo do desconto fica ABAIXO da foto (em cima dela tampava o nome da marca na embalagem)
+            f'onerror="this.parentNode.style.display=\'none\'"><span>por {e(str(o["p"]))}</span><b>-{o["_d"]}%</b></a>'
             for o in sel)
         # 11/10 (painel): a data prova que o grupo está vivo — hora de Brasília (a nuvem roda em UTC)
         hoje = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m")
