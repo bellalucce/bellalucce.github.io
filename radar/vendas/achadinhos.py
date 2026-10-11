@@ -2787,7 +2787,16 @@ def barrada_na_hora(o: dict) -> bool:
             # "masculino" — Ralph's Club/Malbec/Eudora H passavam), validade só na foto (Océane), título sem o tipo
             # do produto e kit de salão da Shopee comum com "De" de vitrine
             or eh_masculino(o) or fora_do_nicho_grupo(t) or validade_na_foto(o) or titulo_sem_tipo(o)
-            or kit_salao_shopee(o))
+            or kit_salao_shopee(o) or titulo_com_defeito(o))
+
+
+def titulo_com_defeito(o: dict) -> bool:
+    """11/10 (Rita vetou os mesmos títulos 6 vezes em 10/10): defeito MECÂNICO no título como sai no post — palavras de
+    busca ("Confortável Clássico Elegante Social"), código ("REF.2025"), variação ("Kit 12/24/36", "Diversos Modelos"),
+    enfeite ("Luxo", "Pronto Envio", "Blogueirinha"), caixa alta, tradução. As regras e os testes ficam em
+    vendas/titulo_regras.py (desliga em config/achadinhos.json → "titulo_regras_barra": false)."""
+    from vendas import titulo_regras
+    return bool(titulo_regras.barra_na_fila(o))
 
 
 # 08/10 (Beto: Océane oce:61508 e oce:81863 com "VALIDADE PRÓXIMA JAN/2027" só na foto): a foto da loja vem com o mês
@@ -3860,7 +3869,9 @@ def detalhe_barradas(horas: int = 30) -> str:
               ("perfume de grife sem ml", lambda o, t: perfume_grife_sem_ml(o)),
               ("validade só na foto", lambda o, t: validade_na_foto(o)),
               ("fora do perfil / título ruim / preço proibido",
-               lambda o, t: fora_do_perfil(t) or titulo_ruim(t) or preco_proibido(o))]
+               lambda o, t: fora_do_perfil(t) or titulo_ruim(t) or preco_proibido(o)),
+              ("título com defeito mecânico (palavras de busca, código, variação, enfeite…)",
+               lambda o, t: titulo_com_defeito(o))]
     total: dict = {}
     so: dict = {}
     grupos: dict = {}
