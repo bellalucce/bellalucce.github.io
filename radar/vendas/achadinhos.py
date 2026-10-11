@@ -1602,11 +1602,13 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
     cand.sort(key=lambda x: -x[0])
     # 11/10 (revisão): três selos "-50%" lado a lado parecem desconto inventado → 1ª tentativa com % diferentes;
     # só se não der para fechar as n é que vale repetir a porcentagem.
-    for pct_diferente in (True, False):
+    # 11/10 18h (revisão no ar): com "% diferentes" a faixa pegou dois itens de R$ 114 — faixa de ACHADINHO primeiro
+    # tenta só até R$ 80; o teto de R$ 150 fica como reserva.
+    for teto, pct_diferente in ((80, True), (80, False), (150, True), (150, False)):
         out, marcas, tipos, pcts = [], set(), set(), set()
         for d, o in cand:
             marca, tipo = o["t"].lower().split()[0], o.get("k") or o.get("g")
-            if marca in marcas or tipo in tipos or (pct_diferente and d in pcts):
+            if _num_brl(o.get("p")) > teto or marca in marcas or tipo in tipos or (pct_diferente and d in pcts):
                 continue
             marcas.add(marca)
             tipos.add(tipo)
