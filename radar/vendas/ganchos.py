@@ -141,7 +141,11 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"sem calor|touca", ["CACHOS SEM CALOR, FIO PRESERVADO 🌀"]),
         (r"autom[áa]tico|girat", ["O MODELADOR FAZ O CACHO SOZINHO 🌀"])],
     "CABELO MACIO DE SALÃO EM CASA 💆‍♀️": [
-        (r"\b[óo]leos?\b|\boils?\b|elixir", ["UMAS GOTINHAS E O FRIZZ VAI EMBORA 💆‍♀️"]),
+        # 12/10 (Beto e Rita, 3ª vez em 11/10): "Oil" é nome de LINHA (Wella Oil Reflections) e "óleo de coco" é
+        # ingrediente — a frase das gotinhas saía em shampoo de 1 L, máscara e kit. Só vale quando o produto É o óleo.
+        (r"^(?!.*\b(?:shampoos?|condicionador(?:es)?|m[áa]scaras?|leave-?in|cremes?|sprays?|kits?|sabonetes?|"
+         r"tinturas?|colora[çc][ãa]o|t[ôo]nicos?|gel|mousse|pomadas?|ampolas?)\b).*(?:\b[óo]leos?\b|\boils?\b|elixir)",
+         ["UMAS GOTINHAS E O FRIZZ VAI EMBORA 💆‍♀️"]),
         (r"leave-?in", ["PENTEIA FÁCIL E SEM FRIZZ 💆‍♀️"]),
         (r"antiqueda|queda", ["CUIDADO EXTRA PRO FIO FRÁGIL 💆‍♀️"]),
         (r"cach", ["CACHOS DEFINIDOS E MACIOS 🌀"]),
