@@ -1966,7 +1966,7 @@ BENEFICIOS = [
      "A BOLSA QUE COMBINA COM TUDO 👜"),
     # 01/10: scarpin de salto alto saía "PÉ LINDO E CONFORTÁVEL 👟" (a variação do salto já tinha saído) → tipo próprio
     (r"scarpin|salto alto|salto fino|salto agulha|meia pata", "SALTO LINDO PRO LOOK 👠"),
-    (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteira|pantufa|sapatilha|bota|mocassim", "PÉ LINDO E CONFORTÁVEL 👟"),
+    (r"t[êe]nis|sand[áa]lia|chinelo|tamanco|rasteir|pantufa|sapatilha|bota|mocassim", "PÉ LINDO E CONFORTÁVEL 👟"),
     (r"vivara|pandora|life by vivara", "JOIA DE MARCA COM DESCONTO 💎"),  # R$ 500 não é "sem gastar muito"
     (r"brinco|colar|colares|anel|an[ée]is|pulseira|rel[óo]gio|semijoia|conjunto de joias|alian[çc]a|pingente", "BRILHO NO LOOK SEM GASTAR MUITO ✨"),
     (r"cal[çc]a|vestido|blusa|saia|macac[ãa]o|cropped|pijama|suti[ãa]|calcinha|camiseta|camisa|blazer|moletom|jaqueta|"
@@ -2190,7 +2190,7 @@ ROUPA_BEBE = re.compile(r"(?i)\bbody\b|macac[ãa]o|roupa|conjunto|pijama|vestido
 # frase que NOMEIA o tipo de calçado só vale se o título for desse tipo (gancho, título)
 NOME_NO_GANCHO = [
     (r"\bT[ÊE]NIS\b", r"t[êe]nis|sneaker"),
-    (r"\bSAND[ÁA]LIA", r"sand[áa]lia|rasteira|papete|slide"),
+    (r"\bSAND[ÁA]LIA", r"sand[áa]lia|rasteir|papete|slide"),  # 12/10 (Tati): "rasteirinha" não casava com "rasteira"
     (r"\bSALTO\b", r"salto|scarpin|tamanco|anabela"),
     (r"\bCHINELO", r"chinelo|slide"),
     (r"\bSAPATO\b", r"sapato|mocassim|loafer|oxford|sapatilha|scarpin"),

@@ -89,7 +89,8 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"bast[ãa]o|stick", ["PROTETOR EM BASTÃO, CABE NA BOLSA ☀️"]),
         (r"kids|infantil|beb[êe]", ["PROTEÇÃO PROS PEQUENOS NO SOL ☀️"]),
         (r"corporal", ["CORPO PROTEGIDO NO VERÃO ☀️"]),
-        (r"fps ?(?:70|80|90|99)|fps(?:70|80|90)", ["PROTEÇÃO ALTA PRO DIA TODO ☀️"]),
+        # 12/10 (Tati): "PRO DIA TODO" prometia duração (protetor se reaplica) e saiu no canal no Episol FPS 70
+        (r"fps ?(?:70|80|90|99)|fps(?:70|80|90)", ["PROTEÇÃO ALTA PRO DIA A DIA ☀️"]),
         (KB, ["PROTETOR COREANO NO PRECINHO ☀️"])],
     "CÍLIOS DE BONECA POR ESSE PREÇO? 👀": [
         (r"prova d.?[áa]gua|waterproof", ["NÃO BORRA NEM NO CALOR 👀"]),
@@ -224,7 +225,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"\btote\b", ["TOTE BAG QUE CABE A VIDA 👜"])],
     "PÉ LINDO E CONFORTÁVEL 👟": [
         (r"chinelo", ["CHINELO GOSTOSO DE USAR 🩴"]),  # 10/10 (Rita): "Chinelo … slide" saía SANDÁLIA
-        (r"^(?!.*chinelo).*(?:sand[áa]lia|rasteira|papete|slide)", ["SANDÁLIA LINDA PRO CALOR 👡"]),
+        (r"^(?!.*chinelo).*(?:sand[áa]lia|rasteir|papete|slide)", ["SANDÁLIA LINDA PRO CALOR 👡"]),  # 12/10: rasteirinha
         (r"salto|scarpin|tamanco", ["SALTO LINDO E CONFORTÁVEL 👠"]),
         (r"pantufa", ["PÉ QUENTINHO EM CASA 🧦"]), (r"chinelo", ["CHINELO GOSTOSO DE USAR 🩴"]),
         (r"corrida|running|caminhada", ["PRA CAMINHAR COM CONFORTO 👟"]),
