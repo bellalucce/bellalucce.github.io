@@ -2369,6 +2369,9 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
         tipo = None  # 01/10 (dona): "ORGANIZE SUA BAGUNÇA" num RELÓGIO ("Curren Portas Relógios…") → frase neutra
     if tipo and (frases := ganchos.candidatos(tipo, titulo, preco=preco)):  # vazia = só frase de economia em produto caro
         return ganchos.escolher(frases, n, recentes)
+    # 12/10 (Tati): demaquilante/micelar de marca fora da lista não tem tipo → frase do subtipo em vez da neutra
+    if not tipo and (frases := [f for f in ganchos.subtipo(None, titulo, preco)[0] if ganchos.economia_ok(f, preco)]):
+        return ganchos.escolher(frases, n, recentes)
     if MASCULINO.search(titulo) and not re.search(r"feminin|unissex|mulher|calcinha", titulo, re.I):
         return ganchos.escolher(ganchos.REPERTORIO[PRA_ELE], n, recentes)
     sinais = s0

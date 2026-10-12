@@ -411,6 +411,58 @@ def _carregar_extra() -> int:
 EXTRA_CARREGADAS = _carregar_extra()
 
 
+def _carregar_subtipos() -> list[dict]:
+    """12/10 (Tati, lição de 11/10: "frase tem de bater com o que o produto FAZ"): frases por SUBTIPO (demaquilante,
+    micelar, sérum, leave-in, corretivo, pijama…) de dados/achadinhos/ganchos_subtipo.json. Diferente do
+    ganchos_extra.json (a frase entra no giro do TIPO inteiro), aqui cada frase só vale se o TÍTULO for do subtipo
+    (titulo_rx sem titulo_nao_rx) e passar na regra dela (precisa / nao / preco_max). Só entra frase marcada
+    `conferida` (regra escrita e lida) e que passa no frase_ok; `no_extra` já está no repertório do tipo."""
+    try:
+        import json
+
+        from vendas import config
+        dados = json.loads((config.DADOS / "achadinhos" / "ganchos_subtipo.json").read_text(encoding="utf-8-sig"))
+    except Exception:  # noqa: BLE001 — sem arquivo: só o repertório do tipo
+        return []
+    out = []
+    for nome, s in (dados or {}).items():
+        if nome.startswith("_") or not isinstance(s, dict) or not s.get("titulo_rx") or not s.get("tipos"):
+            continue
+        try:
+            frases = []
+            for f in s.get("frases") or []:
+                if not (isinstance(f, dict) and f.get("conferida") and not f.get("no_extra")
+                        and frase_ok(f.get("frase") or "")):
+                    continue
+                frases.append((f["frase"], re.compile(f["precisa"], re.I) if f.get("precisa") else None,
+                               re.compile(f["nao"], re.I) if f.get("nao") else None, f.get("preco_max")))
+            if frases:
+                out.append({"nome": nome, "rx": re.compile(s["titulo_rx"], re.I),
+                            "nao": re.compile(s["titulo_nao_rx"], re.I) if s.get("titulo_nao_rx") else None,
+                            "tipos": list(s["tipos"]), "substitui": bool(s.get("substitui")),
+                            "prioridade": s.get("prioridade") or 0, "frases": frases})
+        except (re.error, TypeError):  # regra mal escrita: o subtipo inteiro fica de fora (não derruba o robô)
+            continue
+    return sorted(out, key=lambda s: -s["prioridade"])
+
+
+SUBTIPOS = _carregar_subtipos()
+
+
+def subtipo(tipo: str | None, titulo: str, preco: float | None = None) -> tuple[list[str], bool]:
+    """(frases do subtipo que cabem nesse título, se elas SUBSTITUEM as do tipo). tipo None/"" = produto sem tipo
+    (demaquilante de marca fora da lista). O 1º subtipo que casar decide — mesmo sem frase livre (lista vazia)."""
+    titulo = titulo or ""
+    for s in SUBTIPOS:
+        if (tipo or "") not in s["tipos"] or not s["rx"].search(titulo) or (s["nao"] and s["nao"].search(titulo)):
+            continue
+        frases = [f for f, precisa, nao, pmax in s["frases"]
+                  if (not precisa or precisa.search(titulo)) and not (nao and nao.search(titulo))
+                  and not (pmax and preco and preco > pmax)]
+        return frases, s["substitui"] and bool(frases)
+    return [], False
+
+
 def _sazonais(tipo: str, hoje: date | None) -> list[str]:
     hoje = hoje or date.today()
     return [f for t, f, ini, fim in SAZONAIS if t == tipo and ini <= (hoje.month, hoje.day) <= fim]
@@ -429,6 +481,10 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
     # título, só a frase da característica (blush/iluminador/contorno) + a neutra de make
     if tipo == "PELE DE FILTRO NA VIDA REAL 💄" and out and not SO_BASE.search(titulo):
         rep = ["ACABAMENTO DE MAKE DE SALÃO 💄"]
+    # 12/10 (Tati): frase do SUBTIPO antes das do tipo; em demaquilante/micelar entra NO LUGAR (a do tipo promete
+    # "pele lisinha e com viço", que limpeza não entrega)
+    sub, troca = subtipo(tipo, titulo, preco)
+    rep = sub if troca else sub + rep
     out += rep
     out = list(dict.fromkeys(out))  # sem duplicar, mantendo a ordem
     # 01/10 (Rita, revisão antes de postar): emoji/frase que não combina com o produto
