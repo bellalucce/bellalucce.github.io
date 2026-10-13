@@ -2582,6 +2582,8 @@ def titulo_do_post(o: dict) -> str:
     except Exception:  # noqa: BLE001 — sem config (teste): conserta
         pass
     from vendas import titulo_regras
+    if (o.get("grupo") or "") == "moda":   # 12/10 (Rita): "Sandalia", "Tenis", "Ziper" saem com acento
+        t = titulo_regras.acentuar(t)
     return titulo_regras.consertar(t, o.get("grupo") or "")
 
 
@@ -3783,6 +3785,21 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     for nome, passa in regras:
         cand = [o for o in cand if passa(o)]
         marca(nome, cand)
+    # 12/10 (Rita, 1ª leitura dos títulos consertados): o conserto encurta, e anúncios diferentes viram o MESMO título
+    # no post ("Tênis Feminino Plataforma" 4×) → o mesmo título não sai 2× no dia; na fila fica o primeiro
+    try:
+        ja = {titulo_do_post(dict(r)).lower() for r in db.consultar(
+            "SELECT titulo, grupo, loja FROM ofertas WHERE publicado_em >= date('now','localtime')") or []}
+    except Exception:  # noqa: BLE001
+        ja = set()
+    unicas = []
+    for o in cand:
+        k = titulo_do_post(o).lower()
+        if k not in ja:
+            ja.add(k)
+            unicas.append(o)
+    cand = unicas
+    marca("título de post não repetido no dia", cand)
 
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (04/10: a linha de beleza também — TETO_TIPO, "cílios 900 vezes")
