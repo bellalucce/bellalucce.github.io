@@ -2541,11 +2541,14 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     por = f"🗣️ *Por:* {_brl_zap(o['preco'])}"
     # 09/10 (Claude): ML com desconto só no Pix (Too Faced 197,10 no Pix × 219 no cartão) — dizer "no Pix", senão
     # quem paga no cartão acha que o preço é mentira
-    if (o.get("sinais") or {}).get("so_pix") if isinstance(o.get("sinais"), dict) else False:
+    # 13/10 (Claude): os sinais chegam do banco como TEXTO — com isinstance(dict) o "no Pix" e o "pra quem é Prime"
+    # nunca saíam no post de verdade (Lola Meu Cacho 14h32 saiu sem o aviso de Prime) → sinais_de
+    sinais = sinais_de(o)
+    if sinais.get("so_pix"):
         por += " no Pix"
     # 10/10 (oferta que a dona mandou: escova Britânia "Mega Oferta Prime"): preço EXCLUSIVO Prime na Amazon — dizer,
     # senão quem não é Prime abre e vê outro preço; e oferecer o teste grátis pelo NOSSO link (dona, 09/10)
-    so_prime = bool((o.get("sinais") or {}).get("so_prime")) if isinstance(o.get("sinais"), dict) else False
+    so_prime = bool(sinais.get("so_prime"))
     if so_prime:
         por += " pra quem é Prime"
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
