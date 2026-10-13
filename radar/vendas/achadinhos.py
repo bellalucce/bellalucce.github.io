@@ -649,7 +649,7 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"br\.shein\.com/(?:[^?#]*?-)?p-\d+(?:-cat-\d+)?\.html",
 ]
 AFILIADO_TERCEIRO = re.compile(r"[?&](tag|promoter_id|partner_id|matt_tool|matt_word|utm_[a-z]+|aff[a-z_]*|affiliate|"
-                               r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|"
+                               r"clickid|smtt|pid|lp|ref|sp_atk|mmp_pid)=|divulgador|meli\.la|s\.shopee|shope\.ee|amzn\.to|link\.amazon|amzlinks\.in|"
                                r"linksynergy|awin|/social/|afiliad|onelink|bit\.ly|tidd\.ly|promobit", re.I)
 
 
@@ -915,7 +915,8 @@ def _link_loja(link_fonte: str, cli: httpx.Client) -> str | None:
     return limpar_link(_html.unescape(m.group(1)), cli)
 
 
-ENCURTADORES = ("meli.la", "s.shopee.com.br", "shope.ee", "amzn.to", "tidd.ly", "bit.ly", "onelink.me")
+ENCURTADORES = ("meli.la", "s.shopee.com.br", "shope.ee", "amzn.to", "link.amazon", "amzlinks.in",  # 13/10: curto novo
+                "tidd.ly", "bit.ly", "onelink.me")
 # 08/10: utmi_pc/utmi_cp = código de afiliado de loja VTEX (Océane, Época…) — de TERCEIRO sai aqui; o nosso entra no
 # link_afiliado (link_oceane)
 RASTREIO = re.compile(r"tag|ref_|matt_[a-z_]+|utm_[a-z]+|utmi_[a-z]+|af_[a-z_]+|smtt|sp_atk|xptdk|mmp_pid|uls_trackid|gads_t_sig|lp|c|"
@@ -2475,7 +2476,7 @@ def ganchos_recentes(limite: int = 60) -> list[str]:
 def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
     """Amazon (Associados): preço exibido fora da API precisa da data/hora em que foi conferido. "11h40" se foi hoje,
     "29/09 23h10" se não. Vazio para as outras lojas (a dona não quer rodapé nem carimbo à toa)."""
-    if not re.search(r"amazon\.com\.br|amzn\.to", o.get("link_loja") or "", re.I) or not o.get("atualizado_em"):
+    if not re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o.get("link_loja") or "", re.I) or not o.get("atualizado_em"):
         return ""
     try:
         t = datetime.strptime(str(o["atualizado_em"])[:16], "%Y-%m-%d %H:%M")
@@ -3134,7 +3135,7 @@ def preco_fresco(o: dict, agora: datetime | None = None) -> bool:
     agora = agora or datetime.now()
     h = PRECO_VALE_H
     link = o.get("link_loja") or ""
-    if re.search(r"amazon\.com\.br|amzn\.to", link, re.I):
+    if re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", link, re.I):
         h = min(h, 6)
     if o.get("fonte") == "magalu_epoca":
         h = min(h, 12)
@@ -3246,7 +3247,7 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
                 or validade_na_foto(o)  # 08/10 noite: validade próxima só na foto (Océane) também não vai a pedido
                 or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
-                or (re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
+                or (re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
                 # 08/10: Océane com preço velho ou que saiu da promoção (sinais "fora") não vai nem a pedido
                 or (o.get("fonte") == "oceane_afiliados" and ((o.get("atualizado_em") or "") < oceane_ok
                                                               or sinais_de(o).get("fora")))):
@@ -3793,7 +3794,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     frescas = [o for o in todas if preco_fresco(o)]
     marca(f"aprovadas com preço visto há ≤ {PRECO_VALE_H} h (de {len(todas)})", frescas)
     base = [o for o in frescas if o["link_loja"] and o.get("foto")
-            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
+            and (not re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
             and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)]
     marca("com link e foto, preço na validade da loja", base)
@@ -4070,7 +4071,7 @@ def detalhe_barradas(horas: int = 30) -> str:
     pub = publicados_recentes()
     cand = [o for o in melhores(horas, LIMITE_CANDIDATOS)
             if preco_fresco(o) and o["link_loja"] and o.get("foto") and not o["publicado_em"] and not ja_saiu(o, pub)
-            and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
+            and (not re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)
             and (o.get("fonte") != "magalu_epoca" or (o.get("atualizado_em") or "") >= magalu_ok)
             and (o.get("fonte") != "oceane_afiliados" or (o.get("atualizado_em") or "") >= oceane_ok)
             and not shopee_sem_curto(o)]
@@ -4237,7 +4238,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
              and (o.get("desconto") or 0) >= 25 and not MASCULINO.search(o["titulo"] or "")
              and (o.get("atualizado_em") or "") >= fresco  # preço visto há pouco (grife muda rápido)
              and (not so_feminino_ligado() or no_perfil_feminino(o))
-             and (not re.search(r"amazon\.com\.br|amzn\.to", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
+             and (not re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o["link_loja"], re.I) or (o.get("atualizado_em") or "") >= amazon_ok)]
     # 01/10 (dona: "segue o ritmo do grupo das mulheres", ~108/dia → 2 por rodada): o padrão de 10 vagas CONTINUA de uma
     # rodada para a outra (pelo nº de posts de hoje) — senão toda rodada começaria em "B, M" e nunca sairia variado,
     # masculino nem grife. A grife abre a rodada que começa um novo ciclo de 10 (com 10 por rodada: toda rodada).
