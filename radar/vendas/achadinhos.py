@@ -124,11 +124,24 @@ def chave_produto(titulo: str) -> str:
     pal = [p for p in re.findall(r"[a-z]+", t) if p not in STOP and len(p) > 2]
     # 09/10 (mix com 3 de moda em 10): "Bolsa Feminina Transversal…" e "Bolsa Feminina Tote…" eram o MESMO tipo
     # ("bolsa feminina") → só 1 bolsa a cada 48 h. Na moda o "feminina/casual/elegante" não diz o tipo — sai da chave
+    # 13/10 (dona: "perfume morreu… quero mais bolsas… falta acessório, pulseira"): com 2 palavras, "perfume feminino",
+    # "body splash" e "bolsa transversal" eram UM tipo só → 1 post barrava todos os parecidos por 2 dias (13 perfumes
+    # aprovados, 0 na fila; 11 bolsas, 2 na fila). Moda: 3 palavras (bolsa + 2 que descrevem). Perfume: a chave é o
+    # NOME do perfume (marca/linha), não a palavra "perfume"
     if pal and pal[0] in NOME_MODA:
         pal = [p for p in pal if p not in GENERICO_MODA] or pal
+        return " ".join(pal[:3])
+    if _PERFUME_CHAVE.search(t) and not re.search(r"capilar|cabelo|\bhair\b", t):
+        nome = [p for p in pal if p not in GENERICO_PERFUME]
+        if nome:
+            return "perfume " + " ".join(nome[:2])
     return " ".join(pal[:2])
 
 
+_PERFUME_CHAVE = re.compile(r"\bperfumes?\b|body splash|body mist|eau de|\bparfum\b|deo colonia|\bcolonia\b")
+GENERICO_PERFUME = {"perfume", "perfumes", "feminino", "feminina", "masculino", "unissex", "body", "splash", "mist",
+                    "eau", "parfum", "toilette", "colonia", "deo", "desodorante", "edp", "edt", "spray", "fragrancia",
+                    "importado", "arabe", "corporal", "women", "woman", "for", "her"}
 NOME_MODA = {"bolsa", "bolsas", "sandalia", "sandalias", "tenis", "sapato", "sapatos", "sapatilha", "rasteirinha",
              "rasteira", "mule", "tamanco", "scarpin", "relogio", "oculos", "colar", "brinco", "brincos", "pijama",
              "camisola", "cinto", "cintos", "presilha", "chinelo", "papete", "pulseira", "corrente", "conjunto"}
@@ -3679,8 +3692,26 @@ def relatorio_pedido(r: dict) -> str:
 #   · só se isso não deixa na fila nem 1 post por rodada até o fim do horário (rodadas que faltam + 4 de folga, no máx.
 #     VARIEDADE_MIN) a janela encolhe (48 → 24 → 12 h) — o grupo não pode parar. O mesmo PRODUTO continua sem repetir
 #     em REPETIR_DIAS e o teto por tipo/dia (TETO_TIPO, "cílios 900 vezes") continua valendo.
-JANELAS_TIPO_H = (48, 24, 12)
+# 13/10 (dona: "dá uma variada… beleza engloba muita coisa… perfume morreu" — a janela de 48 h de 02/10 foi decisão
+# minha/da Mila, não dela, e secava a fila: 211 postáveis viravam 55, com 0 perfume): 24 h (encolhe para 12 e 6).
+# Quem segura a repetição é o teto por tipo/dia (TETO_TIPO), o mesmo produto em REPETIR_DIAS e, para a Océane, a
+# família em OCEANE_FAMILIA_H.
+JANELAS_TIPO_H = (24, 12, 6)
 VARIEDADE_MIN = 60
+# 13/10 (dona: "parece que tá repetindo todo dia… da Océane"): Bronzer em Bastão saiu 4 dias seguidos em tons
+# diferentes → a mesma família (chave_produto) de loja própria de marca não volta antes de 3 dias
+OCEANE_FAMILIA_H = 72
+
+
+def familias_recentes_da_marca() -> set:
+    """Famílias (chave_produto) das FONTES_SO_BELEZA que saíram nas últimas OCEANE_FAMILIA_H horas."""
+    marcas = ",".join("?" * len(FONTES_SO_BELEZA))
+    try:
+        linhas = db.consultar(f"SELECT titulo FROM ofertas WHERE fonte IN ({marcas}) AND publicado_em >= "
+                              f"datetime('now','localtime','-{OCEANE_FAMILIA_H} hours')", tuple(FONTES_SO_BELEZA)) or []
+    except Exception:  # noqa: BLE001 — sem a leitura, a regra não barra nada
+        return set()
+    return {chave_produto(dict(r).get("titulo") or "") for r in linhas if dict(r).get("titulo")}
 
 
 def rodadas_que_faltam(agora: datetime | None = None) -> int:
@@ -3800,6 +3831,12 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             unicas.append(o)
     cand = unicas
     marca("título de post não repetido no dia", cand)
+    fam_marca = familias_recentes_da_marca()  # 13/10: família da Océane não volta em OCEANE_FAMILIA_H
+
+    def familia_repetida(o: dict) -> bool:
+        return o.get("fonte") in FONTES_SO_BELEZA and chave_produto(o.get("titulo") or "") in fam_marca
+    cand = [o for o in cand if not familia_repetida(o)]
+    marca(f"família da marca própria sem repetir em {OCEANE_FAMILIA_H} h", cand)
 
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (04/10: a linha de beleza também — TETO_TIPO, "cílios 900 vezes")
@@ -3841,7 +3878,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         return melhor
     unicos, final, recentes, janela = variar(cand)
     if len(final) < POUCO_ESTOQUE and voltam:
-        de_volta = [o for o in voltam if all(passa(o) for _, passa in regras)]
+        de_volta = [o for o in voltam if all(passa(o) for _, passa in regras) and not familia_repetida(o)]
         if de_volta:
             unicos, final, recentes, janela = variar(cand + de_volta)
     marca(f"tipo sem repetir em {janela} h, 1 por tipo", unicos)
@@ -3855,7 +3892,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         pass
     ped = _pedidos_da_dona(amazon_ok)  # 07/10: pedido da dona na frente de tudo (ver PEDIDOS_DONA)
     # 08/10 (revisão): o pedido também espera o link curto da Shopee (ia com o shope.ee/an_redir comprido)
-    ped = [o for o in ped if not (so_com_link_curto and shopee_sem_curto(o))]
+    ped = [o for o in ped if not (so_com_link_curto and shopee_sem_curto(o)) and not familia_repetida(o)]
     if ped:
         ids = {o["id"] for o in ped}
         cand = ped + [o for o in cand if o["id"] not in ids]
@@ -4126,7 +4163,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         loja = (o.get("loja") or o.get("fonte") or "")[:20]
         if lojas_ped.get(loja) or not sem_rajada([o], lojas_cand):
             continue
-        if o.get("fonte") in FONTES_SO_BELEZA and not PADRAO_LINHA[(pos_hoje + len(out)) % len(PADRAO_LINHA)].startswith("B"):
+        # 13/10: as vagas de beleza têm subtipo ("Bk" skincare, "Bp" perfume…) → a Océane (make) só ocupa "B" e "Bm"
+        if o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[(pos_hoje + len(out)) % len(PADRAO_LINHA)] not in ("B", "Bm"):
             continue
         if not tipo_na_rodada(o, out) and foto_ok(o):
             lojas_ped[loja] = 1
@@ -4189,9 +4227,13 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         for f in filas.values():
             f.sort(key=lambda o: (o.get("score") or 0) + datas.bonus(o) + PONTOS_FAIXA_COMISSAO * faixa_comissao(o),
                    reverse=True)
+            f.sort(key=lambda o: not marca_conhecida(o))
     else:
+        # 13/10 (dona: "não vi CeraVe… nada de marca conhecida, só Océane e às vezes uma marca ou outra" — 827 das
+        # 1.057 aprovadas não tinham marca conhecida e saíam misturadas): marca conhecida sai ANTES da sem marca;
+        # dentro de cada lado, a comissão maior
         for f in filas.values():  # ordenação estável: dentro da mesma faixa vale a ordem de antes (pontuação)
-            f.sort(key=lambda o: (o["id"] not in frente, -faixa_comissao(o)))
+            f.sort(key=lambda o: (o["id"] not in frente, not marca_conhecida(o), -faixa_comissao(o)))
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     # 01/10 (Mila): com 3 por rodada, "1 por rodada" ainda deu 33% de um lojista → 1 por lojista a cada 10 posts
@@ -4252,12 +4294,18 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
 
         def _pref(x: dict, vez: str = vez) -> int:
             """09/10: "Mb" quer bolsa, "Ms" sapato, "Mv" o tipo de moda que menos saiu hoje (varia bolsa/sapato/
-            acessório/pijama); as outras vagas não têm preferência."""
+            acessório/pijama); as outras vagas não têm preferência. 13/10: "Ma" quer acessório (pulseira, brinco,
+            colar, óculos…) e as vagas de beleza têm subtipo — "Bm" make, "Bk" skincare, "Bp" perfume, "Bc" cabelo,
+            "Bo" corpo/unha/outros (tipo_linha); "B" sozinho pega a melhor da fila."""
+            if vez.startswith("B") and len(vez) == 2:
+                return int(x.get("grupo") not in LINHA_PRINCIPAL or tipo_linha(x) != vez[1])
             if not vez.startswith("M") or x.get("grupo") != "moda":
                 return 0
             tp = tipo_moda(x.get("titulo") or "")
             if vez.endswith("b"):
                 return int(tp != "bolsa")
+            if vez.endswith("a"):
+                return int(tp != "acessorio")
             if vez.endswith("s"):
                 return int(tp != "sapato")
             if vez.endswith("v"):
