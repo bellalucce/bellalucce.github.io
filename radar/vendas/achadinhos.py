@@ -1022,9 +1022,13 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
         return _curto_oficial(url) or f"https://www.amazon.com.br/dp/{m.group(1)}?tag={af['amazon_tag']}"
-    m = re.search(r"magazineluiza\.com\.br/(.+/p/\w+/.*)$", url)
+    m = re.search(r"magazineluiza\.com\.br/.+/p/(\w+)/", url)
     if m and af.get("magalu_loja"):  # Parceiro Magalu: a lojinha do usuário no magazinevoce
-        return f"https://www.magazinevoce.com.br/magazine{af['magalu_loja']}/{m.group(1)}"
+        # 13/10 (dona: "todos encurtados… então ache do Magalu"): o Magalu não tem encurtador para o Influenciador, mas
+        # o próprio magazinevoce aceita o endereço só com o código (/p/<id>/ com "p" no lugar do nome) e leva à página
+        # cheia DENTRO da nossa loja (conferido no Chrome: storeId = a nossa). NÃO usar /magazine<loja>/p/<id>/ direto
+        # (sem o "p" do nome): esse cai em /<loja>/… com OUTRO storeId. Sem "www" dá erro de certificado.
+        return f"https://www.magazinevoce.com.br/magazine{af['magalu_loja']}/p/p/{m.group(1)}/"
     if re.search(r"mercadolivre\.com\.br/", url) and af.get("ml_tool"):  # ML Afiliados: mesmos parâmetros do meli.la oficial
         base = url.split("#")[0]
         return (_curto_oficial(url)
