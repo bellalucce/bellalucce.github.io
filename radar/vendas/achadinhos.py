@@ -4847,10 +4847,11 @@ def publicar_site() -> str:
         # resumo do histórico de preço (só quem tem 7+ dias) → selo "menor preço" também no site montado na nuvem
         (radar / "dados" / "historico.json").write_text(json.dumps(minimos(), separators=(",", ":")), encoding="utf-8")
     _publicar_loja(pasta, radar)
-    # 05/10: logo escolhida pela dona (monograma creme + caramelo, Marca/Achadinhos/site); sem ela, a antiga de dados/marca
+    # 05/10: logo escolhida pela dona (monograma creme + caramelo, Marca/Achadinhos/site).
+    # 13/10 (dona: "não usamos mais!!!"): a logo ROSA antiga de dados/marca saiu até como reserva — sem a nova, não copia nada.
     nova = config.RAIZ / "Marca" / "Achadinhos" / "site"
-    for origem, destino in (("logo_256.png", "logo.png"), ("favicon.png", "favicon.png")):
-        fonte = nova / destino if (nova / destino).exists() else config.DADOS / "marca" / origem
+    for destino in ("logo.png", "favicon.png"):
+        fonte = nova / destino
         if fonte.exists():
             shutil.copyfile(fonte, pasta / destino)
     # 11/10 (auditoria): o workflow da nuvem só dispara com mudança em radar/**. Um conserto SÓ na /grupo ou na /links
