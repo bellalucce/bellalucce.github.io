@@ -683,6 +683,7 @@ def fora_do_perfil(titulo: str) -> bool:
 
 
 DE_MAX = 2.0  # 04/10 (revisora da nuvem): "De" acima de 2× o "Por" = desconto de vitrine (era 4×)
+DE_CONFERIDO_MAX = 3.0  # 13/10: "de" igual em dois sites (sinal de_conferido)
 
 
 def sinais_de(o: dict) -> dict:
@@ -698,9 +699,12 @@ def sinais_de(o: dict) -> dict:
 
 
 def de_inflado(o: dict) -> bool:
-    """"De" mais de 2× o preço, fora de loja oficial (a oficial tem o "De" de tabela da marca)."""
+    """"De" mais de 2× o preço, fora de loja oficial (a oficial tem o "De" de tabela da marca).
+    13/10: "de" CONFERIDO em outro site (Magalu × site da própria Época, mesmo preço de tabela) aguenta até 3× — a coleta
+    do Magalu perdeu hidratante Vult de R$ 25,99 por R$ 9,99 e batom Océane de R$ 60,90 por R$ 26,95 com "de" igual nos dois."""
     s = sinais_de(o)
-    return (o.get("preco_antigo") or 0) > DE_MAX * (o.get("preco") or 0) > 0 and not s.get("oficial")
+    de, por = o.get("preco_antigo") or 0, o.get("preco") or 0
+    return de > (DE_CONFERIDO_MAX if s.get("de_conferido") else DE_MAX) * por > 0 and not s.get("oficial")
 
 
 INGLES =re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
