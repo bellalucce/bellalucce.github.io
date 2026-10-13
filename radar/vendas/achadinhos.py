@@ -354,7 +354,8 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"^(?:0\d{1,2}|[a-z])\s+(?=[A-Za-zÀ-ÿ])", "", t)
     # 06/10 noite (Rita): código da loja/SKU no começo ("ANA1108 Kit…", "ANA1108-12 Kits…", "42741 Creme…"), medida
     # americana colada ("30g/1.0FL.OZ| Clareamento…", "150mL/5.07 Fl.Oz") e palavra cortada pela fonte ("Aço Ino")
-    t = re.sub(r"^(?:[A-Z]{2,5}\d{3,}(?:\s*-\s*\d{1,3})?|\d{5,})\s+(?=[A-Za-zÀ-ÿ])", "", t)
+    # 12/10: ano abrindo o título ("2023 Óculos de sol feminino…") também é etiqueta do anúncio
+    t = re.sub(r"^(?:[A-Z]{2,5}\d{3,}(?:\s*-\s*\d{1,3})?|\d{5,}|20[12]\d)\s+(?=[A-Za-zÀ-ÿ])", "", t)
     t = re.sub(r"\s*[/,]?\s*\d+(?:[.,]\d+)?\s*fl\.?\s*oz\b\.?\s*\|?", " ", t, flags=re.I)
     t = re.sub(r"\s+([,)])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" -–|:,")
     t = re.sub(r"(?i)\b(a[çc]o) ino\b", r"\1 Inox", t)
@@ -2570,9 +2571,18 @@ def com_tipo(o: dict) -> dict:
 
 
 def titulo_do_post(o: dict) -> str:
-    """Nome do produto no post: limpo, cortado e — 08/10 noite — com o tipo quando o título só diz marca + linha."""
+    """Nome do produto no post: limpo, cortado e — 08/10 noite — com o tipo quando o título só diz marca + linha.
+    12/10: o que é só palavra de busca/enfeite/tipo empilhado SAI do nome (titulo_regras.consertar) em vez de a oferta
+    ser barrada — a fila tinha ficado sem moda. Desliga em config/achadinhos.json → "titulo_conserta": false."""
     t = limpar_titulo(o.get("titulo") or "")
-    return cortar(tipo_completado({**o, "titulo": t}) or t, 100)
+    t = cortar(tipo_completado({**o, "titulo": t}) or t, 100)
+    try:
+        if canais().get("titulo_conserta") is False:
+            return t
+    except Exception:  # noqa: BLE001 — sem config (teste): conserta
+        pass
+    from vendas import titulo_regras
+    return titulo_regras.consertar(t, o.get("grupo") or "")
 
 
 def _cupom_shopee_manha(o: dict, agora: datetime | None = None) -> str | None:
