@@ -987,6 +987,17 @@ def link_shein(goods_id: str) -> str | None:
     return lk if lk and LINK_LOMADEE.match(lk) else None
 
 
+def _curto_oficial(url: str) -> str | None:
+    """13/10 (dona: "todos precisam ir encurtados"): link curto OFICIAL já guardado deste produto (meli.la / amzn.to,
+    integracoes/links_curtos.py). DESLIGADO por padrão — só com a loja em config/achadinhos.json → "links_curtos".
+    Sem curto guardado → None (sai o link comprido de sempre; o grupo não espera por link curto)."""
+    try:
+        from vendas.integracoes import links_curtos
+        return links_curtos.curto(url)
+    except Exception:  # noqa: BLE001 — radar na nuvem não leva a integração; link curto nunca derruba o post
+        return None
+
+
 def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados).
     canal="whatsapp": até 07/10 o ML (que PROÍBE WhatsApp/Telegram — mercadolivre.com.br/l/afiliados-pode-compartilhar)
@@ -1005,13 +1016,14 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     af = config.segredos().get("afiliados") or {}
     m = re.search(r"amazon\.com\.br/(?:.*/)?(?:dp|gp/product)/([A-Z0-9]{10})", url)  # /gp/product/ saía sem a tag
     if m and af.get("amazon_tag"):
-        return f"https://www.amazon.com.br/dp/{m.group(1)}?tag={af['amazon_tag']}"
+        return _curto_oficial(url) or f"https://www.amazon.com.br/dp/{m.group(1)}?tag={af['amazon_tag']}"
     m = re.search(r"magazineluiza\.com\.br/(.+/p/\w+/.*)$", url)
     if m and af.get("magalu_loja"):  # Parceiro Magalu: a lojinha do usuário no magazinevoce
         return f"https://www.magazinevoce.com.br/magazine{af['magalu_loja']}/{m.group(1)}"
     if re.search(r"mercadolivre\.com\.br/", url) and af.get("ml_tool"):  # ML Afiliados: mesmos parâmetros do meli.la oficial
         base = url.split("#")[0]
-        return f"{base}{'&' if '?' in base else '?'}matt_word={af.get('ml_etiqueta', 'bellalucce')}&matt_tool={af['ml_tool']}"
+        return (_curto_oficial(url)
+                or f"{base}{'&' if '?' in base else '?'}matt_word={af.get('ml_etiqueta', 'bellalucce')}&matt_tool={af['ml_tool']}")
     m = re.search(r"shopee\.com\.br/product/\d+/(\d+)", url)
     if m:  # Shopee Afiliados (permite WhatsApp): o link curto da Open API, guardado na coleta
         r = db.consultar("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{m.group(1)}",))
