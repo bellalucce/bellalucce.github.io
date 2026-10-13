@@ -201,12 +201,13 @@ def mediana_mercado(o: dict) -> float | None:
     return median(outros) if len(outros) >= 3 else None
 
 
-def sem_repetidos(ofs: list[dict], por_tipo: int = 1) -> list[dict]:
-    """Mantém a ordem (melhores primeiro) e só `por_tipo` oferta(s) de cada tipo de produto."""
+def sem_repetidos(ofs: list[dict], por_tipo: int = 1, chave=None) -> list[dict]:
+    """Mantém a ordem (melhores primeiro) e só `por_tipo` oferta(s) de cada tipo de produto (`chave(o)` troca a
+    conta do tipo — a fila do grupo usa chave_variedade)."""
     vistos: dict[str, int] = {}
     out = []
     for o in ofs:
-        k = chave_produto(o.get("titulo") or "")
+        k = chave(o) if chave else chave_produto(o.get("titulo") or "")
         if vistos.get(k, 0) < por_tipo:
             vistos[k] = vistos.get(k, 0) + 1
             out.append(o)
@@ -3745,10 +3746,10 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 02/10 (Mila): 24 h deixava 18% de repetidos de ontem → o TIPO não repete em 48 h (hora do último post de cada tipo;
     # 09/10 noite: a janela encolhe quando a fila fica curta — ver JANELAS_TIPO_H)
     saiu_tipo: dict = {}
-    for r in db.consultar("SELECT titulo, publicado_em FROM ofertas WHERE publicado_em >= "
+    for r in db.consultar("SELECT titulo, fonte, publicado_em FROM ofertas WHERE publicado_em >= "
                           f"datetime('now','localtime','-{JANELAS_TIPO_H[0]} hours')") or []:
         r = dict(r)
-        k = chave_produto(r.get("titulo") or "")
+        k = chave_variedade(r)
         saiu_tipo[k] = max(saiu_tipo.get(k, ""), str(r.get("publicado_em") or "9").replace("T", " "))  # sem hora = agora
     # 30/09: Amazon vai com a hora do preço no post → só preço visto nas últimas 6 h (antes saiu perfume com preço de
     # ontem 12h51 — com o carimbo apareceria "29/09" e o preço podia já ter mudado)
@@ -3801,6 +3802,10 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     regras.append(("foto pequena, vencendo, vetada, barrada",
                    lambda o: not (foto_pequena(o) or vencendo(o.get("titulo") or "")
                                   or revisao_fila.vetada(o, vet, chaves_vet) or barrada_na_hora(o))))
+    # 13/10: a linha 4YOU/infantil da Océane já era barrada no site e nos pedidos (Beto 11/10) — na fila comum passava
+    regras.append(("linha fora do programa da marca", lambda o: not (
+        o.get("fonte") in FONTES_SO_BELEZA
+        and OCEANE_FORA_SITE.search(f"{o.get('titulo') or ''} {o.get('link_loja') or ''}"))))
     regras.append(("acima do mercado", lambda o: not acima_do_mercado(o)))
     # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
     # "De" maior que o "Por" não vai. 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número
@@ -3861,15 +3866,25 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             out = _teto(2)
         return out
     alvo = min(VARIEDADE_MIN, rodadas_que_faltam(agora) + 4)  # 1 post por rodada até o fim do horário, com folga
+    try:
+        from vendas import referencia as _ref
+        ref_frente = _ref.na_frente()
+    except Exception:  # noqa: BLE001 — sem a leitura das referências, segue só pela marca
+        ref_frente = set()
 
     def variar(lista: list) -> tuple[list, list, set, int]:
         """Tipo que saiu há pouco não repete e fica 1 por tipo; depois o teto do tipo por dia. A janela só encolhe se o
         que sobra no fim é menos que o `alvo`. Devolve (1 por tipo, depois do teto, tipos bloqueados, janela em h)."""
         melhor: tuple = ([], [], set(), JANELAS_TIPO_H[0])
+        # 13/10 (dona: "cadê a pessoa pegando as coisas de ref… não vi marca conhecida"): entre 2 do mesmo tipo fica o
+        # que a referência postou, depois o de marca conhecida (antes ficava o de maior score e o da referência sumia)
+        pref = sorted(lista, key=lambda o: (o["id"] not in ref_frente, not marca_conhecida(o)))
         for i, h in enumerate(JANELAS_TIPO_H):
             corte = (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
             bloq = {k for k, quando in saiu_tipo.items() if quando >= corte}
-            unicos = sem_repetidos([o for o in lista if chave_produto(o.get("titulo") or "") not in bloq])
+            fica = {o["id"] for o in sem_repetidos([o for o in pref if chave_variedade(o) not in bloq],
+                                                   chave=chave_variedade)}
+            unicos = [o for o in lista if o["id"] in fica]
             final = com_teto(unicos)
             if i == 0 or len(final) > len(melhor[1]):  # janela menor só vale se trouxer MAIS ofertas
                 melhor = (unicos, final, bloq, h)
@@ -4186,7 +4201,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     chaves_vet = revisao_fila.chaves_vetadas(vet)
     pub = publicados_recentes()
     pool = cand + [o for o in sem_repetidos(melhores(horas, LIMITE_CANDIDATOS)) if o["publicado_em"] and o["publicado_em"] < volta
-                   and o["link_loja"] and o.get("foto") and chave_produto(o["titulo"]) not in recentes
+                   and o["link_loja"] and o.get("foto") and chave_variedade(o) not in recentes
                    and not (so_com_link_curto and shopee_sem_curto(o)) and not barrada_na_hora(o)
                    and preco_fresco(o) and tem_de_no_post(o) and not ja_saiu(o, pub)
                    and not revisao_fila.vetada(o, vet, chaves_vet)]
@@ -4336,7 +4351,9 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
 
 # 09/10 (dona: "vamos pôr poucas coisas deles" → "Shein é 1 por DIA no grupo, só isso"): teto RÍGIDO de posts por dia de
 # uma fonte, contando o que já saiu hoje (publicado_em) — vale para todas as vagas, pedido da dona e grife inclusive
-TETO_FONTE_DIA = {"lomadee_shein": 1}
+# 13/10 (dona: "só Océane e às vezes uma marca ou outra… precisamos mudar isso" — eram 12 a 20 por dia, 32% dos posts
+# da manhã de 13/10): Océane no máx. 6 por dia
+TETO_FONTE_DIA = {"lomadee_shein": 1, "oceane_afiliados": 6}
 
 
 def postadas_hoje_fonte(fonte: str) -> int:
@@ -4371,7 +4388,8 @@ def eh_perfume_post(o: dict) -> bool:
     return eh_perfume(t, o.get("grupo")) and not re.search(r"(?i)capilar|cabelos?\b|\bhair\b", t)
 # 08/10 (Beto: 3 Océane em 5 posts, 2 coladas): loja que NÃO é marketplace (Océane, Época, Doce Beleza, Netshoes…) sai
 # espaçada — nunca 2 seguidas e no máx. LOJA_MAX_JANELA em cada LOJA_JANELA posts. Marketplace segue MAX_LOJA_SEGUIDA.
-LOJA_JANELA, LOJA_MAX_JANELA = 5, 2
+# 13/10 (dona: "só Océane"): 2 em cada 5 ainda parecia "só ela" → no máx. 1 em cada 8 posts
+LOJA_JANELA, LOJA_MAX_JANELA = 8, 1
 MARKETPLACES = ("shopee", "mercadolivre", "amazon", "magalu")
 
 
@@ -4559,7 +4577,60 @@ OCEANE_VALIDADE_H = 14
 # 09/10 (dona: "vamos dar uma variada, colocando bolsa, sapato, acessório, essas coisas, pijama e tal") → 6 beleza /
 # 3 moda / 1 casa bonita: "Mb" prefere bolsa, "Ms" sapato, "Mv" o tipo de moda (tipo_moda) que menos saiu hoje
 # (acessório, pijama…). Sem moda na fila, a vaga volta para beleza (filas vazias caem na próxima)
-PADRAO_LINHA = ("B", "Mb", "B", "B", "C", "B", "Ms", "B", "Mv", "B")
+# 13/10 (dona: "não tá tão variado a beleza… beleza engloba muita coisa… perfume morreu… quero mais bolsas bonitas…
+# falta acessórios, pulseiras"): a proporção 6/3/1 dela continua, mas cada vaga agora tem um PEDIDO — beleza: "Bm" make,
+# "Bk" skincare, "Bp" perfume, "Bc" cabelo, "Bo" corpo/unha/outros e 1 "B" livre (a melhor da fila); moda: "Mb" bolsa,
+# "Ma" acessório (pulseira, brinco, colar, óculos…), "Mv" o tipo que menos saiu hoje (sapato, pijama…). Sem o subtipo
+# na fila, a vaga leva a melhor do mesmo grupo (nunca fica vazia)
+PADRAO_LINHA = ("Bm", "Mb", "B", "Bk", "C", "Bp", "Ma", "Bc", "Mv", "Bo")
+
+
+def tipo_linha(o: dict) -> str:
+    """Subtipo da linha de beleza para as vagas do PADRAO_LINHA: "p" perfume, "c" cabelo, "k" skincare, "m" make,
+    "o" corpo/unha/outros."""
+    t = o.get("titulo") or ""
+    if eh_perfume_post(o):
+        return "p"
+    if o.get("grupo") == "cabelo" or CABELO_CONTEXTO.search(t):
+        return "c"
+    if re.search(r"(?i)esmalte|unhas?\b|corporal|\bcorpo\b|desodorante|depila|sabonete [íi]ntimo|\bm[ãa]os\b|\bp[ée]s\b|"
+                 r"\bbanho\b", t):
+        return "o"
+    if MAKE_DE_VERDADE.search(t):
+        return "m"
+    if (DERMO.search(t) or MARCAS_SKINCARE.search(t) or LIMPEZA_RX.search(t)
+            or re.search(r"(?i)s[ée]rum|hidratante|protetor solar|fps ?\d|t[ôo]nico|esfoliante|[áa]cido|retinol|vitamina c|"
+                         r"niacinamida|facial|skin ?care|m[áa]scara (?:facial|de argila)|olhos", t)):
+        return "k"
+    return "m" if MAKE_RX.search(t) else "o"
+
+
+def marca_conhecida(o: dict) -> bool:
+    """13/10 (dona: "não vi nada de marca conhecida"): marca que a pessoa reconhece no feed (CeraVe, La Roche, L'Oréal,
+    Kérastase, Natura…). A Océane tem regra própria (pedidos da Odete e teto do dia) e não conta aqui."""
+    t = o.get("titulo") or ""
+    return o.get("fonte") not in FONTES_SO_BELEZA and bool(
+        MARCAS.search(t) or DERMO.search(t) or MARCAS_SKINCARE.search(t) or LUXO.search(t) or MARCA_EXTRA.search(t))
+
+
+def nome_da_marca(titulo: str) -> str | None:
+    """A marca conhecida citada no título (minúsculas), ou None."""
+    for rx in (DERMO, MARCAS_SKINCARE, LUXO, MARCAS, MARCA_EXTRA):
+        m = rx.search(titulo or "")
+        if m:
+            return m.group(0).lower()
+    return None
+
+
+def chave_variedade(o: dict) -> str:
+    """13/10: o "tipo" da regra de variedade da fila (não repete em JANELAS_TIPO_H, 1 por tipo). Marca conhecida conta
+    à parte — o protetor solar da La Roche não trava o da ISDIN, nem o shampoo da Wella o da L'Oréal —, porque as
+    referências postam várias marcas do mesmo tipo no dia e a dona pediu marca conhecida. Sem marca: chave_produto."""
+    k = chave_produto(o.get("titulo") or "")
+    m = nome_da_marca(o.get("titulo") or "") if marca_conhecida(o) else None
+    return f"{k} · {m}" if m and m not in k else k
+
+
 # 03/10 (dona: "sinto necessidade de bolsas no grupo" — 11 bolsas em ~420 posts): a 1ª vaga de moda prefere BOLSA
 BOLSA = re.compile(r"\bbolsas?\b|\bclutch\b|\btote\b|transversal|tiracolo|baguete", re.I)
 NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessaire|cosm[ée]tic|maternidade|viagem", re.I)
