@@ -1008,7 +1008,7 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         return url
     if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
         from urllib.parse import quote
-        return f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"
+        return _curto_oficial(url) or f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"  # 13/10: tidd.ly quando houver
     if m := OCEANE_PRODUTO.match(url):  # 08/10: já vem com o nosso utmi_pc → sai igual (outro código → vira o nosso)
         return link_oceane(m.group(1))
     if m := SHEIN_PRODUTO.match(url.split("?")[0]):  # 09/10: Shein → o NOSSO lmdee.link (Lomadee) guardado na coleta
