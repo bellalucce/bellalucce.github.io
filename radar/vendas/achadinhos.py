@@ -2329,6 +2329,15 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
         probs.append("link da Shopee sem encurtar")
     if re.search(r"\bNone\b|\{[a-z]\}", texto):
         probs.append("texto com campo vazio")
+    # 13/10 (dona: "agora você tem que conferir sempre" — shampoo Lola saiu 14h32 com preço Prime sem o aviso): preço
+    # que só vale em uma condição (Prime, Pix) não sai sem a condição escrita; e Amazon não sai sem a hora do preço
+    s = sinais_de(o)
+    if s.get("so_prime") and "pra quem é Prime" not in (texto or ""):
+        probs.append("preço exclusivo Prime sem o aviso 'pra quem é Prime'")
+    if s.get("so_pix") and " no Pix" not in (texto or ""):
+        probs.append("preço só no Pix sem o aviso 'no Pix'")
+    if "amazon.com.br" in (o.get("link_loja") or "") and "*Por:*" in (texto or "") and "_(às " not in (texto or ""):
+        probs.append("Amazon sem a hora do preço")
     # 03/10 (dona apagou o post): "O pato protetor solar muda de cor quando exposto ao sol, mas não muda…" — título que é
     # FRASE traduzida (não nome de produto) nunca vai para o grupo
     t = (o.get("titulo") or "").strip()
@@ -4394,13 +4403,17 @@ def eh_perfume_post(o: dict) -> bool:
 # 13/10 (dona: "só Océane"): 2 em cada 5 ainda parecia "só ela" → no máx. 1 em cada 8 posts
 LOJA_JANELA, LOJA_MAX_JANELA = 8, 1
 MARKETPLACES = ("shopee", "mercadolivre", "amazon", "magalu")
+# 13/10 (Claude, depois de "só Océane" e "nunca vejo ML nem Amazon" da dona): Amazon relida saiu 8 em 12 posts
+# (14h31–15h03) e a Shopee foi 53 de 72 em 12/10 → nenhum marketplace passa da metade de cada MKT_JANELA posts
+MKT_JANELA, MKT_MAX_JANELA = 8, 4
 
 
 def loja_cabe(loja: str, seq: list[str]) -> bool:
     """A próxima oferta da `loja` pode sair depois da sequência de lojas `seq` (a mais recente no fim)?"""
     if loja in MARKETPLACES:
         ult = seq[-MAX_LOJA_SEGUIDA:]
-        return not (len(ult) >= MAX_LOJA_SEGUIDA and all(lj == loja for lj in ult))
+        return (not (len(ult) >= MAX_LOJA_SEGUIDA and all(lj == loja for lj in ult))
+                and seq[-(MKT_JANELA - 1):].count(loja) < MKT_MAX_JANELA)
     return not seq or (seq[-1] != loja and seq[-(LOJA_JANELA - 1):].count(loja) < LOJA_MAX_JANELA)
 _REDES = (("shopee", re.compile(r"shopee|shope\.ee", re.I)),
           ("mercadolivre", re.compile(r"mercado ?livre|mercadoli(?:vre|bre)\.com|meli\.la", re.I)),
