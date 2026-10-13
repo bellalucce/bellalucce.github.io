@@ -128,7 +128,7 @@
     <p><b>Quantas mensagens por dia?</b><br>Em média, de 100 a 200 ofertas por dia, entre 8h e 22h. Dá para silenciar o grupo e olhar só quando quiser.</p>
   </div>
   <small>Os preços são os da hora em que foram conferidos e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
-  <small id="priv" hidden>Privacidade: contamos as visitas sem cookie e sem dado pessoal. Só se você aceitar, o Pixel da Meta registra a visita e o toque em "Entrar" ou no botão do canal, para medirmos nossos anúncios. <a href="#" id="aviso-mudar">Mudar minha escolha</a></small>
+  <small id="priv" hidden>Privacidade: contamos as visitas sem cookie e sem dado pessoal. Usamos também o Pixel da Meta, que registra a visita e o toque em "Entrar" ou no botão do canal, para medirmos nossos anúncios; dá para desligar. <a href="#" id="aviso-mudar">Mudar minha escolha</a></small>
 </main>
 <script>
 (function () {
@@ -275,7 +275,7 @@
 })();
 </script>
 <div class="rodape">
-  <div class="aviso" id="aviso" hidden><span>Podemos usar o Pixel da Meta para medir nossos anúncios?</span><button type="button" id="aviso-nao">Recusar</button><button type="button" class="sim" id="aviso-sim">Aceitar</button></div>
+  <div class="aviso" id="aviso" hidden><span>Usamos o Pixel da Meta para medir nossos anúncios.</span><button type="button" id="aviso-nao">Desligar</button><button type="button" class="sim" id="aviso-sim">Ok</button></div>
   <div class="fixo"><a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a></div>
 </div>
 <script>
@@ -296,13 +296,15 @@
       if (window.goatcounter && window.goatcounter.count) {
         window.goatcounter.count({ path: "clique-" + canal + (de ? "-" + de : ""), title: "Toque em Entrar (" + canal + ")", event: true });
       }
-      // Pixel (só existe se a pessoa aceitou): o toque em "Entrar no grupo" (ou no canal) é a conversão do anúncio
-      if (window.fbq) window.fbq("track", "Lead", { content_name: canal + "-whatsapp" });
+      // Pixel (ligado na chegada, menos para quem desligou): o toque em "Entrar no grupo" (ou no canal) é a conversão do anúncio
+      if (window.fbq && escolha() !== "nao") window.fbq("track", "Lead", { content_name: canal + "-whatsapp" });
     } catch (e) {}
   }, true);
   var tocou = 0;
-  /* 11/10 — Pixel da Meta (dona: "Pixel da meta sim"). Só carrega DEPOIS do "Aceitar"; com PIXEL vazio fica tudo
-     desligado e o aviso nem aparece. Manda PageView ao aceitar e Lead no toque em "Entrar no grupo". */
+  /* 11/10 — Pixel da Meta (dona: "Pixel da meta sim"). Com PIXEL vazio fica tudo desligado e o aviso nem aparece.
+     12/10 23h57 (dona, depois do curso de tráfego: "Faz como o curso faz"): com Aceitar/Recusar nenhum visitante
+     aceitou e a Meta não recebia sinal → o Pixel liga NA CHEGADA (PageView) e manda Lead no toque em "Entrar no
+     grupo"; a faixa virou aviso com "Desligar" (guarda a escolha e não manda mais nada). */
   var PIXEL = "4449121092071476";
   var TEM_PIXEL = /^\d{10,20}$/.test(PIXEL);
   function escolha() { try { return localStorage.getItem("bl_pixel") || ""; } catch (e) { return ""; } }
@@ -325,10 +327,14 @@
     av.__ligado = true;
     av.hidden = false;
     document.getElementById("aviso-sim").addEventListener("click", function () {
-      guardar("sim"); av.hidden = true; ligarPixel(); evento("pixel-sim", "Aceitou o Pixel");
+      guardar("sim"); av.hidden = true; ligarPixel();
+      try { window.fbq("consent", "grant"); } catch (e) {}
+      evento("pixel-sim", "Ok no aviso do Pixel");
     });
     document.getElementById("aviso-nao").addEventListener("click", function () {
-      guardar("nao"); av.hidden = true; evento("pixel-nao", "Recusou o Pixel");
+      guardar("nao"); av.hidden = true;
+      try { if (window.fbq) window.fbq("consent", "revoke"); } catch (e) {}
+      evento("pixel-nao", "Desligou o Pixel");
     });
   }
   try {
@@ -337,7 +343,8 @@
       if (priv) priv.hidden = false;
       var mudar = document.getElementById("aviso-mudar");
       if (mudar) mudar.addEventListener("click", function (ev) { ev.preventDefault(); guardar(""); perguntar(); });
-      if (escolha() === "sim") ligarPixel(); else if (escolha() !== "nao") perguntar();
+      if (escolha() !== "nao") ligarPixel();
+      if (!escolha()) perguntar();
     }
   } catch (e) {}
   /* 11/10 15h — o anúncio trouxe 15 visitas de celular e 0 toque. Para saber se a pessoa sai na hora (ou se a
