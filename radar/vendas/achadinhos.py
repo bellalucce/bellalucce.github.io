@@ -2760,6 +2760,8 @@ def itens_do_foco(cfg: dict, foco: dict, so_shopee: bool = True) -> list[tuple[s
                 p["links"] = {c: u for c, u in (p.get("links") or {}).items() if "shopee" in u}
                 p["foto"] = p.get("foto_grupo") or p.get("foto")
                 p["preco"] = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "Shopee" in x)
+            if it.get("link"):  # link próprio do item (ex.: curto oficial da Shopee) no lugar do comprido
+                p["links"] = {"Shopee": it["link"]}
             ok = midia.tem_estoque(chave) if tem_itens else medido_pc.get(chave, True)
         elif it.get("kit_ml") in kits:
             k, chave = kits[it["kit_ml"]], f"kit_ml:{it['kit_ml']}"
@@ -2787,7 +2789,10 @@ def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | N
     itens = itens_do_foco(cfg, foco)
     if not any(ok for _, _, ok in itens):
         return None
-    dia = (agora.date() - datetime.strptime(foco["desde"][:10], "%Y-%m-%d").date()).days
+    ini = datetime.strptime(foco["desde"][:16], "%Y-%m-%d %H:%M")
+    if (ini.hour, ini.minute) >= (horas[0], 15):  # o 1º post é no 1º dia em que a hora cabe na janela → começa no item 1
+        ini += timedelta(days=1)
+    dia = (agora.date() - ini.date()).days
     _, p, _ = next(itens[(dia + i) % len(itens)] for i in range(len(itens)) if itens[(dia + i) % len(itens)][2])
     legenda = p["legendas"][dia % len(p["legendas"])] if p.get("legendas") else p["nome"]
     pr = promo_valendo(p, agora) or {}
