@@ -737,10 +737,19 @@ def sinais_de(o: dict) -> dict:
     return s if isinstance(s, dict) else {}
 
 
+# 14/10 (dona: "Nem que esteja inflado o valor, você vai pôr… Tira essa regra… Eu só quero que a pessoa entre e o valor
+# que eu publiquei seja o valor que ela vai comprar"): o "De" inflado NÃO barra mais nada nem esconde o "De" riscado.
+# O que continua valendo: o "Por" publicado = o preço que a pessoa paga (link vivo, preço conferido).
+DE_INFLADO_LIBERADO = True
+
+
 def de_inflado(o: dict) -> bool:
     """"De" mais de 2× o preço, fora de loja oficial (a oficial tem o "De" de tabela da marca).
     13/10: "de" CONFERIDO em outro site (Magalu × site da própria Época, mesmo preço de tabela) aguenta até 3× — a coleta
-    do Magalu perdeu hidratante Vult de R$ 25,99 por R$ 9,99 e batom Océane de R$ 60,90 por R$ 26,95 com "de" igual nos dois."""
+    do Magalu perdeu hidratante Vult de R$ 25,99 por R$ 9,99 e batom Océane de R$ 60,90 por R$ 26,95 com "de" igual nos dois.
+    14/10: desligado pela dona (DE_INFLADO_LIBERADO) — sempre False."""
+    if DE_INFLADO_LIBERADO:
+        return False
     s = sinais_de(o)
     de, por = o.get("preco_antigo") or 0, o.get("preco") or 0
     return de > (DE_CONFERIDO_MAX if s.get("de_conferido") else DE_MAX) * por > 0 and not s.get("oficial")
@@ -2569,7 +2578,9 @@ def _loja_desconto_fixo(link: str) -> bool:
 def de_confiavel(o: dict) -> bool:
     """Loja normal → confia no "De". Loja da lista (ou com desconto igual em quase tudo) → o "De" só aparece quando é
     REAL (dona 02/10: "onde a oferta for real pode deixar o De"): até 20% acima da mediana do mesmo produto nas outras
-    lojas (preço normal de mercado)."""
+    lojas (preço normal de mercado). 14/10: com DE_INFLADO_LIBERADO o "De" da loja sai sempre."""
+    if DE_INFLADO_LIBERADO:
+        return True
     link = o.get("link_loja") or ""
     if not any(f"/product/{s}/" in link for s in LOJAS_DE_INFLADO) and not _loja_desconto_fixo(link):
         # 08/10 (revisão + Rita/Beto: CeraVe 50 ml R$ 65,99 com "De" 119,98, mercado a R$ 54): em loja COMUM, quando o
@@ -2645,6 +2656,12 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
         # cupom para copiar (recurso do programa #SQUAD) — avisar ajuda a pessoa a usar o cupom
         if o.get("fonte") == "oceane_afiliados":
             linhas.append("_Ao abrir o link, aparece a bolinha da Bella Lucce com o cupom pra copiar 💗_")
+    elif sinais.get("cupom_pagina"):
+        # 14/10 (dona: "às vezes o preço tá diferente mas é só a pessoa pôr o cupom q desce"): o "Por" é o da página e
+        # o cupom do próprio anúncio baixa mais — dizer quanto fica, para ninguém achar que o preço é mentira
+        cc = sinais.get("preco_com_cupom")
+        linhas.append(f"🎟️ Ative o cupom de {sinais['cupom_pagina']} na página"
+                      + (f" → fica *{_brl_zap(cc)}*" if isinstance(cc, (int, float)) and cc < (o.get("preco") or 0) else ""))
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
     linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
@@ -3453,6 +3470,35 @@ def _bloco_preco(html: str) -> str | None:
     return html[i:i + 5000] if i >= 0 else None
 
 
+# 14/10 (dona: "presta atenção q às vezes o preço tá diferente mas é só a pessoa pôr o cupom q desce"): o cupom que o
+# próprio anúncio do ML oferece a qualquer pessoa ("Cupom 10% OFF · Aplicar", "R$ 15 OFF com cupom"). Só o do topo do
+# anúncio (bloco de preço / bloco de cupons), nunca o de carrossel lá embaixo.
+_CUPOM_PCT = re.compile(r"(?:cupo[mn][^%<]{0,40}?(\d{1,2})\s*%\s*OFF|(\d{1,2})\s*%\s*OFF[^<]{0,25}?cupo[mn])", re.I)
+_CUPOM_RS = re.compile(r"(?:cupo[mn][^<]{0,40}?R\$\s*([\d.]+(?:,\d{1,2})?)\s*OFF|R\$\s*([\d.]+(?:,\d{1,2})?)\s*OFF[^<]{0,25}?cupo[mn])",
+                       re.I)
+
+
+def cupom_da_pagina(html: str, preco: float | None = None) -> dict:
+    """{"cupom_pagina": "10% OFF", "preco_com_cupom": 89.91} do cupom público do anúncio; {} se não tiver."""
+    html = html or ""
+    trechos = []
+    for marca in ('id="price"', "ui-pdp-price__main-container", "ui-pdp-coupon", "ui-vpp-coupon", "coupon"):
+        if (i := html.find(marca)) >= 0:
+            trechos.append(html[i:i + 5000 if "price" in marca else 2500])
+    texto = " ".join(_html.unescape(re.sub(r"<[^>]+>", " ", " ".join(trechos))).split())
+    if m := _CUPOM_PCT.search(texto):
+        pct = int(m.group(1) or m.group(2))
+        if 1 <= pct <= 80:
+            return {"cupom_pagina": f"{pct}% OFF",
+                    "preco_com_cupom": round(preco * (1 - pct / 100), 2) if preco else None}
+    if m := _CUPOM_RS.search(texto):
+        valor = _num(m.group(1) or m.group(2))
+        if valor and (not preco or valor < preco):
+            return {"cupom_pagina": f"{_brl(valor)} OFF",
+                    "preco_com_cupom": round(preco - valor, 2) if preco else None}
+    return {}
+
+
 # og:title do ML = "Título - R$ 219" (09/10, blush Too Faced: o preço vinha grudado no título)
 _OG_TITULO_PRECO = re.compile(r"^(.*?\S)\s+-\s+R\$\s*([\d.]+(?:,\d{1,2})?)\s*$")
 
@@ -3509,6 +3555,7 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
     d["so_pix"] = bool(re.search(r"OFF\s+no\s+Pix", texto_bloco, re.I))
     m = re.search(r"no\s+Pix\s+ou\s+R\$\s*([\d.]+)(?:\s*,\s*(\d{1,2}))?", texto_bloco, re.I) if d["so_pix"] else None
     d["preco_cartao"] = _num(f"{m.group(1)},{m.group(2) or '0'}") if m else None
+    d.update(cupom_da_pagina(html, d.get("preco")))  # 14/10: cupom público do anúncio → aviso no post
     if not d.get("nota"):
         m = re.search(r'ui-pdp-review__rating[^>]*>\s*([\d.,]+)', html)
         d["nota"] = _num(m.group(1)) if m else None
@@ -3598,6 +3645,8 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
               "loja_nome": d.get("loja_nome") or "", "pedido_dona": True, "origem": "pedido_dona"}
     if d.get("so_pix"):
         sinais.update(so_pix=True, **({"preco_cartao": d["preco_cartao"]} if d.get("preco_cartao") else {}))
+    if d.get("cupom_pagina"):
+        sinais.update(cupom_pagina=d["cupom_pagina"], preco_com_cupom=d.get("preco_com_cupom"))
     if texto:
         sinais["gancho_dona"] = texto.strip().upper()
     vend = sinais["vendidos_num"]
@@ -3693,6 +3742,8 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
         cartao = o["sinais"].get("preco_cartao")
         avisos.append("o 'Por' é o preço NO PIX" + (f" (no cartão {_brl(cartao)})" if cartao else "")
                       + " — o Beto confere se o 'De' é promoção de verdade")
+    if o["sinais"].get("cupom_pagina"):
+        avisos.append(f"o anúncio tem cupom de {o['sinais']['cupom_pagina']} na página — o post avisa para ativar")
     if FALSIFICAVEL.search(o["titulo"]) and not o["sinais"]["oficial"]:
         avisos.append("marca muito falsificada e a loja NÃO é oficial — o Beto confere antes de sair")
     o["score"] = pontuar(o)
