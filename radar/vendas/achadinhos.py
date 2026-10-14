@@ -899,7 +899,14 @@ def aprovada(o: dict) -> bool:
         # 07/10 (dona: "cadê as maquiagens?" — Rafa: Maybelline Sky High da loja oficial, nota 5, -24%, barrada só por ter
         # menos de 1.000 vendidos): loja OFICIAL bem avaliada já é confiável → conta como "bom"
         bom = bom or (bool(s.get("oficial")) and nota >= 4.5)
+        # 13/10 (dona teve de mandar a máscara labial da Eudora, 25% OFF e 607 avaliações — barrada só pelo piso de 1.000):
+        # marca que a pessoa reconhece, nota ≥ 4,6 e +100 vendidos já é oferta boa. Só ML e Amazon: no marketplace da
+        # Shopee a marca conhecida continua valendo só em loja oficial (cópia); coreano/Kérastase já foram barrados acima
+        bom = bom or (o["fonte"] != "shopee_afiliados" and nota >= 4.6 and vend >= 100 and marca_conhecida(o))
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
+            # 13/10 23h (dona: "Pode por Mac com 10%"): MAC da loja OFICIAL entra a partir de 10% (as outras seguem em 20%)
+            if d >= 10 and s.get("oficial") and re.search(r"\bm\.?a\.?c\b", o.get("titulo") or "", re.I):
+                return True
             return d >= 40 or (d >= 20 and bom) or (d >= 15 and viral)
         if o.get("grupo") == "eletronicos":
             return d >= 55 or (d >= 40 and bom)
