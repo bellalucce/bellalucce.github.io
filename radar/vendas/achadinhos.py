@@ -2835,6 +2835,9 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
                (r"body splash", "body splash")]
 TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
+# 14/10 (dona: "3 vezes a mesma oferta… da mesma base"): saíram ~10 bases no dia porque o teto dobra quando a fila
+# está curta — base tem teto FIXO, que não dobra
+TETO_DURO = {"base": 3}
 
 # 04/10 (dona: "hoje só o melhor: beleza, cabelo, perfume, bolsa, bem feminino" — saíam barbear, coisa de criança,
 # suplemento, máquina de cortar cabelo, camiseta/regata, relógio masculino, caneta depiladora) → modo FEMININO
@@ -3222,24 +3225,37 @@ def _norm_titulo(t: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", t))
 
 
+# 14/10 (dona: "você já mandou 3 vezes a mesma oferta, cara, da mesma base"): BT Skin saiu 11h45 (Magalu), 18h03 e
+# 18h15 (2 anúncios da Shopee), Hidra Glow 9h16/10h46, Payot Cherrie 13/10 e 14/10 — id, item e título EXATO eram
+# outros, então nada barrava. O mesmo produto com o título reescrito (palavras que identificam o produto,
+# _mesmo_produto) não sai de novo em MESMO_PRODUTO_DIAS, em qualquer loja ou anúncio
+MESMO_PRODUTO_DIAS = 3
+
+
 def publicados_recentes(dias: int = REPETIR_DIAS) -> dict:
-    """{"ids", "chaves", "titulos"} do que saiu no grupo nos últimos `dias`."""
+    """{"ids", "chaves", "titulos", "tokens"} do que saiu no grupo nos últimos `dias` (tokens: só MESMO_PRODUTO_DIAS)."""
     from vendas import revisao_fila
-    ids, chaves, titulos = set(), set(), set()
-    for r in db.consultar("SELECT id, titulo, link_loja FROM ofertas WHERE publicado_em >= "
+    ids, chaves, titulos, tokens = set(), set(), set(), []
+    desde_tk = (datetime.now() - timedelta(days=MESMO_PRODUTO_DIAS)).isoformat(sep=" ", timespec="seconds")
+    for r in db.consultar("SELECT id, titulo, link_loja, publicado_em FROM ofertas WHERE publicado_em >= "
                           f"datetime('now','localtime','-{int(dias)} days')") or []:
         ids.add(r["id"])
         if c := revisao_fila.chave_item(r["id"] or "", r["link_loja"]):
             chaves.add(c)
         if r["titulo"]:
             titulos.add(_norm_titulo(r["titulo"]))
-    return {"ids": ids, "chaves": chaves, "titulos": titulos}
+            if (dict(r).get("publicado_em") or "").replace("T", " ") >= desde_tk and (tk := _tokens_de_produto(r["titulo"])):
+                tokens.append(tk)
+    return {"ids": ids, "chaves": chaves, "titulos": titulos, "tokens": tokens}
 
 
 def ja_saiu(o: dict, pub: dict) -> bool:
     from vendas import revisao_fila
-    return (o.get("id") in pub["ids"] or revisao_fila.chave_item(o.get("id") or "", o.get("link_loja")) in pub["chaves"]
-            or _norm_titulo(o.get("titulo") or "") in pub["titulos"])
+    if (o.get("id") in pub["ids"] or revisao_fila.chave_item(o.get("id") or "", o.get("link_loja")) in pub["chaves"]
+            or _norm_titulo(o.get("titulo") or "") in pub["titulos"]):
+        return True
+    tk = _tokens_de_produto(o.get("titulo") or "")
+    return bool(tk) and any(_mesmo_produto(tk, t2) for t2 in pub.get("tokens", ()))
 
 
 # 06/10 (Beto): perfume de GRIFE sem o tamanho no título (My Way 305/De 569, Idôle, La Vie Est Belle, Chloé, Light Blue
@@ -3987,7 +4003,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         def _teto(fator: int) -> list:
             return [o for o in lista
                     if (tema and _datas.casa(o, tema))
-                    or tipos_hoje.get(tipo_repetivel(o) or "", 0) < fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA)]
+                    or tipos_hoje.get(tipo_repetivel(o) or "", 0) < (TETO_DURO.get(tipo_repetivel(o) or "")
+                                                                     or fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA))]
         out = _teto(1)
         # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por
         # rodada): se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx.
