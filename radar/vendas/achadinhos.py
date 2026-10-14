@@ -1742,13 +1742,13 @@ def vitrine(horas: int = 36) -> str:
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Achadinhos de Beleza | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>PROMOS DE BELEZA VIP | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
 <link rel="canonical" href="https://bellalucce.github.io/">
-<meta property="og:title" content="Achadinhos de Beleza ✨ | Bella Lucce"><meta property="og:type" content="website">
+<meta property="og:title" content="PROMOS DE BELEZA VIP ✨ | Bella Lucce"><meta property="og:type" content="website">
 <meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume e cabelo com desconto de verdade.">
 <meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume e cabelo da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
 <style>
@@ -1779,7 +1779,7 @@ footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
 .nossa{{padding:12px 16px 0}}.nossa h2{{font-size:24px;margin:4px 0 10px;color:var(--cor2);font-family:'Cormorant Garamond',Georgia,serif;font-weight:700}}
 .trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
 </style></head><body>
-<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Achadinhos de Beleza</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}<a class="oce" href="oceane/">🎟️ Área Océane · cupom BELLALUCCE 10% OFF</a></header>
+<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>PROMOS DE BELEZA VIP</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}<a class="oce" href="oceane/">🎟️ Área Océane · cupom BELLALUCCE 10% OFF</a></header>
 {faixa}
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
