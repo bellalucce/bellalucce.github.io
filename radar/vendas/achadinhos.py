@@ -58,7 +58,9 @@ GRUPOS = {
 PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "beleza": r"perfume|batom|gloss|maquiag|base |rímel|rimel|sérum|serum|creme|hidratante|protetor solar|shampoo|condicionador|"
               r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash|"
-              r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion",  # 01/10: "innisfree… powder pact" caía em outros
+              r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion|"  # 01/10: "innisfree… powder pact" caía em outros
+              # 13/10 (dona mandou a máscara labial da Eudora que a coleta deixou em "outros"): tudo de lábio é beleza
+              r"labial|labiais|\blips?\b",
     "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni|"
             r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir|"  # 01/10 (Rafa): blazer caía em outros
             # 06/10 (Eva, vitrine fiel): joia/bijuteria e calçado fofo da divulgação caíam em "outros" e nunca entravam no grupo
