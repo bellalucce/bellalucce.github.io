@@ -60,7 +60,44 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
               r"skincare|máscara facial|mascara facial|esmalte|secador|chapinha|escova|delineador|paleta|blush|colônia|body splash|"
               r"p[óo] (?:compacto|facial|solto)|powder|\bpact\b|cushion|"  # 01/10: "innisfree… powder pact" caía em outros
               # 13/10 (dona mandou a máscara labial da Eudora que a coleta deixou em "outros"): tudo de lábio é beleza
-              r"labial|labiais|\blips?\b",
+              r"labial|labiais|\blips?\b|"
+              # 13/10 (dona: "vê se tem mais coisa q é de beleza e não tá entrando como beleza"): em 7 dias, ~170 ofertas de
+              # olho/rosto, skincare, corpo, unha e cabelo ficaram em "outros" (Shopee e ML). Cada termo foi testado contra os
+              # títulos reais do banco; as âncoras tiram o que NÃO é beleza (piercing, corretivo escolar, primer de tinta,
+              # máscara de dormir/solda, gel de limpeza de teclado, viseira, roupa com FPS, sabonete de bebê, unha de pet)
+              r"c[íi]lios|(?<!piercing )(?<!piercing de )(?<!piercing para )so[mb]{1,2}rancelha|curvex|"
+              r"corretivo(?! (?:postural|de postura|ortop|de solo|em fita|escolar))"
+              r"(?!.*(?:\bbic\b|papelaria|\bfita\b|toque m[áa]gico|faber|mercur|errorex))|"
+              r"(?<!tinta )(?<!fundo )\bprimer\b(?! (?:automotivo|universal|ep[óo]xi|pu\b|para (?:parede|metal|madeira|pl[áa]stico)))|"
+              r"iluminador(?:es)? (?:l[íi]quido|facial|em p[óo]|em bast[ãa]o|compacto|cremoso|corporal|stick)|"
+              r"contorno (?:facial|l[íi]quido|em bast[ãa]o|cremoso)|bronzer|bronzeador|"
+              r"sombras? (?:l[íi]quida|matte|cremosa|compacta|em p[óo]|para olhos|de olhos)|eyeliner|l[áa]pis (?:para|de|p/) olhos?|"
+              r"^(?!.*penteadeira).*?\bmake ?up\b|esponjas? de p[óo]|kabuki|\b[bc]{2} cream\b|"
+              r"demaquil|micelar|esfoliante|\bbalm\b|"
+              r"\bbrum(?:a|inha)s? (?:fixador|facial|matte|nutri|selante|spray|rosa mosqueta|volumizador|hidratante|refrescante|ilumin)|"
+              # máscara sozinha só com volume/peso no título (de cílios, de cabelo): "máscara de dormir/fantasia" fica fora
+              r"m[áa]sc[áa]ras?\b(?! (?:descart|cir[úu]rgic|pff2|n95|kn95|de (?:dormir|prote[çc][ãa]o|solda|mergulho|carnaval)))"
+              r"(?=.*\d ?(?:ml|g|kg)\b)|"
+              r"m[áa]sc[áa]ras? de (?:hidrata|tratamento|nutri|reconstru)|"
+              r"gel de limpeza(?!.*(?:teclado|automotiv|carro|painel|notebook|multiuso|poeira))|limpeza de pele|cleans(?:ing|er)|skin care|"
+              r"protetor facia(?:l|is)(?!.*(?:viseira|\bepi\b|acr[íi]lic|ro[çc]adeira|solda|shield|capacete))|"
+              r"(?:fluido|t[ôo]nico|limpeza|massageador|sauna|vaporizador|argila|tratamento) facia(?:l|is)|prot\.? solar|"
+              # FPS só junto de ml/g (protetor em stick/fluido) e nunca em roupa, chapéu ou guarda-sol
+              r"^(?!.*(?:camis|blusa|chap[ée]u|bon[ée]|guarda-?(?:sol|chuva)|sombrinha|roupa|manguito|luva|tecido|biqu[íi]ni)).*?"
+              r"(?:\bfps ?\d.*\d ?(?:ml|g)\b|\d ?(?:ml|g)\b.*\bfps ?\d)|"
+              r"antissinais|anti-?idade|anti-?rugas|\bacne\b|melasma|\bestrias\b|"
+              r"retinol|niacinamida|[áa]cido (?:hialur[ôo]nico|glic[óo]lico|salic[íi]lico)|centella|panthenol|pantenol|ampoule|\bscalp\b|"
+              r"\blo[çc][ãa]o\b|(?:hidrante|manteiga|[óo]leos?) corpora(?:l|is)|[óo]leos? (?:reparador|de tratamento)|"
+              r"[óo]leos? vegeta(?:l|is) (?:de )?(?:rosa mosqueta|r[íi]cino|am[êe]ndoa|argan|coco|jojoba|semente|abacate|alecrim)|"
+              r"bio-?oil|rosa mosqueta|"
+              r"^(?!.*(?:\bbaby\b|pampers|pom pom)).*?(?<!porta )(?<!porta-)(?<!para )(?<!de )sabonete(?!ira)|antitranspirante|"
+              r"desodorantes? (?:aeros+ol|roll-?on|spray|stick|em creme|col[ôo]nia|corporal)|^(?:kit )?(?:\d+ )?desodorante|"
+              r"\bunhas?\b(?! (?:(?:de|para|dos?) )?(?:c[ãa]es|cachorros?|gatos?|pets?)\b)|manicure|pedicure|cut[íi]cula|top coat|"
+              r"nail (?:art|drill)|"
+              r"depilador|depila[çc][ãa]o|redutor de pelos|\bgua ?sha\b|henna|\bcachos\b|^(?!.*\bgumm).*?\bhair\b|pomada modeladora|"
+              r"sun (?:fluid|cream|stick|serum|gel|milk|essence)|sunscreen|lola cosmetics|cadiveu|forever liss|kerasys|tsubaki|"
+              r"\bamend\b|\bbra[ée]\b|darrow|cerave|\bnivea\b|neostrata|adcos|granado|eudora|botic[áa]rio|"
+              r"sheglam|too faced|maybelline|niina secrets|franciny ehlke|real techniques|lattafa|^(?!cd\b).*?lanc[ôo]me",
     "moda": r"tênis|tenis|camiseta|blusa|vestido|calça|calca|bolsa|sandália|sandalia|jaqueta|moletom|relógio|relogio|óculos|mochila|biquíni|"
             r"blazer|saia|regata|cropped|shorts?|bermuda|macacão|cardigan|sapatilha|rasteir|"  # 01/10 (Rafa): blazer caía em outros
             # 06/10 (Eva, vitrine fiel): joia/bijuteria e calçado fofo da divulgação caíam em "outros" e nunca entravam no grupo
