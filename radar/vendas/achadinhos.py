@@ -2713,14 +2713,107 @@ SITE_URL = "https://bellalucce.github.io"
 HORAS_LOJA = (10, 13, 16, 19)  # 4 posts/dia de produto NOSSO no grupo (exposição grátis; 30/09: 1 visita/semana no ML)
 
 
+def foco_loja(agora: datetime | None = None, cfg: dict | None = None) -> dict | None:
+    """14/10 (dona disse SIM à Vitória): config/midia.json → foco_loja valendo AGORA (desde ≤ agora ≤ ate) ou None.
+    Dentro da janela o grupo/Telegram e a vitrine do site mostram SÓ os itens do foco (1 post/dia, alternando)."""
+    if cfg is None:
+        try:
+            cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    f = cfg.get("foco_loja") or {}
+    agora_txt = (agora or datetime.now()).strftime("%Y-%m-%d %H:%M")
+    if f.get("itens") and f.get("desde", "") <= agora_txt <= f.get("ate", ""):
+        return f
+    return None
+
+
+def _estoque_ml() -> dict:
+    """{MLB: disponível} dos anúncios ativos do ML no Hermes ({} = sem dado, ex.: no servidor)."""
+    try:
+        from vendas import estoque
+        return {a["id_externo"]: a["disponivel"] for a in estoque.anuncios() if a["canal"] == "ml" and a["ativo"]}
+    except Exception:  # noqa: BLE001 — sem tabela/banco: sem dado
+        return {}
+
+
+def _estoque_itens() -> list:
+    try:
+        from vendas import estoque
+        return estoque.itens()
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def itens_do_foco(cfg: dict, foco: dict, so_shopee: bool = True) -> list[tuple[str, dict, bool]]:
+    """[(chave, produto no formato de config/midia.json → produtos, disponível)] na ordem do foco. Produto da loja = só o
+    link da Shopee (a promo é da Shopee); kit do ML = link do NOSSO anúncio. Disponível = foto existe e tem estoque — o
+    servidor não tem o estoque do Hermes: lá vale o que o PC mediu (foco_loja._estoque_pc, gravado em exportar_estado)."""
+    from vendas import midia
+    prods, kits = cfg.get("produtos") or {}, {k.get("mlb"): k for k in cfg.get("kits_ml") or []}
+    tem_itens, disp_ml, medido_pc = bool(_estoque_itens()), _estoque_ml(), foco.get("_estoque_pc") or {}
+    out = []
+    for it in foco.get("itens") or []:
+        if it.get("sku") in prods:
+            chave, p = it["sku"], dict(prods[it["sku"]])
+            if so_shopee:
+                p["links"] = {c: u for c, u in (p.get("links") or {}).items() if "shopee" in u}
+                p["foto"] = p.get("foto_grupo") or p.get("foto")
+                p["preco"] = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "Shopee" in x)
+            ok = midia.tem_estoque(chave) if tem_itens else medido_pc.get(chave, True)
+        elif it.get("kit_ml") in kits:
+            k, chave = kits[it["kit_ml"]], f"kit_ml:{it['kit_ml']}"
+            mlb = k["mlb"]
+            p = {**k, "links": {"Mercado Livre": it.get("link") or f"https://produto.mercadolivre.com.br/{mlb[:3]}-{mlb[3:]}"}}
+            if it.get("frete_gratis"):
+                p["preco"] = f"{k.get('preco', '')} · frete grátis".strip(" ·")
+            ok = disp_ml.get(mlb, 0) > 0 if disp_ml else medido_pc.get(chave, True)
+        else:
+            continue
+        if it.get("legenda"):
+            p["legendas"] = [it["legenda"]]
+        if it.get("chamada"):
+            p["chamada"] = it["chamada"]
+        ok = bool(ok and p.get("links") and p.get("foto") and (config.RAIZ / p["foto"]).is_file())
+        out.append((chave, p, ok))
+    return out
+
+
+def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | None:
+    """1 post/dia (1ª rodada da hora do foco), alternando os itens dia a dia; item sem estoque/foto → o próximo."""
+    horas = [int(h) for h in foco.get("horas") or [19]]
+    if agora.hour != horas[0] or agora.minute >= 15:  # 1×/dia: só a 1ª hora da lista vale
+        return None
+    itens = itens_do_foco(cfg, foco)
+    if not any(ok for _, _, ok in itens):
+        return None
+    dia = (agora.date() - datetime.strptime(foco["desde"][:10], "%Y-%m-%d").date()).days
+    _, p, _ = next(itens[(dia + i) % len(itens)] for i in range(len(itens)) if itens[(dia + i) % len(itens)][2])
+    legenda = p["legendas"][dia % len(p["legendas"])] if p.get("legendas") else p["nome"]
+    pr = promo_valendo(p, agora) or {}
+    if pr:
+        url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
+        linhas = ["*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*", "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
+                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, até {pr['ate'][8:10]}/{pr['ate'][5:7]})_"]
+    else:
+        url = next(iter(p["links"].values()))
+        linhas = [f"*{p['chamada']}*" if p.get("chamada") else "*DA NOSSA LOJINHA 💖*", "", f"🛍️ {legenda}"]
+        if p.get("preco"):
+            linhas += ["", f"💰 {p['preco']}"]
+    linhas += ["", f"🛒 *Compre aqui:* {url}", "", "_Produto da loja Bella Lucce, notificado na ANVISA._"]
+    return "\n".join(linhas), str(config.RAIZ / p["foto"])
+
+
 def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     """(legenda, foto local) de um produto da PRÓPRIA loja com estoque, em rodízio, nas HORAS_LOJA (1ª rodada da hora).
     Produtos/links/legendas vêm de config/midia.json (os mesmos dos vídeos). None fora do horário ou sem estoque."""
     from vendas import midia
     agora = agora or datetime.now()
+    cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
+    if foco := foco_loja(agora, cfg):  # 14/10: janela de foco (só as 3 ofertas, 1×/dia) — fora dela, tudo como antes
+        return _post_do_foco(cfg, foco, agora)
     if agora.hour not in HORAS_LOJA or agora.minute >= 15:
         return None
-    cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
     prods = cfg["produtos"]
 
     def _so_shopee(p: dict) -> dict:
@@ -4876,9 +4969,24 @@ def _publicar_loja(pasta, radar) -> None:
     from PIL import Image
 
     from vendas import midia
-    prods = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))["produtos"]
+    cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
+    prods = cfg["produtos"]
     (pasta / "loja").mkdir(exist_ok=True)
     lista = []
+    if foco := foco_loja(None, cfg):  # 14/10 (dona disse SIM à Vitória): na janela do foco a vitrine mostra SÓ os itens dele
+        for chave, p, ok in itens_do_foco(cfg, foco):
+            if not ok:
+                continue
+            foto = config.RAIZ / p["foto"]
+            nome_arq = chave.replace(":", "_").replace("kit_ml_", "kit_")
+            destino = pasta / "loja" / f"{nome_arq}.jpg"
+            if not destino.exists() or destino.stat().st_mtime < foto.stat().st_mtime:
+                im = Image.open(foto).convert("RGB")
+                im.thumbnail((500, 500))
+                im.save(destino, quality=85)
+            lista.append({"nome": p["nome"], "preco": preco_loja_site(p), "links": p["links"], "foto": f"loja/{nome_arq}.jpg"})
+        (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
+        return
     for sku, p in prods.items():
         foto = config.RAIZ / p.get("foto", "")
         if not (p.get("links") and foto.is_file() and midia.tem_estoque(sku)):

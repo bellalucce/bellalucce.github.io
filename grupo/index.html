@@ -45,6 +45,10 @@
   h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--caramelo-esc); }
   h1 { font-size: 1.62rem; font-weight: 700; margin: 6px 0 4px; line-height: 1.12; text-wrap: balance; }
   p.sub { margin: 0 0 10px; line-height: 1.4; font-size: .98rem; }
+  /* 14/10 (dona aprovou): faixa da Black Friday — fica escondida e aparece sozinha de 27/10 a 30/11 (script no fim) */
+  p.bf { margin: 8px auto 2px; max-width: 360px; padding: 6px 12px 5px; border-radius: 20px; background: var(--caramelo-esc);
+         color: #fff; font-size: .8rem; font-weight: 600; letter-spacing: .03em; line-height: 1.3; }
+  p.bf[hidden] { display: none; }
   a.botao { display: block; padding: 16px 12px; margin: 10px 0 8px; border-radius: 40px; font-size: 1.12rem; font-weight: 600;
             text-decoration: none; color: #fff; background: var(--caramelo); letter-spacing: .02em;
             box-shadow: 0 6px 16px rgba(142, 74, 38, .28); }
@@ -121,6 +125,7 @@
   <img class="logo" src="../logo.png" alt="Bella Lucce" width="56" height="56">
   <!-- 11/10 (dona: "não tem ninguém clicando"; Vitória): a 1ª dobra repete a promessa do anúncio e diz WHATSAPP;
        3 ofertas reais antes do botão; o plano B do número (canal) logo abaixo do botão. -->
+  <p class="bf" id="faixa-bf" hidden>BLACK FRIDAY 27/11 · as promoções de beleza vêm para o grupo com o preço conferido</p>
   <h1>Grupo PROMOS DE BELEZA VIP no WhatsApp</h1>
   <p class="sub">Make, skincare e cabelo com <b>desconto de verdade</b>, todo dia. É grátis e você sai quando quiser.</p>
   <!--FAIXA-INI--><!--FAIXA-FIM-->
@@ -438,6 +443,12 @@
     rolou = true;
     evento("rolou", "Rolou a página");
   }, { passive: true });
+})();
+/* 14/10 (dona aprovou a ideia 2 da Vitória): faixa da Black Friday liga sozinha de 27/10 até o fim de 30/11 (hora de Brasília) */
+(function () {
+  var f = document.getElementById("faixa-bf");
+  var agora = Date.now();
+  if (f && agora >= Date.parse("2026-10-27T00:00:00-03:00") && agora < Date.parse("2026-12-01T00:00:00-03:00")) f.hidden = false;
 })();
 </script>
 <script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>

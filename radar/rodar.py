@@ -61,6 +61,8 @@ def main() -> None:
             print(f"faixa da /grupo: {n_faixa} ofertas")
         except Exception as e:  # a faixa é um extra: sem ela a página sai como está no repositório
             print("faixa da /grupo falhou:", e)
+    if (REPO / "black-friday-beleza").exists():  # 14/10 (dona aprovou a ideia 2 da Vitória): lista de desejos da BF
+        shutil.copytree(REPO / "black-friday-beleza", SAIDA / "black-friday-beleza", dirs_exist_ok=True)
     if (REPO / "p").exists():  # 02/10: página nossa de cada produto do Pinterest (scripts/pinterest/pagina_produto.py)
         shutil.copytree(REPO / "p", SAIDA / "p", dirs_exist_ok=True)
     if (REPO / "iris").exists():  # 05/10: fotos dos posts da Íris (o Instagram lê daqui) — davam 404, não eram copiadas
@@ -69,7 +71,8 @@ def main() -> None:
     for arq in REPO.glob("google*.html"):
         shutil.copyfile(arq, SAIDA / arq.name)
     base = "https://bellalucce.github.io"
-    paginas = ["/", "/oceane/", "/grupo/", "/links/"] + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
+    paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
+        ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
