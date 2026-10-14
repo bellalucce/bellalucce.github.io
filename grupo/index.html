@@ -83,8 +83,27 @@
   a.card .loja { font-size: .72rem; color: #7a5a44; text-transform: uppercase; letter-spacing: .06em; margin-top: auto; }
   p.canal { margin: 14px 0 0; font-size: .9rem; }
   p.canal a { color: var(--caramelo-esc); }
-  .faq { text-align: left; line-height: 1.55; font-size: .95rem; }
-  .faq a { color: var(--caramelo-esc); }
+  /* 14/10 (dona: "um terço de moda feminina… parece escola… reformula tudo, otimiza e deixa mais bonito"): perguntas
+     em cartões que abrem ao tocar, texto curto e natural */
+  h2.faq-tit { font-size: 1.45rem; margin: 30px 0 4px; }
+  p.faq-sub { margin: 0 0 12px; font-size: .84rem; color: #7a5a44; }
+  .faq { text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .faq details { background: var(--creme-claro); border: 1.5px solid rgba(185, 104, 60, .45); border-radius: 14px;
+                 overflow: hidden; }
+  .faq details[open] { border-color: var(--caramelo); box-shadow: 0 4px 12px rgba(142, 74, 38, .12); }
+  .faq summary { list-style: none; cursor: pointer; padding: 13px 44px 12px 14px; position: relative;
+                 font-weight: 600; font-size: .96rem; color: var(--caramelo-esc); line-height: 1.3; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+                        width: 24px; height: 24px; border-radius: 50%; background: var(--caramelo); color: #fff;
+                        font-size: 1.1rem; line-height: 24px; text-align: center; transition: transform .2s; }
+  .faq details[open] summary::after { content: "–"; }
+  .faq .resp { padding: 0 14px 13px; font-size: .92rem; line-height: 1.55; }
+  .faq .resp p { margin: 0; }
+  .faq .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 2px; }
+  .faq .tags span { background: #fff; border: 1px solid rgba(185, 104, 60, .5); border-radius: 20px; padding: 4px 10px 3px;
+                    font-size: .78rem; color: var(--caramelo-esc); }
+  .faq a { color: var(--caramelo-esc); font-weight: 600; }
   small { display: block; margin-top: 18px; color: #7a5a44; line-height: 1.4; }
   /* fica por ÚLTIMO de propósito: antes das regras normais ela perdia (11/10 18h10) */
   /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
@@ -119,13 +138,34 @@
     <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a>
   </section>
 
-  <h2 style="font-size:1.4rem;margin-top:28px">Perguntas frequentes</h2>
+  <h2 class="faq-tit">Ficou com alguma dúvida?</h2>
+  <p class="faq-sub">Toque na pergunta para ver a resposta</p>
   <div class="faq">
-    <p><b>Quem é a Bella Lucce?</b><br>Uma loja online de maquiagem: vende <a href="https://shopee.com.br/shop/254425847" rel="noopener">pela Shopee</a> e tem <a href="https://www.instagram.com/abella.lucce/" rel="noopener">perfil no Instagram</a>. O grupo é novo e ainda pequeno: só ela posta, e cada oferta vem com a foto, o preço e o link para comprar (e o preço de antes, quando a loja informa).</p>
-    <p><b>Como entrar no grupo de achadinhos?</b><br>Toque em "Entrar no grupo do WhatsApp" acima e confirme no WhatsApp. Não paga nada.</p>
-    <p><b>Que tipo de promoção aparece?</b><br>Na maior parte, beleza: maquiagem, skincare, dermocosméticos e cabelo, da Shopee, do Mercado Livre e de outras lojas. Cerca de um terço é moda feminina: sandálias, bolsas e pijamas.</p>
-    <p><b>Prefere não mostrar o número?</b><br>Siga o canal do WhatsApp: uma seleção das ofertas do dia, e ninguém vê o seu número.</p>
-    <p><b>Quantas mensagens por dia?</b><br>Em média, de 100 a 200 ofertas por dia, entre 8h e 22h. Dá para silenciar o grupo e olhar só quando quiser.</p>
+    <details open>
+      <summary>O que aparece no grupo?</summary>
+      <div class="resp"><p>As melhores promoções de beleza que a gente encontra na Shopee, no Mercado Livre, na Amazon e na Magalu, e também moda e acessórios lindos:</p>
+        <div class="tags"><span>Maquiagem</span><span>Skincare</span><span>Dermocosméticos</span><span>Cabelo</span><span>Perfumes de marca</span><span>Bolsas</span><span>Sapatos</span><span>Acessórios</span><span>Kits e brindes</span></div></div>
+    </details>
+    <details>
+      <summary>Quanto custa para entrar?</summary>
+      <div class="resp"><p>Nada. É só tocar em "Entrar no grupo do WhatsApp" e confirmar. Você sai quando quiser.</p></div>
+    </details>
+    <details>
+      <summary>O preço do post é o que eu vou pagar?</summary>
+      <div class="resp"><p>Sim. Cada preço é conferido antes de ir para o grupo. Se a promoção pede cupom ou é só para quem é Prime, isso vem escrito no próprio post. Promoção boa acaba rápido, então vale não deixar para depois.</p></div>
+    </details>
+    <details>
+      <summary>Vou receber muitas mensagens?</summary>
+      <div class="resp"><p>Tem oferta nova o dia todo, das 8h às 22h. Uma dica: silencie o grupo e dê uma olhada quando quiser, as promoções ficam lá esperando por você.</p></div>
+    </details>
+    <details>
+      <summary>Não quero mostrar meu número</summary>
+      <div class="resp"><p>Sem problema: siga o <a href="https://whatsapp.com/channel/0029VbDx8fU7YScvlXWaHd3Q" rel="noopener">nosso canal no WhatsApp</a>. Lá vão as melhores do dia e ninguém vê o seu número.</p></div>
+    </details>
+    <details>
+      <summary>Quem é a Bella Lucce?</summary>
+      <div class="resp"><p>Uma loja online de maquiagem, com loja <a href="https://shopee.com.br/shop/254425847" rel="noopener">na Shopee</a> e perfil <a href="https://www.instagram.com/abella.lucce/" rel="noopener">no Instagram</a>. No grupo, só a loja posta: sem conversa paralela e sem corrente.</p></div>
+    </details>
   </div>
   <small>Os preços são os da hora em que foram conferidos e podem mudar nas lojas. Alguns links são de afiliada: a Bella Lucce pode receber uma comissão, sem custo a mais para você.</small>
   <small id="priv" hidden>Privacidade: o contador de visitas do site não usa cookie nem dado pessoal. Usamos também o Pixel da Meta (Facebook e Instagram): ele liga quando a página abre, grava um cookie e registra a visita e o toque em "Entrar" ou no botão do canal, para medirmos nossos anúncios. Se você desligar, nada mais é enviado. <a href="#" id="aviso-mudar">Mudar minha escolha</a></small>
