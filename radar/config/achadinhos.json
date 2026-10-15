@@ -12,6 +12,11 @@
   "Achadinhos Bella Lucce"
  ],
  "canal_nome": "PROMOS DE BELEZA VIP",
+ "canais_pausados_sem_seguidor": true,
+ "canais_seguidores_da_casa": {
+  "telegram": 3,
+  "whatsapp_canal": 0
+ },
  "grupo_quem": "nuvem",
  "so_feminino_ate": "2099-12-31",
  "telegram": "",
