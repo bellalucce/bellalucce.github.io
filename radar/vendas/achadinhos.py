@@ -1058,6 +1058,15 @@ def _curto_oficial(url: str) -> str | None:
         return None
 
 
+def _oceane_curto(link: str) -> str | None:
+    """15/10: link curto NOSSO da Océane já no ar (integracoes/oceane_curto.py). Sem ele → None (vai o comprido)."""
+    try:
+        from vendas.integracoes import oceane_curto
+        return oceane_curto.curto(link)
+    except Exception:  # noqa: BLE001 — radar na nuvem não leva a integração; link curto nunca derruba o post
+        return None
+
+
 def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     """Troca pelo NOSSO código de afiliado quando existir (config/segredos.json → afiliados).
     canal="whatsapp": até 07/10 o ML (que PROÍBE WhatsApp/Telegram — mercadolivre.com.br/l/afiliados-pode-compartilhar)
@@ -1070,7 +1079,9 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
         from urllib.parse import quote
         return _curto_oficial(url) or f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"  # 13/10: tidd.ly quando houver
     if m := OCEANE_PRODUTO.match(url):  # 08/10: já vem com o nosso utmi_pc → sai igual (outro código → vira o nosso)
-        return link_oceane(m.group(1))
+        # 15/10 (dona: "pode encurtar a Océane"): no grupo/Telegram, o NOSSO curto bellalucce.github.io/o/<codigo>/ —
+        # só se a página já foi vista no ar (integracoes/oceane_curto.py); senão o comprido de sempre. Site: comprido.
+        return (canal in ("whatsapp", "telegram") and _oceane_curto(link_oceane(m.group(1)))) or link_oceane(m.group(1))
     if m := SHEIN_PRODUTO.match(url.split("?")[0]):  # 09/10: Shein → o NOSSO lmdee.link (Lomadee) guardado na coleta
         return link_shein(m.group(1))
     af = config.segredos().get("afiliados") or {}
@@ -5078,6 +5089,11 @@ def publicar_site() -> str:
         # resumo do histórico de preço (só quem tem 7+ dias) → selo "menor preço" também no site montado na nuvem
         (radar / "dados" / "historico.json").write_text(json.dumps(minimos(), separators=(",", ":")), encoding="utf-8")
     _publicar_loja(pasta, radar)
+    try:  # 15/10 (dona: "pode encurtar a Océane"): páginas /o/<codigo>/ + conferência das que já subiram
+        from vendas.integracoes import oceane_curto
+        print(oceane_curto.ciclo())
+    except Exception as ex:  # noqa: BLE001 — link curto é um extra: sem ele o grupo sai com o link comprido
+        print("links curtos Océane falharam:", ex)
     # 05/10: logo escolhida pela dona (monograma creme + caramelo, Marca/Achadinhos/site).
     # 13/10 (dona: "não usamos mais!!!"): a logo ROSA antiga de dados/marca saiu até como reserva — sem a nova, não copia nada.
     nova = config.RAIZ / "Marca" / "Achadinhos" / "site"
@@ -5091,6 +5107,8 @@ def publicar_site() -> str:
     import hashlib
     digitais = [f"{sub} {hashlib.sha256((pasta / sub / 'index.html').read_bytes()).hexdigest()[:16]}"
                 for sub in ("grupo", "links") if (pasta / sub / "index.html").exists()]
+    if (pasta / "o").is_dir():  # 15/10: página /o/ nova também publica sem esperar o cron da nuvem
+        digitais.append(f"o {len(list((pasta / 'o').glob('*/index.html')))}")
     (radar / "dados" / "paginas.txt").write_text("\n".join(digitais) + "\n", encoding="utf-8")
     git = ["git", "-C", str(pasta), "-c", "user.name=bellalucce", "-c", "user.email=bellalucce@users.noreply.github.com",
            "-c", "credential.helper=", "-c", "credential.helper=manager"]
