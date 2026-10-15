@@ -5009,6 +5009,20 @@ def _publicar_loja(pasta, radar) -> None:
                 im.thumbnail((500, 500))
                 im.save(destino, quality=85)
             lista.append({"nome": p["nome"], "preco": preco_loja_site(p), "links": p["links"], "foto": f"loja/{nome_arq}.jpg"})
+        # 15/10 ~20h (dona aprovou e mudou na Shopee: glosses a R$ 16,90 até 31/10, "mostrar no site"): DEPOIS dos itens do
+        # foco entram os produtos com promoção da Shopee valendo e estoque — só a vitrine do site; o post do grupo segue o foco
+        ja = {it.get("sku") for it in foco.get("itens") or []}
+        for sku, p in prods.items():
+            foto = config.RAIZ / p.get("foto", "")
+            shopee = {c: u for c, u in (p.get("links") or {}).items() if "shopee" in u}
+            if sku in ja or not (promo_valendo(p) and shopee and foto.is_file() and midia.tem_estoque(sku)):
+                continue
+            destino = pasta / "loja" / f"{sku}.jpg"
+            if not destino.exists() or destino.stat().st_mtime < foto.stat().st_mtime:
+                im = Image.open(foto).convert("RGB")
+                im.thumbnail((500, 500))
+                im.save(destino, quality=85)
+            lista.append({"nome": p["nome"], "preco": preco_loja_site(p), "links": shopee, "foto": f"loja/{sku}.jpg"})
         (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
         return
     for sku, p in prods.items():

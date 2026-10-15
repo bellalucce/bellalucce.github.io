@@ -22,5 +22,21 @@
    "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5325882855"
   },
   "foto": "loja/kit_MLB5325882855.jpg"
+ },
+ {
+  "nome": "Gloss Ursinho Chaveiro Vivai",
+  "preco": "R$ 16,90 na Shopee (de R$ 22,90)",
+  "links": {
+   "Shopee": "https://shopee.com.br/product/254425847/22594698859"
+  },
+  "foto": "loja/gloss_ursinho.jpg"
+ },
+ {
+  "nome": "Gloss Mágico Febella com partículas douradas",
+  "preco": "R$ 16,90 na Shopee (de R$ 24,90)",
+  "links": {
+   "Shopee": "https://shopee.com.br/product/254425847/58250636573"
+  },
+  "foto": "loja/gloss_gold.jpg"
  }
 ]
