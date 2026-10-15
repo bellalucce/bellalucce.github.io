@@ -126,6 +126,12 @@ FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitn
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
                      r"suplemento em p|hipercal|carboidrat|albumina|bioimped|pasta de amendoim|barra de prote|"
                      r"termog[êe]nic|probi[óo]tic|\bprotein\b|isolate", re.I)
+# 15/10 (dona: "olha o nome… nome do grupo… quem deixou isso passar?"): a Rafa pôs a anotação dela no --texto do pedido
+# e 6 posts saíram com "RAFA: REFERÊNCIA PROMOS & CUPONS #2 15/10 11:57 — …". Nunca no post: nome de agente com ":",
+# "referência", nome de grupo de referência/concorrente, "#2"/"#051".
+NOTA_INTERNA = re.compile(r"(?i)\b(?:rafa|bia|beto|rita|nina|odete|cora|dani|mila|eva|marcos|tati|zélia|thaís|duda)\s*:|"
+                          r"refer[êe]ncia|universo (?:das )?promos|promos ?& ?cupons|clube delas|entre mulheres|"
+                          r"promos da ca\b|poor paty|#\d{1,3}\b")
 BEBE = re.compile(r"fralda|len[çc]o umedecido|\bbeb[êe]s?\b|infantil|mamadeira|chupeta|carrinho de beb|body infantil|"
                   r"banheira|trocador|kit ber[çc]o|brinquedo", re.I)
 # pet: só o que vende muito e serve para qualquer bicho (nada de remédio nem ração específica)
@@ -356,8 +362,8 @@ def _grupo_final(g: str, titulo: str) -> str:
         return "moda"  # 06/10 (Eva): porta-joias é acessório da vitrine, não "casa" (a regra feminina só deixa moda passar)
     if CABELO.search(titulo or ""):
         return "cabelo"
-    if FITNESS.search(titulo or ""):
-        return "esporte"
+    if FITNESS.search(titulo or "") and not MARCAS_SKINCARE.search(titulo or ""):
+        return "esporte"  # 15/10: "Haruharu… Probiotics Barrier Essence" (pedido da dona) caía em esporte
     if PET.search(titulo or ""):
         return "pet"      # item de bicho em casa/moda/infantil escapava da regra "pet só de marca popular"
     if BEBE.search(titulo or ""):
@@ -2390,6 +2396,8 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
     quando = (quando or "").replace("T", " ")
     o = com_tipo(o)  # 08/10 noite: confere a frase contra o título COM o tipo (o mesmo que sai no post)
     linhas = (texto or "").replace("⁠", "").split("\n")
+    if NOTA_INTERNA.search(texto or ""):  # 15/10 (dona): nome de grupo concorrente / anotação de agente no post
+        probs.append(f"anotação interna ou nome de outro grupo no post: {NOTA_INTERNA.search(texto).group(0)}")
     if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo"),
                           novas=not quando or quando >= REGRAS_GANCHO_NOITE_DESDE):
         probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
@@ -2455,8 +2463,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     from vendas import ganchos
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
     s0 = sinais_de(o)  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA…")
-    if g := (s0.get("gancho_dona") or "").strip():  # 09/10: `achadinhos pedido --texto` (o gancho_post ainda confere)
-        return g
+    if (g := (s0.get("gancho_dona") or "").strip()) and not NOTA_INTERNA.search(g):  # 09/10: `pedido --texto`
+        return g  # 15/10: anotação de agente ("RAFA: REFERÊNCIA PROMOS & CUPONS #2…") saiu como título → descartada
     # 10/10 (Rita, 3ª vez no dia): "QUEM VÊ JURA QUE É DE GRIFE" em relógio de R$ 11 → dupe só a partir de DUPE_PRECO_MIN
     if (s0.get("origem") == "vitrine_fiel" and (preco or 0) >= DUPE_PRECO_MIN
             and (frases := [f for f in ganchos.dupe(titulo) if ganchos.economia_ok(f, preco)])):
