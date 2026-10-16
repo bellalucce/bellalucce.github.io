@@ -4591,8 +4591,16 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                 return moda_hoje.get(tp, 0) + sum(tipo_moda(y.get("titulo") or "") == tp for y in out
                                                   if y.get("grupo") == "moda")
             return 0
+        # 16/10 (dona: "você não está mandando coisa de outras lojas" — 15/10 saíram 150 Shopee e 64 ML contra 11
+        # Amazon e 4 Magalu; Shopee/ML enchiam todas as vagas porque a fila só olhava referência, marca e comissão):
+        # entre as de mesma preferência (referência na frente, marca conhecida antes), sai primeiro a LOJA que menos
+        # apareceu nos últimos LOJA_RODIZIO_JANELA posts — Amazon/Magalu/Océane entram assim que têm oferta válida
+        seq_lojas = (antes + [loja_de(y) for y in out])[-LOJA_RODIZIO_JANELA:]
+
+        def _rodizio(x: dict) -> tuple:
+            return (x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
-        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x)))[:6]:
+        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x), *_rodizio(x)))[:6]:
             fila.remove(o)
             tentativas += 1
             if foto_ok(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
@@ -4658,6 +4666,7 @@ MARKETPLACES = ("shopee", "mercadolivre", "amazon", "magalu")
 # 13/10 (Claude, depois de "só Océane" e "nunca vejo ML nem Amazon" da dona): Amazon relida saiu 8 em 12 posts
 # (14h31–15h03) e a Shopee foi 53 de 72 em 12/10 → nenhum marketplace passa da metade de cada MKT_JANELA posts
 MKT_JANELA, MKT_MAX_JANELA = 8, 4
+LOJA_RODIZIO_JANELA = 10  # 16/10: rodízio de lojas na vaga (ver fila_posts)
 
 
 def loja_cabe(loja: str, seq: list[str]) -> bool:
