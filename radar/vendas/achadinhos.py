@@ -2014,7 +2014,7 @@ BENEFICIOS = [
      r"antissinais|hidratante facial|creme facial|clareador facial|sabonete facial|kit skincare|[áa]gua micelar|micelar|"
      # 30/09: coreanas (toner/máscara facial/cleansing balm); toner de impressora fora ("Toner HP 85A", "CF283A")
      r"t[ôo]nico facial|toner(?!\s*(?:hp|brother|samsung|lexmark|xerox|ricoh|kyocera|canon|epson|compat|p/|para imp|"
-     r"de imp|tn-?\d|[a-z]{1,3}\d{2,}))|m[áa]scara facial|sheet mask|deep mask|cleansing balm|balm de limpeza|"
+     r"de imp|tn-?\d|[a-z]{1,3}\d{2,}))|m[áa]scara facial(?!\s+transparente|[^|]{0,40}(?:poeira|pm ?2))|sheet mask|deep mask|cleansing balm|balm de limpeza|"
      r"[óo]leo de limpeza|"  # "Creamy Skincare" = marca
      # 07/10 (Beto): "Contorno dos Olhos Revitalift" (creme) saía "ROSTO MAIS DESENHADO NA MAKE" — é skincare
      r"contorno (?:d[oa]s? |de )?olhos|creme (?:para |de )?(?:a )?(?:[áa]rea d[oa]s )?olhos|eye cream|[áa]rea dos olhos",
@@ -2024,7 +2024,7 @@ BENEFICIOS = [
      "PELE DE FILTRO NA VIDA REAL 💄"),  # 10/10 (Rita): "Lápis Contorno Labial" saiu ROSTO MAIS DESENHADO
     (r"paleta de sombras?|sombras?|delineador(?! labial| (?:de |para )?(?:l[áa]bios|boca))|l[áa]pis de olho|kajal",
      "OLHAR PODEROSO NO PRECINHO 👁️"),
-    (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
+    (r"gloss|batom|batons|lip ?tint|lip ?oil|lip ?balm|(?<!multi )(?<!cleansing )balm|hidratante labial|l[áa]bios|lips|tint|lip sleeping|"
      r"lip ?liner|contorno labial|delineador labial|l[áa]pis (?:de |para )?(?:boca|l[áa]bios)|l[áa]pis labial|"
      r"lip mask|m[áa]scara labial", "BOCA LINDA GASTANDO POUCO 💋"),
     (r"escova secadora|secador(?! de (?:lou[çc]a|pratos?))|secadora(?! de roupa)|escova rotativa|escova alisadora", "CABELO LINDO E SECO RAPIDINHO 💨"),
@@ -2093,7 +2093,7 @@ BENEFICIOS = [
     (r"roupa infantil|conjunto infantil|menin[oa]|(?:camisa|camiseta|blusa|vestido|short|bermuda|cal[çc]a|pijama|"
      r"jaqueta|moletom|macac[ãa]o)s? infant(?:il|is)", "ROUPINHA FOFA PROS PEQUENOS 🧸"),  # 01/10: "Camisa Infantil"
     (r"garrafa t[ée]rmica|copo t[ée]rmico|caneca t[ée]rmica|squeeze|tumbler|stanley", "GELADINHO OU QUENTINHO O DIA TODO 🧊"),
-    (r"massageador|gua sha", "ALÍVIO PRO CORPO CANSADO 💆‍♀️"),
+    (r"massageador|gua sha(?![^|]{0,40}(?:cream|creme|s[ée]rum))", "ALÍVIO PRO CORPO CANSADO 💆‍♀️"),
     (r"depilador[a]?|cera quente|termocera|aquecedor de cera|depila[çc][ãa]o", "DEPILAÇÃO EM CASA, SEM SOFRER ✨"),
     (r"smart ?watch|rel[óo]gio inteligente|fones? de ouvido|fone bluetooth|caixa de som|caixinha de som|"
      r"carregador port[áa]til|power ?bank", "TECNOLOGIA NO PRECINHO 📱"),
@@ -2200,6 +2200,11 @@ def kit_capilar(titulo: str) -> bool:
                                       "", t)))
 
 
+COSMETICO_ANTES = re.compile(r"(?i)m[áa]scara|[óo]leo|creme|shampoo|condicionador|capilar|cabelo|s[ée]rum|lo[çc][ãa]o")
+SERUM_CAPILAR = re.compile(r"(?i)protetor t[ée]rmico|antiporosidade|anti-?frizz|\bfios\b|capilar|cabelo")
+SERUM_CILIOS = re.compile(r"(?i)c[íi]lios|sobrancelhas?")
+
+
 def beneficio(titulo: str, grupo: str | None) -> str | None:
     """Frase de benefício do TIPO do produto (ou None): o termo que aparece primeiro na cabeça do título vence."""
     cabeca = cabeca_do_titulo(titulo)
@@ -2234,6 +2239,17 @@ def beneficio(titulo: str, grupo: str | None) -> str | None:
         if any(rx.search(cabeca) for rx, f in _BENEF if f == fino):
             frase = fino
             break
+    # 17/10 (nuvem): "Kit Máscara Macadâmia & Colágeno + Óleo" (cabelo) saía "COLÁGENO NA ROTINA" — colágeno/whey antes de
+    # máscara/óleo/creme é ingrediente do cosmético (a trava do regex só olha o que vem DEPOIS)
+    if frase.startswith("SUPLEMENTO") and COSMETICO_ANTES.search(titulo):
+        return None
+    # 17/10 (nuvem): "Sérum Elixir… Protetor Térmico" (L'Oréal, cabelo) saía "PELE LISINHA"; "Mascara Serum Cílios e
+    # Sobrancelhas" também — sérum de fio/cílio não é de pele
+    if frase == "PELE LISINHA E COM VIÇO, AMIGA ✨":
+        if SERUM_CAPILAR.search(titulo):
+            return "CABELO MACIO DE SALÃO EM CASA 💆‍♀️"
+        if SERUM_CILIOS.search(titulo):
+            return None
     if frase == "BRILHO NO LOOK SEM GASTAR MUITO ✨" and TECNOLOGIA.search(cabeca):
         return "TECNOLOGIA NO PRECINHO 📱"  # smartwatch não é joia
     # 01/10 (Rita): kit "Casal Body Splash Bold Homme E My Sweet Delight" saiu "PERFUME PRA ELE" — kit de casal é dos dois
@@ -3040,7 +3056,8 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(
 FORA_NICHO_GRUPO = re.compile(
     # 09/10 (dona: "o que foi aquela cola de prótese capilar? não tem nada a ver com a nossa coisa"): prótese (capilar,
     # dentária) e cola/fita de fixação de peruca/mega hair/lace = produto técnico, fora do público "quem ama comprar"
-    r"(?i)pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
+    r"(?i)esmalte sint[ée]tico|enferrujad|\bferrugem\b|"  # 17/10 (nuvem): tinta de portão caía em "beleza make" por "esmalte"
+    r"pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
     # 09/10 noite (1ª rodada da busca por TIPO na Shopee trouxe, aprovados pelas regras de então): shampoo de piolho,
     # óleo de massagem "sensual tântrica", shampoo de pet shop na categoria perfume, broca/mandril de manicure (técnico,
     # como a cabine UV que a revisora vetou), lixador de calos/"creme de pedreiro" e clareador de axila/virilha
