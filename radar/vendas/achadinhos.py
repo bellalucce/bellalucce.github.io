@@ -5125,6 +5125,11 @@ def publicar_site() -> str:
         print(oceane_curto.ciclo())
     except Exception as ex:  # noqa: BLE001 — link curto é um extra: sem ele o grupo sai com o link comprido
         print("links curtos Océane falharam:", ex)
+    try:  # 16/10 (dona: "awin desconectar toda hora"): tidd.ly pela API da Awin, sem painel logado
+        from vendas.integracoes import awin
+        print("links curtos Awin:", awin.curtos_pendentes(10, log=lambda m: None))
+    except Exception as ex:  # noqa: BLE001 — sem token/sem rede: sai o link comprido de sempre
+        print("links curtos Awin falharam:", type(ex).__name__)
     # 05/10: logo escolhida pela dona (monograma creme + caramelo, Marca/Achadinhos/site).
     # 13/10 (dona: "não usamos mais!!!"): a logo ROSA antiga de dados/marca saiu até como reserva — sem a nova, não copia nada.
     nova = config.RAIZ / "Marca" / "Achadinhos" / "site"
