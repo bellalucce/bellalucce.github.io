@@ -1424,7 +1424,8 @@ BONUS_ABA = {"dermo": 6, "skincare": 4, "make": 3, "perfume": 3, "cabelo": 2, "p
 SITE_MAX, SITE_MAX_MODA, SITE_MAX_FOTO_PEQUENA = 300, 66, 24
 SITE_MARCA_MAX, SITE_TIPO_MAX = 4, 8
 _FOTO_SITE_ARQ = config.DADOS / "achadinhos" / "foto_site_px.json"
-FOTO_SITE_MIN = 280  # abaixo disso a foto fica borrada mesmo num card pequeno → a oferta nem entra
+# abaixo disso a oferta nem entra. Era 280 (só "borrada"); 20/10 (dona: foto ruim = promoção feinha) = o do grupo, 600 px
+FOTO_SITE_MIN = 600
 
 
 def no_nicho_site(o: dict) -> bool:
@@ -1443,6 +1444,91 @@ def no_nicho_site(o: dict) -> bool:
         return bool(MODA_FEMININA.search(t) or (SAPATO_FEM.search(t) and SAPATO_DE_MULHER.search(t))) \
             and not MODA_FORA.search(t) and (tipo_moda(t) != "acessorio" or not ROUPA_RX.search(t))
     return False
+
+
+# 20/10 (dona: "tem umas promoções muito feinhas, nada a ver… creme pra não sei o que, mas não tem uma embalagem bonita,
+# tem que ser um treco que chama atenção"): o site é VITRINE. Além do nicho, só entra o que é bonito e feminino:
+# make/skincare/cabelo/perfume DE MARCA (embalagem que a pessoa reconhece), grifes do Acervo, kit presenteável de marca,
+# bolsa/joia/óculos/sapato/pijama com cara de mimo. Fora: creme genérico, farmácia/supermercado, suplemento, utilidade,
+# leva-N-unidades, título com preço/"！！！" e foto pequena (< FOTO_MIN_PX). Melhor menos itens bonitos que encher.
+MARCA_BONITA = re.compile(
+    r"(?i)(?<!\w)(?:"
+    # make nacional e importada com embalagem bonita
+    r"boca rosa|mari ?maria|bruna tavares|ruby rose|"
+    r"ruby kisses|melu|fran by|franciny|liphoney|dailus|vizzela|oc[ée]ane|payot|revlon|maybelline|tirtir|laneige|"
+    r"rare\s*beauty|she\s?glam|dior|rhode|fenty|nars|too faced|benefit|clinique|urban decay|huda beauty|"
+    r"charlotte tilbury|anastasia|nyx|rom&nd|peripera|quem disse,? berenice|vult|eudora|natura|\buna\b|botic[áa]rio|"
+    r"make b\.?|catrice|kiko|sephora|mac cosmetics|max factor|real techniques|fenzza|"
+    # skincare de marca (frasco bonito; K-beauty)
+    r"principia|creamy|sallve|kokeshi|medicube|anua|cosrx|skin ?1004|madagascar|beauty of joseon|joseon|some ?by ?mi|"
+    r"numbuzin|round ?lab|torriden|celimax|arencia|missha|klairs|biodance|mediheal|dr\.? ?jart|isntree|purito|"
+    r"innisfree|sulwhasoo|abib|mixsoon|aestura|d'?alba|haruharu|beplain|tocobo|goodal|dr\.? ?althea|seoul 1988|"
+    r"la roche|vichy|bioderma|av[èe]ne|isdin|cerave|caudalie|nuxe|skinceuticals|clinique|lanc[ôo]me|shiseido|hada labo|"
+    # cabelo de salão
+    r"wella|k[ée]rastase|l.or[ée]al profession\w*|redken|joico|moroccanoil|olaplex|truss|bra[ée]|cadiveu|lola|amend|"
+    r"keune|schwarzkopf|senscience|taiff|babyliss|gama italy|\bga\.?ma\b|dyson|philips|"
+    # perfumaria
+    r"lattafa|armaf|al wataniah|maison alhambra|afnan|rasasi|al haramain|victoria.?s secret|bath ?& ?body|"
+    r"o\.?u\.?i\b|florata|egeo|lily|moschino|benetton|phebo|granado|aura beauty|jade picon|yara|"
+    # moda de marca (passa sem precisar de "palavra de charme")
+    r"vizzano|arezzo|schutz|anacapri|santa lolla|capodarte|vnox|rommanel|pandora"
+    r")(?!\w)")
+FEIO_SITE = re.compile(
+    r"(?i)firmador|flacidez|estrias|celulite|bumbum|clare(?:ador|adora|ar|amento)|virilha|axilas?|melasma|"
+    r"manchas escuras|psor[íi]ase|coceira|micose|antibacterian|gravidez|remo[çc][ãa]o de rugas|"
+    r"verisol|biotina|magn[ée]sio|inositol|sil[íi]cio|coq-?10|\bpotes?\b|"
+    r"algod[ãa]o|len[çc]os? de papel|removedor (?:de )?esmalte|magic remover|tiras de banho|anti ?-?poeira|"
+    r"prote[çc][ãa]o facial|m[áa]scara (?:facial )?(?:de prote|transparente)|protetor de silicone|\bim[ãa]\b|"
+    r"apontador|aparelho|peeling ultrass|toucas?\b|el[áa]stico|descart[áa]vel|lixa|alicate|argila|\bhenna\b|"
+    r"\b1\s?(?:kg|l|lt|litro)\b|cresce at[ée]|dentadura|inspira[çc][ãa]o|brand collection|contratipo|attracione|"
+    r"porta[- ]?joias?|caixa de armazenamento|R\$\s?\d|！|\b\d+\s*unidades\b|\bkit\s*\d+\s*x\b|\b\d+\s*x\s*creme|\bcombo\b|"
+    # creme/loção de corpo (pote de farmácia), refil e antiqueda: não é mimo
+    r"(?:hidratante|lo[çc][ãa]o|creme|[óo]leo|esfoliante|sabonete)\s+(?:\w+\s+)?corporal|lo[çc][ãa]o hidratante|"
+    r"\brefil\b|antiqueda")
+MODA_FEIA = re.compile(
+    r"(?i)chinelos?|\beva\b|e\.v\.a|babuche|nuvem|antiderrapante|plus size b[áa]sica|amamenta|\bmalha\b|inverno|\bfrio\b|"
+    r"personagens|masculin|imperme[áa]vel|praia|piscina|nylon|sacola|viagem|escrit[óo]rio|\btecido\b|tratorada|oversized")
+CHARME = re.compile(
+    r"(?i)luxo|elegante|delicad|sofisticad|festa|casamento|formatura|noiva|couro|verniz|metais|dourad|banhad|\bouro\b|"
+    r"925|p[ée]rolas?|cristal|strass|zirc[ôo]nia|brilho|cetim|\bseda\b|satin|renda|la[çc]os?\b|tartaruga|"
+    r"retr[ôo]|vintage|scarpin|slingback|bico fino|\bsalto\b|\bmules?\b|clutch|ba[úu]\b|estruturad|matelass|tran[çc]ad|"
+    r"croco|on[çc]a|leopard|cora[çc][ãa]o|\bflor(?:es)?\b|gatinho")
+ACESSORIO_CABELO = re.compile(r"(?i)piranhas?|presilhas?|grampos?|tiaras?|scrunchies?|xuxinhas?|prendedor|hairpin")
+GRIFE_ACERVO = re.compile(r"(?i)rare\s*beauty|\brhode\b|she\s?glam|\bdior\b|fenty|huda beauty|charlotte tilbury|\bnars\b|"
+                          r"too faced|benefit cosmetics|anastasia beverly")
+
+
+def bonita_site(o: dict) -> bool:
+    """20/10: a oferta tem cara de mimo (ver MARCA_BONITA/FEIO_SITE acima)? Moda sem marca precisa de 1 palavra de charme
+    (couro, pérola, dourado, festa…); beleza (make, skincare, dermo, cabelo, perfume) precisa de MARCA bonita."""
+    t, g = o.get("titulo") or "", o.get("grupo")
+    if FEIO_SITE.search(t):
+        return False
+    if g == "moda":
+        if MODA_FEIA.search(t) or (re.search(r"(?i)\bpares\b", t) and not JOIA_RX.search(t)):  # combo de chinelo, não brinco
+            return False
+        return bool(CHARME.search(t) or LUXO.search(t) or MARCA_BONITA.search(t))
+    if MARCA_BONITA.search(t) or LUXO.search(t) or GRIFE_ACERVO.search(t) or PERFUME_GRIFE.search(t):
+        return True
+    if o.get("fonte") == "oceane_afiliados":  # Océane é a marca (o título às vezes não diz); a linha teen 4YOU fica fora
+        return not OCEANE_FORA_SITE.search(f"{t} {o.get('link_loja') or ''}")
+    # piranha/presilha sem marca: só a delicada (pérola, cristal, laço, flor…)
+    return bool(ACESSORIO_CABELO.search(t) and CHARME.search(t) and not MODA_FEIA.search(t))
+
+
+def pontos_beleza(o: dict) -> int:
+    """20/10: quanto a oferta 'chama atenção' na vitrine — grife do Acervo > perfume de marca > kit de marca > marca."""
+    t = o.get("titulo") or ""
+    p = 0
+    if LUXO.search(t) or GRIFE_ACERVO.search(t):
+        p += 25
+    if (o.get("grupo") == "perfume" or PERFUME_RX.search(t)) and (PERFUME_GRIFE.search(t) or MARCA_BONITA.search(t)):
+        p += 15
+    if re.search(r"(?i)\bkit\b|\bconjunto\b|\bcole[çc][ãa]o\b|\bset\b", t) and MARCA_BONITA.search(t):
+        p += 10
+    if MARCA_BONITA.search(t):
+        p += 10
+    return p
 
 
 def aba_site(o: dict) -> str:
@@ -1612,7 +1698,8 @@ def _trocar_foto_pequena(o: dict, tentativas: list) -> int | None:
 
 def selecionar_vitrine(horas: int = 36) -> list[dict]:
     """As ofertas do site, já na ordem da página: só nicho, 1 por produto (a melhor), foto boa, beleza/dermo na frente."""
-    base = [o for o in melhores(horas, 20000) if o["link_loja"] and o.get("foto") and no_nicho_site(o) and not de_inflado(o)]
+    base = [o for o in melhores(horas, 20000) if o["link_loja"] and o.get("foto") and no_nicho_site(o) and not de_inflado(o)
+            and bonita_site(o)]  # 20/10 (dona: "promoções muito feinhas"): só o que tem cara de mimo
     try:
         base = [o for o in base if not acima_do_mercado(o)]
     except Exception:  # noqa: BLE001 — sem base de preços para comparar: segue
@@ -1623,11 +1710,13 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
         o["_px"] = _escolher_foto(o, px)
         if o["_px"] is not None and o["_px"] < FOTO_MIN_PX and "promobit" in o["foto"]:
             o["_px"] = _trocar_foto_pequena(o, tentativas) or o["_px"]
-    base = [o for o in base if o["_px"] is None or o["_px"] >= FOTO_SITE_MIN]  # foto borrada/quebrada: fora
+    # foto borrada/quebrada: fora. 20/10 (dona: "foto ruim" entra no "feinho"): o piso do site virou o do grupo (600 px)
+    base = [o for o in base if o["_px"] is None or o["_px"] >= FOTO_SITE_MIN]
     for o in base:
         o["_aba"] = aba_site(o)
-        # rank = score do radar (desconto real, nota, vendidos, marca) + ajuste da aba; foto pequena desce
-        o["_rank"] = (o.get("score") or 0) + BONUS_ABA[o["_aba"]] - (0 if o["_px"] is None or o["_px"] >= FOTO_MIN_PX else 40)
+        # rank = score do radar (desconto real, nota, vendidos, marca) + ajuste da aba + o quanto chama atenção (20/10)
+        o["_rank"] = (o.get("score") or 0) + BONUS_ABA[o["_aba"]] + pontos_beleza(o) \
+            - (0 if o["_px"] is None or o["_px"] >= FOTO_MIN_PX else 40)
     base.sort(key=lambda o: -o["_rank"])
     sel, toks, marcas, tipos = [], [], {}, {}
     n_moda = n_peq = 0
@@ -1636,7 +1725,11 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
             break
         moda = o["grupo"] == "moda"
         pequena = o["_px"] is not None and o["_px"] < FOTO_MIN_PX
-        marca, tipo, tk = marca_site(o["titulo"]), tipo_site(o), _tokens_de_produto(o["titulo"])
+        # 20/10: marca "bonita" (Océane, Laneige, Taiff…) também entra no teto por marca — senão uma só enche o site
+        mb = MARCA_BONITA.search(o["titulo"])
+        marca = "oceane" if o.get("fonte") == "oceane_afiliados" else (
+            marca_site(o["titulo"]) or (re.sub(r"\W+", "", _sem_acento(mb.group(0).lower())) if mb else None))
+        tipo, tk = tipo_site(o), _tokens_de_produto(o["titulo"])
         teto_tipo = 20 if tipo == "bolsa" else SITE_TIPO_MAX
         if (moda and n_moda >= SITE_MAX_MODA) or (pequena and n_peq >= SITE_MAX_FOTO_PEQUENA):
             continue
