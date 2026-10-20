@@ -1,27 +1,19 @@
 [
  {
-  "nome": "Batom Mágico Lua & Neve (muda de cor)",
-  "preco": "R$ 14,90 na Shopee (de R$ 24,90)",
-  "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/23394645090"
-  },
-  "foto": "loja/batom_magico.jpg"
- },
- {
-  "nome": "Blush Vivai UniBlush",
-  "preco": "R$ 13,90 na Shopee (de R$ 18,90)",
-  "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/23893980551"
-  },
-  "foto": "loja/blush.jpg"
- },
- {
   "nome": "Kit Presente Batom Mágico + Gloss Ursinho",
   "preco": "R$ 39,90 (Mercado Livre) · frete grátis",
   "links": {
    "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5325882855"
   },
   "foto": "loja/kit_MLB5325882855.jpg"
+ },
+ {
+  "nome": "Batom Mágico Lua & Neve (muda de cor)",
+  "preco": "R$ 14,90 na Shopee (de R$ 24,90)",
+  "links": {
+   "Shopee": "https://shopee.com.br/product/254425847/23394645090"
+  },
+  "foto": "loja/batom_magico.jpg"
  },
  {
   "nome": "Gloss Ursinho Chaveiro Vivai",
@@ -38,5 +30,13 @@
    "Shopee": "https://shopee.com.br/product/254425847/58250636573"
   },
   "foto": "loja/gloss_gold.jpg"
+ },
+ {
+  "nome": "Blush Vivai UniBlush",
+  "preco": "R$ 13,90 na Shopee (de R$ 18,90)",
+  "links": {
+   "Shopee": "https://shopee.com.br/product/254425847/23893980551"
+  },
+  "foto": "loja/blush.jpg"
  }
 ]
