@@ -1814,7 +1814,10 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
         d = round((1 - p / a) * 100)
         if 20 <= d <= 50:
             cand.append((d, o))
-    cand.sort(key=lambda x: -x[0])
+    # 20/10 (dona: "promoções feinhas"): na 1ª tela vem primeiro o que chama atenção — make/perfume e grife — e só
+    # depois o maior desconto (antes: acidificante de cabelo e protetor solar na frente do batom)
+    cand.sort(key=lambda x: (-(pontos_beleza({"titulo": x[1]["t"], "grupo": x[1].get("g")})
+                               + (10 if x[1].get("k") in ("make", "perfume") else 0)), -x[0]))
     # 11/10 (revisão): três selos "-50%" lado a lado parecem desconto inventado → 1ª tentativa com % diferentes;
     # só se não der para fechar as n é que vale repetir a porcentagem.
     # 11/10 18h (revisão no ar): com "% diferentes" a faixa pegou dois itens de R$ 114 — faixa de ACHADINHO primeiro
