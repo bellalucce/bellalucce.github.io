@@ -1937,7 +1937,7 @@ nav button{{border:1px solid var(--cor);background:var(--claro);color:var(--cor2
 nav button.on{{background:var(--cor);color:#fff}}
 main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 30px}}
 .card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
+.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
 nav button i{{font-style:normal;font-size:11px;opacity:.7;margin-left:3px}}
 .tit{{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
 .selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
@@ -2084,7 +2084,7 @@ header{{padding:10px 16px 18px;text-align:center;border-bottom:3px double var(--
 h2{{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;color:var(--cor2);margin:22px 16px 10px}}h2 i{{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:13px;opacity:.7}}
 main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 10px}}
 .card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
+.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
 .selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
 .loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
 .preco{{padding:0 10px;font-size:16px;font-weight:700}}.preco s{{display:block;color:#8A7A66;font-size:12px;font-weight:400}}.preco b{{color:#3F6B38}}

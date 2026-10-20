@@ -285,7 +285,7 @@
     // 11/10 (auditoria): foto da Shopee na versão pequena (_tn, ~30 KB em vez de até 500 KB)
     img.src = /^https:\/\/[^\/]*(shopee\.com\.br|susercontent\.com)\/file\/[A-Za-z0-9_-]+$/.test(o.f) && !/_tn$/.test(o.f) ? o.f + "_tn" : o.f;
     var nome = tituloLimpo(o.t);
-    img.alt = nome; img.loading = "lazy"; img.decoding = "async";
+    img.alt = nome; img.decoding = "async";  // 20/10: sem "lazy" — card escondido esperando a foto nunca carregava
     img.referrerPolicy = "no-referrer";
     // 20/10: o card só aparece depois que a foto carrega e é "de vitrine" (nem fina/alta demais, nem miúda); senão sai
     a.className = "card espera";
