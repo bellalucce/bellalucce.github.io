@@ -74,8 +74,12 @@
   .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
   a.card { display: flex; flex-direction: column; min-width: 0; background: var(--creme-claro); border: 1.5px solid var(--caramelo);
            border-radius: 14px; overflow: hidden; text-decoration: none; color: var(--texto); position: relative; }
-  a.card .foto { aspect-ratio: 1 / 1; background: #fff; display: flex; align-items: center; justify-content: center; }
-  a.card img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  /* 20/10 (dona: "olha esse redimensionamento, que horror"): foto alta (delineador da Amazon) esticava o card.
+     Caixa quadrada fixa e a foto presa dentro dela, sem nunca empurrar a altura. */
+  a.card .foto { position: relative; aspect-ratio: 1 / 1; background: #fff; overflow: hidden; min-height: 0; }
+  a.card img { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: contain;
+               display: block; }
+  a.card.espera { display: none; }
   /* 11/10 (Cecília): o selo fica ABAIXO da foto — em cima dela tampava a marca na embalagem */
   a.card .pct { align-self: flex-start; margin: 8px 0 0 9px; background: var(--caramelo); color: #fff; font-weight: 600;
                 font-size: .8rem; padding: 4px 7px 3px; border-radius: 20px; }
@@ -139,7 +143,6 @@
     <h2>Mais promoções de hoje</h2>
     <p class="data" id="data-precos" hidden></p>
     <div class="grade" id="grade"></div>
-    <a class="botao" href="https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi">Entrar no grupo do WhatsApp</a>
   </section>
 
   <h2 class="faq-tit">Ficou com alguma dúvida?</h2>
@@ -177,11 +180,14 @@
 <script>
 (function () {
   var CONVITE = "https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi";
+  var pronta = function () {};  // 20/10: trocada pela de verdade quando a grade é montada
   var GRUPOS = { beleza: 1, perfume: 1, cabelo: 1 };
   var RUIM = /infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|primeira linha|1ª linha|\btipo |brand collection|clareamento|melasma|manchas escuras/i;
   // 11/10 (revisão): página do anúncio pago → marca que a visitante reconhece aparece primeiro (mesma lista da faixa)
-  var MARCA = /boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|creamy|sallve|eudora|natura|botic[aá]rio|l.or[eé]al|neutrogena|la roche|cerave|nivea|garnier|maybelline|salon line|skala|novex|lola|wella|truss|hidrabene|kokeshi|max love|vizzela|tracta|avon|isdin|cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|bra[eé]\b|amend|cadiveu|dove|quem disse|niina|adcos|ricca|fenzza|adversa/i;
-  var MAX = 6, MIN = 3, POR_LOJA = 4, POR_TIPO = 2;
+  var MARCA = /boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|creamy|sallve|eudora|natura|botic[aá]rio|l.or[eé]al|neutrogena|la roche|cerave|nivea|garnier|maybelline|salon line|skala|novex|lola|wella|truss|hidrabene|kokeshi|max love|vizzela|tracta|avon|isdin|cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|bra[eé]\b|cadiveu|dove|quem disse|niina|adcos|ricca|adversa|laneige|lanc[oô]me|k[eé]rastase|carolina herrera|paco rabanne|calvin klein|versace|tirtir/i;
+  // 20/10 (dona: "só mantendo a Maybelline… e esses três também"): farmácia/tratamento não é vitrine (mesma lista do PC)
+  var FEIO = /acidificante|protetor solar|fotoprotet|\bisdin\b|ureadin|fenzza|p[óo] banana|\bamend\b|corporal/i;
+  var MAX = 6, MIN = 2, POR_LOJA = 4, POR_TIPO = 2;
 
   function num(s) {
     var n = parseFloat(String(s || "").replace(/[^\d,]/g, "").replace(",", "."));
@@ -217,26 +223,29 @@
       var o = lista[i] || {};
       var loja = String(o.l || "");
       // 11/10 (Cecília): esta é a página do anúncio PAGO → Océane fora (o contrato proíbe a marca em mídia paga)
-      if (!loja || /mercado\s*livre|oc[eé]ane/i.test(loja) || /oc[eé]ane/i.test(o.t || "")) continue;
+      // 20/10: Amazon fora também (foto alta que esticava e card vazio quando a foto não carregava; a faixa já não usa)
+      if (!loja || /mercado\s*livre|amazon|oc[eé]ane/i.test(loja) || /oc[eé]ane/i.test(o.t || "")) continue;
+      if (FEIO.test(o.t || "")) continue;
       if (!GRUPOS[o.g]) continue;
       if (naFaixa[String(o.f || "").replace(/_tn$/, "")]) continue;  // já está nas 3 miniaturas de cima
       if (!/^https:\/\//.test(o.f || "") || /i\.promobit\.com\.br/.test(o.f)) continue;
       if (!o.t || RUIM.test(o.t)) continue;
       var p = num(o.p), a = num(o.a);
       if (!(p > 0 && a > p)) continue;
-      var d = Math.round((1 - p / a) * 100);
+      var d = Math.round((1 - p / a) * 100), b = +o.b || 0;
       // 06/10 (Vitória): desconto crível (20–50%), preço de achadinho (até R$ 150) e nada de título com várias versões
-      // ("Mini/Original", "30ml / 50ml") — o preço mostrado pode ser o da versão menor
-      if (d < 20 || d > 50 || p > 150 || /\w\s*\/\s*\w/.test(o.t)) continue;
+      // ("Mini/Original", "30ml / 50ml") — o preço mostrado pode ser o da versão menor.
+      // 20/10 (dona: "não vi os produtos bonitos"): grife/marca bonita (b ≥ 25) passa até -75% e perfume de grife até R$ 700
+      if (d < 20 || d > (b >= 25 ? 75 : 50) || p > (b >= 40 ? 700 : 150) || /\w\s*\/\s*\w/.test(o.t)) continue;
       // 11/10 (Rita): "de" exatamente o dobro do preço (69,98 → 34,99) é o padrão do preço inflado → fora
       if (Math.abs(a / p - 2) < 0.011) continue;
       // 11/10 (Cecília): kit e "A + B" fora também da grade — o preço pode ser o da variação mais barata
       if (/\bkits?\b|\bconjunto\b|\bcombo\b|\s\+\s/i.test(o.t)) continue;
-      cand.push({ o: o, d: d, m: MARCA.test(o.t) ? 1 : 0 });
+      cand.push({ o: o, d: d, b: b, m: MARCA.test(o.t) ? 1 : 0 });
     }
-    cand.sort(function (x, y) { return (y.m - x.m) || (y.d - x.d); });
+    cand.sort(function (x, y) { return (y.b - x.b) || (y.m - x.m) || (y.d - x.d); });
     var porLoja = {}, porTipo = {}, marcas = {}, porPct = {}, sel = [];
-    for (var j = 0; j < cand.length && sel.length < MAX; j++) {
+    for (var j = 0; j < cand.length && sel.length < MAX + 4; j++) {  // 4 de reserva: foto ruim é descartada na tela
       var c = cand[j], tipo = c.o.k || c.o.g, lj = c.o.l;
       var achou = c.o.t.match(MARCA);  // 1 por marca: a reconhecida, quando existe; senão a 1ª palavra do título
       var marca = achou ? achou[0].toLowerCase() : c.o.t.toLowerCase().split(/\s+/)[0];
@@ -278,7 +287,13 @@
     var nome = tituloLimpo(o.t);
     img.alt = nome; img.loading = "lazy"; img.decoding = "async";
     img.referrerPolicy = "no-referrer";
-    img.onerror = function () { if (a.parentNode) a.parentNode.removeChild(a); };
+    // 20/10: o card só aparece depois que a foto carrega e é "de vitrine" (nem fina/alta demais, nem miúda); senão sai
+    a.className = "card espera";
+    img.onerror = function () { pronta(a, false); };
+    img.onload = function () {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      pronta(a, w >= 200 && h >= 200 && h / w <= 1.35 && w / h <= 1.35);
+    };
     foto.appendChild(img);
     a.appendChild(foto);
     a.appendChild(el("span", "pct", "-" + c.d + "%"));
@@ -298,10 +313,24 @@
     }).then(function (res) {
       var lista = Array.isArray(res.j) ? res.j : (res.j && Array.isArray(res.j.ofertas) ? res.j.ofertas : []);
       var sel = escolher(lista);
-      if (sel.length % 2) sel.pop();  // grade de 2 colunas: número par, sem buraco na última linha
       if (sel.length < MIN) return;
       var grade = document.getElementById("grade");
-      for (var i = 0; i < sel.length; i++) grade.appendChild(cartao(sel[i]));
+      var cards = [];
+      for (var i = 0; i < sel.length; i++) { cards.push(cartao(sel[i])); grade.appendChild(cards[i]); }
+      // 20/10: mostra na ordem da escolha só as fotos boas, até MAX, em número par (2 colunas, sem buraco)
+      function arrumar() {
+        var boas = [];
+        for (var q = 0; q < cards.length; q++) if (cards[q].__ok) boas.push(cards[q]);
+        boas = boas.slice(0, MAX);
+        if (boas.length % 2) boas.pop();
+        for (var q2 = 0; q2 < cards.length; q2++) {
+          var fica = boas.indexOf(cards[q2]) >= 0;
+          cards[q2].className = fica ? "card" : "card espera";
+        }
+        document.getElementById("achados").hidden = boas.length < MIN;
+      }
+      pronta = function (a, ok) { if (a.__fim) return; a.__fim = 1; a.__ok = ok; arrumar(); };
+      setTimeout(function () { for (var q = 0; q < cards.length; q++) if (!cards[q].__fim) pronta(cards[q], false); }, 6000);
       var quando = (res.j && !Array.isArray(res.j) && (res.j.atualizado || res.j.data)) || res.lm;
       var dt = quando ? new Date(quando) : null;
       if (dt && !isNaN(dt)) {
@@ -312,7 +341,7 @@
         p.textContent = "Ofertas atualizadas em " + dia + " às " + hora + " · os preços mudam rápido nas lojas";
         p.hidden = false;
       }
-      document.getElementById("achados").hidden = false;
+      // a seção aparece quando arrumar() tiver fotos boas (antes aparecia mesmo com card vazio)
       try { if (window.__blEvento) window.__blEvento("achados-ok", "Grade de achados apareceu"); } catch (e) {}
     }).catch(function () {});
   } catch (e) {}

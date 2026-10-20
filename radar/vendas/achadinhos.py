@@ -1768,8 +1768,12 @@ _FAIXA_RUIM = re.compile(r"infantil|kids|crian|beb[eê]|masculin|homem|for men|h
 _FAIXA_MARCA = re.compile(r"boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|"
                           r"creamy|sallve|eudora|natura|botic[aá]rio|l.or[eé]al|neutrogena|la roche|cerave|nivea|garnier|"
                           r"maybelline|salon line|skala|novex|lola|wella|truss|hidrabene|kokeshi|max love|vizzela|tracta|avon|"
-                          r"isdin|cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|"
-                          r"bra[eé]\b|amend|cadiveu|dove|quem disse|niina|adcos|ricca|fenzza|adversa", re.I)
+                          r"cetaphil|vichy|darrow|granado|elseve|pantene|haskell|forever liss|widi care|inoar|lowell|"
+                          r"bra[eé]\b|cadiveu|dove|quem disse|niina|adcos|ricca|adversa", re.I)
+# 20/10 (dona no celular: "só mantendo a Maybelline… e esses três também"): acidificante Amend, protetor ISDIN em
+# colagem, creme ISDIN e Pó Banana Fenzza com letreiro saíram da /grupo. Produto de farmácia/tratamento não é vitrine.
+SITE_FEIO = re.compile(r"acidificante|protetor solar|fotoprotet|\bisdin\b|ureadin|fenzza|p[óo] banana|\bamend\b|corporal",
+                       re.I)
 
 
 def _num_brl(s) -> float:
@@ -1811,8 +1815,12 @@ def escolher_faixa_grupo(dados: list[dict], n: int = 3) -> list[dict]:
         # o mesmo produto estava em outra loja de R$ 32,90 por R$ 29,61. Debaixo de "desconto de verdade" não entra.
         if abs(a / p - 2) < 0.011:
             continue
+        if SITE_FEIO.search(titulo):
+            continue
         d = round((1 - p / a) * 100)
-        if 20 <= d <= 50:
+        # 20/10: grife/marca bonita (Laneige -72%) passa com desconto maior — "De" inflado liberado pela dona em 14/10
+        bonito = pontos_beleza({"titulo": titulo, "grupo": o.get("g")}) >= 25
+        if 20 <= d <= (75 if bonito else 50):
             cand.append((d, o))
     # 20/10 (dona: "promoções feinhas"): na 1ª tela vem primeiro o que chama atenção — make/perfume e grife — e só
     # depois o maior desconto (antes: acidificante de cabelo e protetor solar na frente do batom)
@@ -1883,7 +1891,9 @@ def vitrine(horas: int = 36) -> str:
     dados = [{"g": o["grupo"], "k": o["_aba"], "l": o.get("loja") or "", "t": cortar(limpar_titulo(o["titulo"]), 90),
               "p": _brl(o["preco"]), "a": _brl(o["preco_antigo"]) if o.get("preco_antigo") else "",
               "d": o.get("desconto") or 0, "c": o.get("cupom") or "", "f": o.get("foto") or "",
-              "u": link_afiliado(o["link_loja"]) or ""} for o in ofs]
+              "u": link_afiliado(o["link_loja"]) or "",
+              # 20/10: "b" = quanto chama atenção (pontos_beleza) → a grade da /grupo põe o bonito na frente
+              "b": pontos_beleza(o) + (10 if o["_aba"] in ("make", "perfume") else 0)} for o in ofs]
     mins = minimos()
     for o, x in zip(ofs, dados):  # selo "menor preço em N dias" (só quando vale: 7+ dias e abaixo do menor anterior)
         if o["id"] in mins and o["preco"] < mins[o["id"]][1]:
