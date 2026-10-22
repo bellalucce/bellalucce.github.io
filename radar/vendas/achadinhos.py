@@ -2911,6 +2911,15 @@ def itens_do_foco(cfg: dict, foco: dict, so_shopee: bool = True) -> list[tuple[s
             if it.get("frete_gratis"):
                 p["preco"] = f"{k.get('preco', '')} · frete grátis".strip(" ·")
             ok = disp_ml.get(mlb, 0) > 0 if disp_ml else medido_pc.get(chave, True)
+        elif it.get("id") and it.get("link") and it.get("foto"):
+            # 22/10 (dona: "já posta no grupo os que tão no ar"): kit novo da Revenda descrito no próprio item (nome,
+            # link do NOSSO anúncio, foto, preço); estoque = todos os prefixos de 'estoque' com qtd > 0
+            chave = f"item:{it['id']}"
+            p = {k: it[k] for k in ("nome", "foto", "preco") if it.get(k)}
+            p["links"] = {"Mercado Livre" if "mercadoli" in it["link"] else "Shopee": it["link"]}
+            itens_est = _estoque_itens()
+            ok = (all(any(i["sku"].startswith(pre) and i["qtd"] > 0 for i in itens_est) for pre in it.get("estoque") or [])
+                  if tem_itens else medido_pc.get(chave, True))
         else:
             continue
         if it.get("legenda"):
@@ -2925,15 +2934,25 @@ def itens_do_foco(cfg: dict, foco: dict, so_shopee: bool = True) -> list[tuple[s
 def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | None:
     """1 post/dia (1ª rodada da hora do foco), alternando os itens dia a dia; item sem estoque/foto → o próximo."""
     horas = [int(h) for h in foco.get("horas") or [19]]
-    if agora.hour != horas[0] or agora.minute >= 15:  # 1×/dia: só a 1ª hora da lista vale
+    # 22/10 (dona: "já posta… mescla coisa que tá parada"): 'por_hora' = 1 post em CADA hora da lista, girando os itens
+    por_hora = bool(foco.get("por_hora"))
+    if agora.minute >= 15 or agora.hour not in (horas if por_hora else horas[:1]):  # sem 'por_hora': 1×/dia
         return None
     itens = itens_do_foco(cfg, foco)
     if not any(ok for _, _, ok in itens):
         return None
     ini = datetime.strptime(foco["desde"][:16], "%Y-%m-%d %H:%M")
-    if (ini.hour, ini.minute) >= (horas[0], 15):  # o 1º post é no 1º dia em que a hora cabe na janela → começa no item 1
-        ini += timedelta(days=1)
-    dia = (agora.date() - ini.date()).days
+    if por_hora:  # nº do post = quantas horas da lista já passaram desde o início da janela (o 1º = item 1)
+        hora_agora, dia, d = agora.replace(minute=0, second=0, microsecond=0), 0, ini.date()
+        while d <= agora.date():
+            for h in sorted(horas):
+                t = datetime.combine(d, datetime.min.time()).replace(hour=h)
+                dia += t + timedelta(minutes=15) > ini and t < hora_agora
+            d += timedelta(days=1)
+    else:
+        if (ini.hour, ini.minute) >= (horas[0], 15):  # o 1º post é no 1º dia em que a hora cabe na janela → item 1
+            ini += timedelta(days=1)
+        dia = (agora.date() - ini.date()).days
     _, p, _ = next(itens[(dia + i) % len(itens)] for i in range(len(itens)) if itens[(dia + i) % len(itens)][2])
     legenda = p["legendas"][dia % len(p["legendas"])] if p.get("legendas") else p["nome"]
     pr = promo_valendo(p, agora) or {}
