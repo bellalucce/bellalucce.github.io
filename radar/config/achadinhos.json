@@ -1,33 +1,33 @@
 {
- "site": "https://bellalucce.github.io",
- "links_curtos": [
-  "mercadolivre",
-  "awin",
-  "amazon"
- ],
- "grupo_whatsapp": "https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi",
- "grupo_nome": "PROMOS DE BELEZA VIP",
- "grupo_nome_alt": [
-  "Achadinhos de Beleza",
-  "Achadinhos Bella Lucce"
- ],
- "canal_nome": "PROMOS DE BELEZA VIP",
- "canais_pausados_sem_seguidor": true,
- "canais_seguidores_da_casa": {
-  "telegram": 3,
-  "whatsapp_canal": 0
- },
- "grupo_quem": "nuvem",
- "so_feminino_ate": "2099-12-31",
- "telegram": "",
- "posts_por_rodada": 6,
- "intervalo_entre_posts_s": [
-  15,
-  30
- ],
- "horario": [
-  8,
-  22
- ],
- "intervalo_rodada_min": 15
+  "site": "https://bellalucce.github.io",
+  "links_curtos": [
+    "mercadolivre",
+    "awin",
+    "amazon"
+  ],
+  "grupo_whatsapp": "https://chat.whatsapp.com/FP5rvWWv8Yt0RSxpUGohyi",
+  "grupo_nome": "PROMOS DE BELEZA VIP",
+  "grupo_nome_alt": [
+    "Achadinhos de Beleza",
+    "Achadinhos Bella Lucce"
+  ],
+  "canal_nome": "PROMOS DE BELEZA VIP",
+  "canais_pausados_sem_seguidor": true,
+  "canais_seguidores_da_casa": {
+    "telegram": 1,
+    "whatsapp_canal": 0
+  },
+  "grupo_quem": "nuvem",
+  "so_feminino_ate": "2099-12-31",
+  "telegram": "",
+  "posts_por_rodada": 6,
+  "intervalo_entre_posts_s": [
+    15,
+    30
+  ],
+  "horario": [
+    8,
+    22
+  ],
+  "intervalo_rodada_min": 15
 }
