@@ -929,6 +929,14 @@ def aprovada(o: dict) -> bool:
             return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
         if s.get("pedido_dona"):  # 09/10: a dona mandou (`achadinhos pedido`) → passa por cima do desconto mínimo
             return True
+        if s.get("origem") == "referencia":
+            # 23/10 (dona: "tem que voltar a ver os grupos… não tô vendo nada"): o que os grupos grandes postaram já foi
+            # escolhido por gente. Medido: 300 itens deles no sem_par, quase todos reprovados só pelo desconto mínimo
+            # (coreano da loja oficial com 5–10%). Vale sem piso de desconto; eletrônico e casa cara continuam fora.
+            if o.get("grupo") == "eletronicos" or (o.get("grupo") not in ("beleza", "cabelo", "perfume", "moda")
+                                                    and float(o.get("preco") or 0) > 300):
+                return False
+            return bool(s.get("oficial")) or vend >= 10
         if o["fonte"] == "shopee_afiliados" and s.get("origem") == "vitrine_fiel":
             # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
