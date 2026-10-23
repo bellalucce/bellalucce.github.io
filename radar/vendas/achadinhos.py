@@ -3586,12 +3586,15 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         o, p = dict(r), ped[r["id"]]
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
             continue  # já saiu depois do pedido
+        # 23/10 (dona, sobre macacão/medicube sem "De" e MAC/Kérastase de loja não oficial: "posta mesmo assim",
+        # "coloque então"): pedido com "forcar" no pedidos_dona.json pula a exigência do "De" e os vetos
+        forcar = bool(p.get("forcar"))
         # 08/10 (Rita/Beto): pedido também precisa do "De" na legenda e de preço visto há ≤ 24 h (regra da dona)
-        if not tem_de_no_post(o) or not preco_fresco(o):
+        if (not forcar and not tem_de_no_post(o)) or not preco_fresco(o):
             continue
         if (not (o.get("link_loja") and o.get("foto")) or vencendo(o.get("titulo") or "") or preco_proibido(o)
                 or validade_na_foto(o)  # 08/10 noite: validade próxima só na foto (Océane) também não vai a pedido
-                or revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet)  # 08/10: veto de frase não barra
+                or (not forcar and revisao_fila.vetada({**o, "pedido_dona": True}, vet, chaves_vet))  # 08/10: veto de frase não barra
                 or (re.search(r"amazon\.com\.br|amzn\.to|link\.amazon", o["link_loja"], re.I) and (o.get("atualizado_em") or "") < amazon_ok)
                 # 08/10: Océane com preço velho ou que saiu da promoção (sinais "fora") não vai nem a pedido
                 or (o.get("fonte") == "oceane_afiliados" and ((o.get("atualizado_em") or "") < oceane_ok
