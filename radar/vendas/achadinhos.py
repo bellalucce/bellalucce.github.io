@@ -3552,7 +3552,10 @@ def preco_proibido(o: dict) -> bool:
     return bool(SEM_PRECO.search(" ".join(str(o.get(k) or "") for k in ("loja", "link_loja", "titulo"))))
 
 
-POUCO_ESTOQUE = 30
+# 23/10 (dona: "tá super parado" — 30 postáveis = 1 post a cada 30 min, e a coleta nova levou a conta de 29 para 30 e
+# tirou as que voltam: 49 → 30): era 30. Com 80, a oferta que saiu há > 7 dias e o radar viu em promoção nas últimas
+# 2 h volta sempre que a fila nova não dá para o dia (~130 posts); a regra dos 7 dias sem repetir continua igual
+POUCO_ESTOQUE = 80
 # 07/10 (dona: "quero essas ofertas no nosso… pode por o fone… o pote não foi errado" e "acha oferta boa que foi sem
 # minha etiqueta e põe de novo"): oferta que a DONA pediu passa por cima das regras de GOSTO (aprovação/desconto,
 # perfil feminino, teto por tipo, tema do dia) e vai na frente; as de SEGURANÇA continuam (link e foto ≥ 600 px, veto,
