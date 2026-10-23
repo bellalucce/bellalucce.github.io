@@ -919,6 +919,15 @@ def aprovada(o: dict) -> bool:
                 and bool(LINK_LOMADEE.match(s.get("link_lomadee") or "")))
     if o["fonte"] in ("ml_afiliados", "shopee_afiliados", "amazon_ref"):  # sem votos → desconto + nota + vendas
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
+        if s.get("pedido_dona"):  # 09/10: a dona mandou (`achadinhos pedido`) → passa por cima do desconto mínimo
+            return True  # 23/10 (dona: "não precisa ser de loja oficial"): nem a trava de loja oficial abaixo vale
+        if s.get("origem") == "referencia":
+            # 23/10 (dona: "tem que voltar a ver os grupos… não tô vendo nada" / "não precisa ser de loja oficial"): o que
+            # os grupos grandes postaram já foi escolhido por gente. Medido: 300 itens deles no sem_par, quase todos
+            # reprovados só pelo desconto mínimo ou pela loja não oficial. Vale sem piso de desconto e sem exigir loja
+            # oficial; eletrônico e casa cara continuam fora (réplica "tipo X" o Beto/Rita barram na fila).
+            return not (o.get("grupo") == "eletronicos" or (o.get("grupo") not in ("beleza", "cabelo", "perfume", "moda")
+                                                             and float(o.get("preco") or 0) > 300))
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
         if o["fonte"] == "shopee_afiliados" and (FALSIFICAVEL.search(o.get("titulo") or "")
                                                  or LUXO.search(o.get("titulo") or "")) and not s.get("oficial"):
@@ -927,16 +936,6 @@ def aprovada(o: dict) -> bool:
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
         if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000) and not s.get("oficial"):
             return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
-        if s.get("pedido_dona"):  # 09/10: a dona mandou (`achadinhos pedido`) → passa por cima do desconto mínimo
-            return True
-        if s.get("origem") == "referencia":
-            # 23/10 (dona: "tem que voltar a ver os grupos… não tô vendo nada"): o que os grupos grandes postaram já foi
-            # escolhido por gente. Medido: 300 itens deles no sem_par, quase todos reprovados só pelo desconto mínimo
-            # (coreano da loja oficial com 5–10%). Vale sem piso de desconto; eletrônico e casa cara continuam fora.
-            if o.get("grupo") == "eletronicos" or (o.get("grupo") not in ("beleza", "cabelo", "perfume", "moda")
-                                                    and float(o.get("preco") or 0) > 300):
-                return False
-            return bool(s.get("oficial")) or vend >= 10
         if o["fonte"] == "shopee_afiliados" and s.get("origem") == "vitrine_fiel":
             # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
