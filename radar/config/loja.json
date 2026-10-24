@@ -1,5 +1,13 @@
 [
  {
+  "nome": "Batom Mágico Lua & Neve (muda de cor)",
+  "preco": "R$ 14,90 na Shopee (de R$ 24,90)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/9Kis7IU5QH"
+  },
+  "foto": "loja/batom_magico.jpg"
+ },
+ {
   "nome": "Kit 3 Batons Matte 30h Max Love",
   "preco": "R$ 32,90 os 3 (Shopee)",
   "links": {
@@ -22,14 +30,6 @@
    "Shopee": "https://shopee.com.br/product/254425847/22594698859"
   },
   "foto": "loja/gloss_ursinho.jpg"
- },
- {
-  "nome": "Batom Mágico Lua & Neve (muda de cor)",
-  "preco": "R$ 14,90 na Shopee (de R$ 24,90)",
-  "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/23394645090"
-  },
-  "foto": "loja/batom_magico.jpg"
  },
  {
   "nome": "Gloss Mágico Febella com partículas douradas",
