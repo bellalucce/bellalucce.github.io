@@ -929,8 +929,12 @@ def aprovada(o: dict) -> bool:
             return not (o.get("grupo") == "eletronicos" or (o.get("grupo") not in ("beleza", "cabelo", "perfume", "moda")
                                                              and float(o.get("preco") or 0) > 300))
         # Shopee: coreano/Kérastase/maquiagem importada SÓ de loja oficial (Shopee Mall) — o marketplace é cheio de cópia
+        # 26/10 (dona: "réplica eu quero… tipo da Brand Collection"): contratipo com a marca do FABRICANTE ("Brand
+        # Collection 120 inspirada no 212 VIP Rose Carolina Herrera") não é a grife falsificada → segue a régua comum
         if o["fonte"] == "shopee_afiliados" and (FALSIFICAVEL.search(o.get("titulo") or "")
-                                                 or LUXO.search(o.get("titulo") or "")) and not s.get("oficial"):
+                                                 or (LUXO.search(o.get("titulo") or "")
+                                                     and not contratipo_marca_propria(o.get("titulo") or ""))) \
+                and not s.get("oficial"):
             return False
         # Kérastase/coreana: muita falsificação no marketplace e o painel não diz se é loja oficial → só anúncio com
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
@@ -1444,12 +1448,52 @@ MARCAS_POPULARES = re.compile(
     r"karsten|buddemeyer|santista|camesa|altenburg|stanley|polishop|taiff|gama italy|lizz|"
     r"cerave|la roche|vichy|nivea|dove|garnier|neutrogena|l.or[ée]al|maybelline|pantene|elseve|wella|"
     r"principia|creamy|sallve|granado|phebo)(?!\w)", re.I)
-SO_MARCA_CONHECIDA = False  # TEMP (agente 26/10): desligado até a lista ficar pronta — grupo não pode parar
+SO_MARCA_CONHECIDA = True
+# 26/10 (dona, sobre o lápis SUAKE "MAIS DE 12 MIL VENDIDOS": "quando for um nível de muitas vendas, você mantém, mesmo
+# não sendo algo de marca"): produto sem marca conhecida passa com pelo menos tantas vendas (réplica de grife, não)
+MARCA_VENDIDOS_MIN = 10000
 # 26/10 (dona: "réplica eu quero… tipo da Brand Collection… permita mais réplica de perfume"): contratipo de perfume com
 # marca própria (ANVISA, sem logo de grife) conta como marca conhecida mesmo com "inspirado no…" no título
 CONTRATIPO_PERFUME = re.compile(
     r"(?i)(?<!\w)(?:brand collection|lattafa|maison alhambra|armaf|al wataniah|afnan|rasasi|al haramain|"
-    r"french avenue|fragrance world|paris elysees|la rive|ciclo cosm[ée]ticos|lonkoom|mahogany|fiorucci)(?!\w)")
+    r"french avenue|fragrance world|paris elysees|la rive|ciclo cosm[ée]ticos|mahogany|fiorucci)(?!\w)")
+# 26/10: a lista editável fica em config/marcas_conhecidas.json (populares, crescendo, contratipo_perfume, nunca); os
+# regex acima ficam de base/reserva se o arquivo faltar ou quebrar
+MARCAS_ARQ = config.CONFIG / "marcas_conhecidas.json"
+
+
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    t = (t or "").lower().replace("’", "'").replace("´", "'").replace("`", "'")
+    return "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn")
+
+
+def _rx_nomes(nomes: list) -> re.Pattern | None:
+    """Lista de nomes → regex de palavra inteira sobre o texto SEM acento ("Boca/Rosa", "Sarahs Beauty" também)."""
+    partes = []
+    for n in sorted({_sem_acento(str(n)).strip() for n in nomes if str(n).strip()}, key=len, reverse=True):
+        p = re.escape(n).replace(r"\ ", " ").replace("'", "'?")
+        partes.append(re.sub(r" +", r"[\\s/\\-]*", p))
+    return re.compile(r"(?<!\w)(?:" + "|".join(partes) + r")(?!\w)") if partes else None
+
+
+@functools.lru_cache(maxsize=4)
+def _listas_marcas(_mtime: float) -> dict:
+    try:
+        d = json.loads(MARCAS_ARQ.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    return {k: _rx_nomes(d.get(k) or []) for k in ("populares", "crescendo", "contratipo_perfume")} | {
+        "nunca": {_sem_acento(str(n)).strip() for n in d.get("nunca") or []}}
+
+
+def listas_marcas() -> dict:
+    """Regex das listas do config/marcas_conhecidas.json (recarrega se o arquivo mudar)."""
+    try:
+        mt = MARCAS_ARQ.stat().st_mtime
+    except OSError:
+        mt = 0.0
+    return _listas_marcas(mt)
 # "estilo Melissa", "inspirado no Dior": a marca no título não é a marca do produto
 NAO_E_A_MARCA = re.compile(r"(?i)\btipo\b|estilo |inspirad|similar|r[ée]plica|contratipo|primeira linha|1ª linha|"
                            r"compat[íi]vel com|para (?:iphone|samsung|xiaomi|apple)")
@@ -2562,6 +2606,9 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
         probs.append(f"frase não combina com o produto: {linhas[0][:40]}")
     if not ganchos.economia_ok(linhas[0].strip("* "), o.get("preco")):  # 06/10 (Rita)
         probs.append(f"frase de economia em produto acima de R$ {ganchos.PRECO_ECONOMIA}")
+    from vendas import destaques_reais  # 26/10: frase de destaque real só sai se o fato ainda se prova no anúncio
+    if (p := destaques_reais.problema(o, linhas[0])):
+        probs.append(p)
     if preco_proibido(o):  # 06/10 (Beto): programa da Vivara proíbe preço
         probs.append("Vivara não pode sair com preço")
     if o.get("preco") and _brl(o["preco"]) not in "\n".join(linhas):
@@ -2604,10 +2651,13 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
 
 def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho conferido: se a frase escolhida não combina com o tipo do produto, vai uma frase neutra."""
-    from vendas import ganchos
+    from vendas import ganchos, destaques_reais
+    dr = destaques_reais.frase_para(o, n, recentes)  # 26/10 (dona): a maioria com 1–2 características REAIS do anúncio
     o = com_tipo(o)  # 08/10 noite: "Eudora Diva Esplêndida Feminino 100ml" → frase de perfume, não "10 MIL VENDIDOS"
-    g = _gancho_bruto(o, n, recentes)
     preco = o.get("preco") or 0
+    if dr and gancho_confere(dr, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(dr, preco):
+        return dr
+    g = _gancho_bruto(o, n, recentes)
     # 06/10 (Rita): frase de economia ("SEM GASTAR MUITO", "GASTANDO POUCO") só até R$ 120
     if gancho_confere(g, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(g, preco):
         return g
@@ -4266,6 +4316,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         regras.append((f"só {', '.join(permitidos)}", lambda o: o.get("grupo") in permitidos))
     if so_feminino_ligado():
         regras.append(("modo feminino", lambda o: no_perfil_feminino(o)))
+    # 26/10 (dona: "quero só coisa conhecida… marca que eu nunca ouvi falar nem dá vontade"): só marca reconhecida
+    # (config/marcas_conhecidas.json + listas do código), contratipo de perfume de marca própria ou muitas vendas.
+    # Os pedidos da dona entram depois, por cima.
+    if SO_MARCA_CONHECIDA:
+        regras.append(("só marca conhecida", marca_reconhecida))
     for nome, passa in regras:
         cand = [o for o in cand if passa(o)]
         marca(nome, cand)
@@ -4582,8 +4637,7 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     cand, recentes, amazon_ok = _candidatos(horas, so_com_link_curto)
     cand = dentro_do_teto_dia(cand)  # 09/10 (dona): Shein no máx. 1 POR DIA (TETO_FONTE_DIA)
-    if SO_MARCA_CONHECIDA:  # 26/10 (dona): "quero só coisa conhecida… marca que eu nunca ouvi falar nem dá vontade"
-        cand = [o for o in cand if marca_reconhecida(o)]
+    # 26/10: o filtro "só marca conhecida" fica em _candidatos (regras), para o estoque/ritmo também enxergarem
     # 05/10: a lista da revisora (nuvem._linhas_da_fila) só precisa do TEXTO — sem baixar e medir 40 fotos (prendia a
     # rodada do servidor). Quem posta continua conferindo a foto de cada uma.
     foto_ok = foto_boa if conferir_foto else (lambda o: True)
@@ -5080,20 +5134,55 @@ def marca_conhecida(o: dict) -> bool:
 def marca_reconhecida(o: dict) -> bool:
     """26/10 (dona: "quero só coisa conhecida, de nome, de marca… não precisa ser cara"): a oferta só vai ao grupo se a
     cliente reconhece a marca — grife, dermo, marca popular ou que está crescendo (MARCAS_POPULARES). A Océane vem da
-    fonte própria. Marca citada como "tipo/estilo/inspirado" não conta."""
+    fonte própria. Marca citada como "tipo/estilo/inspirado" não conta. Listas editáveis: config/marcas_conhecidas.json.
+    Também passam: loja OFICIAL da marca (Salon Line, Vizzela… com título sem a marca) e produto com pelo menos
+    MARCA_VENDIDOS_MIN vendidos (dona 26/10) — réplica de grife ("tipo/estilo/inspirado em X") nunca."""
     if o.get("fonte") in FONTES_SO_BELEZA:
         return True
     t = o.get("titulo") or ""
-    if CONTRATIPO_PERFUME.search(t):
+    ls = listas_marcas()
+    if CONTRATIPO_PERFUME.search(t) or (ls["contratipo_perfume"] and ls["contratipo_perfume"].search(_sem_acento(t))):
         return True
     if NAO_E_A_MARCA.search(t):
         return False
-    # marca como PALAVRA inteira: sem isso "Natural" virava Natura e "Espuma" virava Puma
+    if _tem_marca(t, ls):
+        return True
+    s = sinais_de(o)
+    if s.get("oficial") and _tem_marca(str(s.get("loja_nome") or ""), ls):
+        return True
+    try:
+        vend = int(float(s.get("vendidos_num") or 0)) or _vendidos_num(o.get("vendidos"))
+    except (TypeError, ValueError):
+        vend = 0
+    return vend >= MARCA_VENDIDOS_MIN
+
+
+def contratipo_marca_propria(t: str) -> bool:
+    """26/10: o título traz a marca do FABRICANTE de contratipo (Brand Collection, Fragrance World…) e a grife citada é
+    outra ("inspirado no Good Girl") — não é a grife falsificada. "Perfume Lattafa" sozinho em loja comum: False."""
+    achados = {_sem_acento(m.group(0)) for m in CONTRATIPO_PERFUME.finditer(t)}
+    ls = listas_marcas()
+    if ls["contratipo_perfume"]:
+        achados |= {m.group(0) for m in ls["contratipo_perfume"].finditer(_sem_acento(t))}
+    if not achados:
+        return False
+    grifes = {_sem_acento(m.group(0)) for m in LUXO.finditer(t)}
+    return bool(NAO_E_A_MARCA.search(t)) or not (grifes & achados) or bool(achados - grifes)
+
+
+def _tem_marca(t: str, ls: dict) -> bool:
+    """Marca conhecida como PALAVRA inteira (sem isso "Natural" virava Natura e "Espuma" virava Puma), fora da lista
+    "nunca" (laikou, curren, "golden", "oxford"…)."""
+    nunca = ls["nunca"]
+    s = _sem_acento(t)
+    for rx in (ls["populares"], ls["crescendo"]):
+        if rx and any(m.group(0).strip() not in nunca for m in rx.finditer(s)):
+            return True
     for rx in (MARCAS, DERMO, MARCAS_SKINCARE, LUXO, MARCA_EXTRA, MARCAS_POPULARES, _FAIXA_MARCA):
         for m in rx.finditer(t):
             antes = t[m.start() - 1] if m.start() else " "
             depois = t[m.end()] if m.end() < len(t) else " "
-            if not antes.isalnum() and not depois.isalnum():
+            if not antes.isalnum() and not depois.isalnum() and _sem_acento(m.group(0)).strip() not in nunca:
                 return True
     return False
 
