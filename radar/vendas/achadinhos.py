@@ -4545,13 +4545,18 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     except Exception:  # noqa: BLE001 — sem a leitura das referências, segue só pela marca
         ref_frente = set()
 
+    lojas_24h = {loja_de(dict(r)) for r in db.consultar(
+        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []}
+
     def variar(lista: list) -> tuple[list, list, set, int]:
         """Tipo que saiu há pouco não repete e fica 1 por tipo; depois o teto do tipo por dia. A janela só encolhe se o
         que sobra no fim é menos que o `alvo`. Devolve (1 por tipo, depois do teto, tipos bloqueados, janela em h)."""
         melhor: tuple = ([], [], set(), JANELAS_TIPO_H[0])
         # 13/10 (dona: "cadê a pessoa pegando as coisas de ref… não vi marca conhecida"): entre 2 do mesmo tipo fica o
         # que a referência postou, depois o de marca conhecida (antes ficava o de maior score e o da referência sumia)
-        pref = sorted(lista, key=lambda o: (o["id"] not in ref_frente, not marca_conhecida(o)))
+        # 26/10 noite: a loja sem post há 24 h ganha o desempate (a Magalu perdia aqui toda vez para Shopee/ML do mesmo
+        # tipo e sumia antes de chegar ao rodízio de fila_posts)
+        pref = sorted(lista, key=lambda o: (loja_de(o) in lojas_24h, o["id"] not in ref_frente, not marca_conhecida(o)))
         for i, h in enumerate(JANELAS_TIPO_H):
             corte = (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
             bloq = {k for k, quando in saiu_tipo.items() if quando >= corte}
@@ -4819,6 +4824,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
         f"LIMIT {max(MAX_LOJA_SEGUIDA, LOJA_JANELA - 1)}") or []][::-1]
     lojas_cand = {loja_de(x) for x in cand}
+    lojas_dia = {loja_de(dict(r)) for r in db.consultar(  # 26/10: lojas com post nas últimas 24 h (rodízio, abaixo)
+        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []}
     # 08/10 noite (Beto 07/10: 22 perfumes seguidos na fila e 8 numa rodada): no máx. PERFUME_MAX_JANELA perfumes em
     # cada PERFUME_JANELA posts, contando o fim da rodada anterior. As vagas do TEMA do dia (ex.: "Quarta do Perfume",
     # pedido da dona em 07/10) e os pedidos da dona não têm esse teto — mas contam na janela
@@ -4954,6 +4961,20 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         if dict(r).get("grupo") == "moda":
             tp = tipo_moda(dict(r).get("titulo") or "")
             moda_hoje[tp] = moda_hoje.get(tp, 0) + 1
+    # 26/10 noite: loja sem post há 24 h com oferta válida na fila ganha 1 vaga na rodada ANTES do padrão de vagas — o
+    # subtipo da vaga ("Bk", "Mb"…) vinha antes do rodízio e a Magalu (protetor/hidratante) nunca acertava a vaga
+    paradas = [x for k in ("B", "M", "C", "O") for x in filas[k]
+               if loja_de(x) not in lojas_dia and all(loja_de(y) != loja_de(x) for y in out) and not eh_masculino(x)
+               and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out) and perfume_cabe(x)]
+    for o in sorted(paradas, key=lambda x: (x["id"] not in frente, not marca_conhecida(x)))[:6] if len(out) < n else []:
+        for f in filas.values():
+            if o in f:
+                f.remove(o)
+        tentativas += 1
+        if foto_ok(o):
+            out.append(o)
+            ultimo.append(o["grupo"])
+            break
     inicio = (pos + len(out)) % len(PADRAO_LINHA)
     for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
@@ -5007,8 +5028,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         # apareceu nos últimos LOJA_RODIZIO_JANELA posts — Amazon/Magalu/Océane entram assim que têm oferta válida
         seq_lojas = (antes + [loja_de(y) for y in out])[-LOJA_RODIZIO_JANELA:]
 
+        # 26/10 noite (dona: "variedade de lugares… você não pode deixar falhar"): Magalu com 4 ofertas válidas e 7 dias
+        # sem post — as "referências" da frente ganhavam sempre do rodízio. Loja sem post há 24 h passa na frente.
         def _rodizio(x: dict) -> tuple:
-            return (x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
+            parada = loja_de(x) not in lojas_dia and all(loja_de(y) != loja_de(x) for y in out)
+            return (not parada, x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
         for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x), *_rodizio(x)))[:6]:
             fila.remove(o)
