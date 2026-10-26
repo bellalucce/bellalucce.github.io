@@ -890,6 +890,9 @@ def vencendo(titulo: str, folga_dias: int = 60) -> bool:
     return (v - date.today()).days < folga_dias
 
 
+VENDA_DIRETA = re.compile(r"(?i)\bavon\b")  # Jequiti testada 26/10: quase só infantil (Cebolinha, Hello Kitty)
+
+
 def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
@@ -966,6 +969,10 @@ def aprovada(o: dict) -> bool:
         # marca que a pessoa reconhece, nota ≥ 4,6 e +100 vendidos já é oferta boa. Só ML e Amazon: no marketplace da
         # Shopee a marca conhecida continua valendo só em loja oficial (cópia); coreano/Kérastase já foram barrados acima
         bom = bom or (o["fonte"] != "shopee_afiliados" and nota >= 4.6 and vend >= 100 and marca_conhecida(o))
+        # 26/10 noite (dona: "Avon tmb quero"): Avon é venda direta — na Shopee quem vende é revendedora, não
+        # loja oficial, e cópia dessas marcas baratas é rara. Medido: Power Stay -22% nota 4,9 481 vendidos, Avon Care
+        # -34% 505 vendidos… todas barradas só pelo piso de 1.000. Revendedora bem avaliada conta como "bom".
+        bom = bom or (bool(VENDA_DIRETA.search(o.get("titulo") or "")) and nota >= 4.8 and vend >= 100)
         if o.get("grupo") in ("beleza", "cabelo", "perfume"):   # linha principal do grupo
             # 13/10 23h (dona: "Pode por Mac com 10%"): MAC da loja OFICIAL entra a partir de 10% (as outras seguem em 20%)
             if d >= 10 and s.get("oficial") and re.search(r"\bm\.?a\.?c\b", o.get("titulo") or "", re.I):
@@ -978,9 +985,47 @@ def aprovada(o: dict) -> bool:
         or (d >= 35 and s.get("curtidas", 0) >= 8)
 
 
+# 26/10 (dona: "não podemos ficar com baixa há dias"): desde ~20/10 o /Redirect/to/ do Promobit responde 429 — o ciclo
+# pedia o link de TODAS as aprovadas sem link (centenas, 1 s entre elas), tomava 429 em todas e marcava cada uma como
+# "tentada" por 24 h → nenhuma oferta de ML/Amazon/Magalu do Promobit saiu de 20 a 26/10. Agora: poucos links por ciclo,
+# pausa maior, e no 1º 429 para tudo e espera (1 h, dobrando até 12 h) sem marcar a oferta como tentada.
+PROMOBIT_LINKS_POR_CICLO, PROMOBIT_PAUSA_S = 8, 4
+_PROMOBIT_PAUSA_ARQ = config.DADOS / "achadinhos" / "promobit_pausa.json"
+
+
+class PromobitLimite(Exception):
+    """O Promobit respondeu 429 (pedidos demais)."""
+
+
+def promobit_em_pausa() -> bool:
+    try:
+        d = json.loads(_PROMOBIT_PAUSA_ARQ.read_text(encoding="utf-8"))
+        return datetime.now().isoformat(timespec="seconds") < d.get("ate", "")
+    except (OSError, ValueError):
+        return False
+
+
+def promobit_pausar() -> None:
+    try:
+        horas = min(12, 2 * float(json.loads(_PROMOBIT_PAUSA_ARQ.read_text(encoding="utf-8")).get("horas") or 0.5))
+    except (OSError, ValueError):
+        horas = 1.0
+    ate = (datetime.now() + timedelta(hours=horas)).isoformat(timespec="seconds")
+    _PROMOBIT_PAUSA_ARQ.write_text(json.dumps({"ate": ate, "horas": horas}), encoding="utf-8")
+
+
+def promobit_liberado() -> None:
+    """Link resolvido de novo: a próxima pausa volta a começar em 1 h."""
+    if _PROMOBIT_PAUSA_ARQ.exists():
+        _PROMOBIT_PAUSA_ARQ.unlink(missing_ok=True)
+
+
 def _link_loja(link_fonte: str, cli: httpx.Client) -> str | None:
     """Promobit /Redirect/to/ID/ → URL real da loja, sem o código de afiliado deles."""
-    h = cli.get(link_fonte).text
+    r = cli.get(link_fonte)
+    if r.status_code == 429:
+        raise PromobitLimite(link_fonte)
+    h = r.text
     m = re.search(r"""href="(https?://(?!www\.promobit)[^"]+)\"""", h) or re.search(r"l = '(https?://[^']+)'", h)
     if not m:
         return None
@@ -1177,20 +1222,30 @@ def coletar(log=print) -> dict:
         novos = aprov = 0
         antes = {r["id"]: r for r in db.consultar("SELECT id, link_loja, link_tentado_em FROM ofertas WHERE fonte = 'promobit'")}
         ontem = (datetime.now() - timedelta(hours=24)).isoformat(sep=" ", timespec="seconds")
-        linhas = []
+        linhas, resolvidos = [], 0
         # fase 1 (internet, SEM segurar o banco): pontua e resolve o link só das aprovadas novas
-        for o in {x["id"]: x for x in vistos}.values():
+        # com poucos links por ciclo, beleza de marca conhecida pede o link primeiro
+        for o in sorted({x["id"]: x for x in vistos}.values(),
+                        key=lambda x: (x.get("grupo") not in LINHA_PRINCIPAL, not marca_reconhecida(x))):
             o["score"], ok = pontuar(o), aprovada(o)
             ant = antes.get(o["id"])
             link, tentado = (ant["link_loja"] if ant else None) or o.get("link_loja"), (ant or {}).get("link_tentado_em")
             link = limpar_link(link) if link else None  # link guardado (cache da nuvem) passa pela limpeza atual
-            if ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem):
+            if (ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem)
+                    and resolvidos < PROMOBIT_LINKS_POR_CICLO and not promobit_em_pausa()):
+                resolvidos += 1
                 try:
                     link = _link_loja(o["link_fonte"], cli)
-                    time.sleep(1)
+                    tentado = None if link else agora
+                    if link:
+                        promobit_liberado()
+                    time.sleep(PROMOBIT_PAUSA_S)
+                except PromobitLimite:  # 429: para de pedir link neste ciclo e NÃO marca como tentado (volta depois)
+                    promobit_pausar()
+                    erros.append("promobit 429: links em pausa")
                 except Exception as e:
                     erros.append(f"link {o['id']}: {e}")
-                tentado = None if link else agora
+                    tentado = agora
             if link:  # confere de novo com o link real: página de UM produto e sem afiliado de terceiros
                 o["link_loja"] = link
                 ok = aprovada(o)
