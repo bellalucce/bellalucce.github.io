@@ -2033,53 +2033,53 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
 
 # 26/10 noite (dona: "o site tá muito simples… a gente reformulou a página num tom mais Dark Academy, mais caramelo…
 # deixar ele lindo"): visual do site na paleta ampliada do Instagram (Bianca 20/10: café, chocolate, cacau, caramelo,
-# latte, creme). Fundo escuro, cartão de papel creme, filetes dourados, Cormorant itálico nos títulos. Texto pequeno
-# nunca em caramelo sobre escuro (contraste 3,6) — só creme/latte. Vale para a vitrine e a /oceane/.
+# latte, creme). 26/10 22h dona: "o fundo seja claro, aí com detalhes de marrom escuro" → fundo creme, detalhes chocolate, filetes dourados, Cormorant itálico nos títulos. Texto pequeno
+# em chocolate/cacau (caramelo só em detalhe grande: contraste baixo no creme). Vale para a vitrine e a /oceane/.
 SITE_CSS = """:root{--cafe:#21140D;--choc:#3B2116;--cacau:#5E3521;--car:#B9683C;--car2:#8E4B27;--ouro:#C9A36A;--latte:#E2C7A2;--creme:#F4E8D2;--papel:#FBF4E6;--linha:#C9A36A59}
-*{box-sizing:border-box}html{background:var(--cafe)}
-body{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;font-weight:400;color:var(--creme);background:var(--cafe) linear-gradient(180deg,#3B2116 0,#21140D 520px) no-repeat;min-height:100vh}
+*{box-sizing:border-box}html{background:var(--papel)}
+body{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;font-weight:400;color:var(--choc);background:var(--papel) linear-gradient(180deg,#F4E8D2 0,#FBF4E6 520px) no-repeat;min-height:100vh}
 a{color:inherit}
 .serif{font-family:'Cormorant Garamond',Georgia,serif}
-.hero{position:relative;text-align:center;padding:30px 16px 26px;background:radial-gradient(90% 70% at 50% 0%,#B9683C33 0,#5E352100 70%)}
+.hero{position:relative;text-align:center;padding:30px 16px 26px;background:radial-gradient(90% 70% at 50% 0%,#E2C7A2aa 0,#F4E8D200 70%)}
 .hero:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:5px;border-top:1px solid var(--ouro);border-bottom:1px solid var(--linha)}
-.logo{width:78px;height:78px;border-radius:50%;display:block;margin:0 auto 12px;border:1px solid var(--ouro);box-shadow:0 0 0 5px #21140D,0 0 0 6px var(--linha),0 10px 24px #0008}
-.sobre{font-size:10.5px;letter-spacing:.32em;font-weight:600;color:var(--latte);margin:0 0 6px;text-transform:uppercase}
-.hero h1{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(36px,9vw,58px);line-height:1;color:var(--creme);letter-spacing:.01em}
-.hero h1 em{font-style:italic;font-weight:500;color:var(--latte)}
+.logo{width:78px;height:78px;border-radius:50%;display:block;margin:0 auto 12px;border:1px solid var(--ouro);box-shadow:0 0 0 5px var(--papel),0 0 0 6px var(--ouro),0 10px 24px #3B211633}
+.sobre{font-size:10.5px;letter-spacing:.32em;font-weight:600;color:var(--car2);margin:0 0 6px;text-transform:uppercase}
+.hero h1{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(36px,9vw,58px);line-height:1;color:var(--choc);letter-spacing:.01em}
+.hero h1 em{font-style:italic;font-weight:500;color:var(--car2)}
 .orn{display:flex;align-items:center;justify-content:center;gap:10px;margin:14px auto 12px;max-width:260px;color:var(--ouro);font-size:12px}
 .orn:before,.orn:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,#C9A36A00,var(--ouro),#C9A36A00)}
-.lead{margin:0 auto;max-width:520px;font-size:14.5px;line-height:1.55;color:var(--latte);font-weight:300}
+.lead{margin:0 auto;max-width:520px;font-size:14.5px;line-height:1.55;color:var(--cacau);font-weight:400}
 .selos{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 8px;padding:0;margin:14px 0 0}
-.selos li{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--creme);border:1px solid var(--linha);border-radius:2px;padding:6px 9px 4px;background:#21140D99}
+.selos li{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--choc);border:1px solid var(--ouro);border-radius:2px;padding:6px 9px 4px;background:#FFFFFF99}
 .acoes{display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:18px}
 .entrar,.oce{display:block;width:100%;max-width:400px;text-decoration:none;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;border-radius:2px;padding:14px 16px 12px}
-.entrar{background:linear-gradient(180deg,#C77A4C,#B9683C 55%,#8E4B27);color:var(--papel);box-shadow:0 1px 0 #ffffff40 inset,0 10px 22px #0007;border:1px solid #E2C7A266}
-.oce{color:var(--latte);border:1px solid var(--linha);background:#3B211699}
+.entrar{background:linear-gradient(180deg,#5E3521,#3B2116);color:var(--creme);box-shadow:0 1px 0 #ffffff26 inset,0 10px 22px #3B211640;border:1px solid var(--choc)}
+.oce{color:var(--choc);border:1px solid var(--choc);background:transparent}
 .passos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:760px;margin:22px auto 0;padding:0 16px}
-.passos div{text-align:center;padding:12px 6px 10px;border:1px solid var(--linha);border-radius:2px;background:#3B211680}
-.passos b{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:22px;color:var(--latte);line-height:1}
-.passos span{display:block;margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--creme);font-weight:300}
-h2.sec{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-style:italic;font-size:30px;color:var(--creme);margin:26px 16px 12px;display:flex;align-items:baseline;gap:10px}
+.passos div{text-align:center;padding:12px 6px 10px;border:1px solid var(--ouro);border-radius:2px;background:#FFFFFFb3}
+.passos b{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:22px;color:var(--choc);line-height:1}
+.passos span{display:block;margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--cacau);font-weight:400}
+h2.sec{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-style:italic;font-size:30px;color:var(--choc);margin:26px 16px 12px;display:flex;align-items:baseline;gap:10px}
 h2.sec:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ouro),#C9A36A00)}
-h2.sec i{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:11px;letter-spacing:.2em;color:var(--latte);text-transform:uppercase}
+h2.sec i{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:11px;letter-spacing:.2em;color:var(--car2);text-transform:uppercase}
 main{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:14px;padding:0 16px 30px;max-width:1240px;margin:0 auto}
-.card{background:var(--papel);color:var(--choc);border-radius:3px;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;border:1px solid #E2C7A2;box-shadow:0 10px 24px #0000006b,0 0 0 1px #21140D}
+.card{background:#fff;color:var(--choc);border-radius:3px;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;border:1px solid #E2C7A2;box-shadow:0 8px 20px #3B21161f}
 .img{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0;border-bottom:1px solid #E2C7A2}
 .img img{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
 .selo{position:absolute;top:8px;left:8px;background:var(--choc);color:var(--creme);font-weight:600;font-size:12px;letter-spacing:.06em;padding:5px 8px 3px;border-radius:2px;border:1px solid var(--ouro)}
 .loja{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--car2);padding:10px 11px 0;font-weight:600}
-.tit{font-size:13px;padding:5px 11px 4px;line-height:1.35;flex:1;color:var(--choc);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
+.tit{font-size:13px;padding:0;margin:5px 11px 4px;line-height:1.35;flex:1;color:var(--choc);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
 .preco{padding:2px 11px 0;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:700;color:var(--choc);line-height:1.1}
-.preco s{font-family:'Josefin Sans',sans-serif;color:#8A6A55;font-size:12px;font-weight:400;margin-right:6px}
-.preco b{font-weight:700}
+.preco s{display:block;font-family:'Josefin Sans',sans-serif;color:#8A6A55;font-size:12px;font-weight:400;margin-bottom:2px}
+.preco b{font-weight:700;white-space:nowrap}
 .hist{margin:4px 11px 0;font-size:11.5px;font-weight:600;color:#4F6B2E}
 .cupom{margin:7px 11px 0;font-size:12px;color:var(--choc);background:#F4E8D2;border:1px dashed var(--car);border-radius:2px;padding:5px 7px}
 .btn{margin:11px;background:var(--choc);color:var(--creme);text-align:center;border-radius:2px;padding:11px 8px 9px;font-weight:600;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;transition:background .2s}
 .card:hover .btn,.lnk:hover .btn{background:var(--car2)}
 .lnk{display:flex;flex-direction:column;flex:1;text-decoration:none;color:inherit}
 .share{margin:-3px 11px 11px;text-align:center;font-size:11px;letter-spacing:.06em;font-weight:600;color:var(--cacau);text-decoration:none}
-footer{text-align:center;font-size:11px;line-height:1.6;color:#A88B70;padding:18px 16px 30px;max-width:760px;margin:0 auto;border-top:1px solid var(--linha)}
-.ig{display:block;text-align:center;margin:4px 0 18px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:20px;color:var(--latte);text-decoration:none}
+footer{text-align:center;font-size:11px;line-height:1.6;color:#7A5A44;padding:18px 16px 30px;max-width:760px;margin:0 auto;border-top:1px solid var(--linha)}
+.ig{display:block;text-align:center;margin:4px 0 18px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:20px;color:var(--car2);text-decoration:none}
 @media (min-width:760px){main{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px}.hero{padding-top:40px}}
 @media (max-width:360px){.passos span{font-size:10.5px}.passos b{font-size:19px}}
 """
@@ -2115,9 +2115,9 @@ def vitrine(horas: int = 36) -> str:
             f'<div class="img"><img loading="lazy" src="{e(p["foto"])}" alt=""></div><div class="loja">Bella Lucce</div>'
             f'<div class="tit">{e(p["nome"])}</div><div class="preco"><b>{e(p["preco"])}</b></div>'
             f'<div class="btn">Ver na loja</div></a>' for p in loja)
-        faixa = f'<section class="nossa"><h2>💖 Da nossa loja</h2><div class="trilho">{itens_loja}</div></section>'
+        faixa = f'<section class="nossa"><h2 class="sec">Da nossa loja <i>Bella Lucce</i></h2><div class="trilho">{itens_loja}</div></section>'
     grupo = canais().get("grupo_whatsapp")
-    entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">💬 Entrar no grupo de achadinhos do WhatsApp</a>'
+    entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">Entrar no grupo VIP do WhatsApp · grátis</a>'
               if grupo else "")
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
@@ -2132,40 +2132,25 @@ def vitrine(horas: int = 36) -> str:
 <meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume e cabelo com desconto de verdade.">
 <meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume e cabelo da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
 <style>
-:root{{--cor:#B9683C;--cor2:#8E4A26;--fundo:#F4E8D2;--claro:#FBF4E6;--txt:#4A2C1A;--linha:#E2CBA6}}*{{box-sizing:border-box}}body{{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;background:var(--fundo);color:var(--txt)}}
-header{{background:var(--fundo);color:var(--cor2);padding:22px 16px 18px;text-align:center;border-bottom:3px double var(--cor)}}header .sobre{{font-size:11px;letter-spacing:.25em;font-weight:700;color:var(--cor);margin:0 0 2px}}header h1{{margin:0;font-size:34px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;line-height:1.05}}header p{{margin:8px 0 0;font-size:13px;color:#7A5A44}}
-nav{{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;position:sticky;top:0;background:var(--fundo);z-index:2}}
-nav button{{border:1px solid var(--cor);background:var(--claro);color:var(--cor2);border-radius:20px;padding:8px 14px 6px;font-weight:600;white-space:nowrap;font-family:inherit}}
-nav button.on{{background:var(--cor);color:#fff}}
-main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 30px}}
-.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
-nav button i{{font-style:normal;font-size:11px;opacity:.7;margin-left:3px}}
-.tit{{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
-.selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
-.loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1}}
-.preco{{padding:0 10px;font-size:17px;font-weight:700}}.preco s{{color:#8A7A66;font-size:12px;font-weight:400;margin-right:6px}}.preco b{{color:#3F6B38}}
-.hist{{margin:4px 10px 0;font-size:12px;font-weight:600;color:#4E7A45}}
-.cupom{{margin:6px 10px 0;font-size:12px;background:#FBF3E6;border:1px dashed var(--cor);border-radius:8px;padding:4px 6px}}
-.btn{{margin:10px;background:var(--cor);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
-.lnk{{display:flex;flex-direction:column;flex:1;text-decoration:none;color:inherit}}
-.share{{margin:-4px 10px 10px;text-align:center;font-size:12px;font-weight:600;color:#1f9d55;text-decoration:none}}
-footer{{text-align:center;font-size:11px;color:#999;padding:0 16px 24px}}
-.logo{{width:72px;height:72px;border-radius:50%;border:1px solid var(--linha);display:block;margin:0 auto 8px}}
-.busca{{display:flex;gap:10px;align-items:center;padding:0 16px 12px}}.busca input{{flex:1;border:1px solid var(--linha);border-radius:20px;padding:9px 14px;font-size:14px;background:var(--claro);font-family:inherit}}.busca span{{font-size:12px;color:#8A7A66;white-space:nowrap}}
-#mais{{display:block;margin:0 auto 24px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:12px 22px;font-size:15px}}
-.entrar{{display:block;margin:12px auto 0;max-width:420px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;border-radius:24px;padding:11px 16px}}
-.oce{{display:block;margin:10px auto 0;max-width:420px;background:#fff;color:var(--cor2);text-decoration:none;font-weight:700;border:2px dashed var(--cor);border-radius:24px;padding:10px 16px}}
-.nossa{{padding:12px 16px 0}}.nossa h2{{font-size:24px;margin:4px 0 10px;color:var(--cor2);font-family:'Cormorant Garamond',Georgia,serif;font-weight:700}}
-.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,170px);gap:12px;overflow-x:auto;padding-bottom:8px}}
+{SITE_CSS}
+nav{{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;position:sticky;top:0;z-index:3;background:#FBF4E6f2;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-bottom:1px solid var(--linha);scrollbar-width:none}}nav::-webkit-scrollbar{{display:none}}
+nav button{{border:1px solid var(--ouro);background:transparent;color:var(--choc);border-radius:2px;padding:9px 13px 7px;font-weight:600;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;font-family:inherit;cursor:pointer}}
+nav button.on{{background:var(--choc);border-color:var(--choc);color:var(--creme)}}
+nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;letter-spacing:0}}
+.busca{{display:flex;gap:12px;align-items:center;padding:14px 16px 16px;max-width:1240px;margin:0 auto}}.busca input{{flex:1;min-width:0;border:1px solid var(--ouro);border-radius:2px;padding:12px 14px 10px;font-size:14px;background:#fff;color:var(--choc);font-family:inherit}}.busca input::placeholder{{color:#9A7B66}}.busca input:focus{{outline:1px solid var(--ouro)}}.busca span{{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cacau);white-space:nowrap}}
+#lista>p{{color:var(--cacau);text-align:center;grid-column:1/-1}}
+#mais{{display:block;margin:0 auto 30px;border:1px solid var(--choc);background:transparent;color:var(--choc);font-weight:600;border-radius:2px;padding:14px 26px 12px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-family:inherit;cursor:pointer}}
+.nossa{{max-width:1240px;margin:0 auto}}.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,175px);gap:14px;overflow-x:auto;padding:0 16px 14px}}.nossa .btn{{background:var(--car2)}}
 </style></head><body>
-<header><img class="logo" src="logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>PROMOS DE BELEZA VIP</h1><p>Make, skincare, dermo, perfume, cabelo, bolsas e acessórios com desconto de verdade · atualizado {agora}</p>{entrar}<a class="oce" href="oceane/">🎟️ Área Océane · cupom BELLALUCCE 10% OFF</a></header>
+<header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume e cabelo das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
+<section class="passos"><div><b>Garimpo</b><span>a gente procura nas lojas grandes</span></div><div><b>Confere</b><span>preço, loja e se o desconto é real</span></div><div><b>Você compra</b><span>direto na loja, sem pagar nada a mais</span></div></section>
 {faixa}
+<h2 class="sec">Ofertas de hoje</h2>
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
-<p style="text-align:center;margin:0 0 14px"><a href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener" style="color:var(--cor);font-weight:700;text-decoration:none">✨ Siga a gente no Instagram: @abella.lucce</a></p>
+<a class="ig" href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener">siga @abella.lucce no Instagram</a>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
@@ -2257,9 +2242,9 @@ def pagina_oceane(agora: datetime | None = None) -> str:
     acima = [o for o in ofs if o["preco"] > OCEANE_PRIORIDADE_SITE]
     blocos = ""
     if ate:
-        blocos += f'<h2>Até R$ 90 <i>{len(ate)}</i></h2><main>{"".join(card(o) for o in ate)}</main>'
+        blocos += f'<h2 class="sec">Até R$ 90 <i>{len(ate)}</i></h2><main>{"".join(card(o) for o in ate)}</main>'
     if acima:
-        blocos += f'<h2>Mais ofertas da Océane <i>{len(acima)}</i></h2><main>{"".join(card(o) for o in acima)}</main>'
+        blocos += f'<h2 class="sec">Mais ofertas da Océane <i>{len(acima)}</i></h2><main>{"".join(card(o) for o in acima)}</main>'
     if not ofs:
         blocos = ('<p class="vazio">As ofertas da Océane entram aqui toda manhã, com o preço da loja oficial. '
                   'O cupom já vale no site da Océane 👇</p>')
@@ -2275,27 +2260,18 @@ def pagina_oceane(agora: datetime | None = None) -> str:
 <meta property="og:title" content="Área Océane · cupom BELLALUCCE 10% OFF"><meta property="og:type" content="website">
 <meta name="description" content="Ofertas da loja oficial da Océane (maquiagem, skincare e cabelo) e o cupom BELLALUCCE: 10% OFF no site da Océane.">
 <style>
-:root{{--cor:#B9683C;--cor2:#8E4A26;--fundo:#F4E8D2;--claro:#FBF4E6;--txt:#4A2C1A;--linha:#E2CBA6}}*{{box-sizing:border-box}}body{{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;background:var(--fundo);color:var(--txt)}}
-.voltar{{display:inline-block;margin:12px 16px 0;color:var(--cor2);font-weight:600;text-decoration:none;font-size:14px}}
-header{{padding:10px 16px 18px;text-align:center;border-bottom:3px double var(--cor)}}header .sobre{{font-size:11px;letter-spacing:.25em;font-weight:700;color:var(--cor);margin:0 0 2px}}header h1{{margin:0;font-size:36px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;color:var(--cor2);line-height:1.05}}header p{{margin:8px 0 0;font-size:13px;color:#7A5A44}}
-.logo{{width:72px;height:72px;border-radius:50%;border:1px solid var(--linha);display:block;margin:0 auto 8px}}
-.cupom{{max-width:460px;margin:16px auto 4px;background:#fff;border:2px dashed var(--cor);border-radius:16px;padding:16px;text-align:center}}
-.cupom b{{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;color:var(--cor2);line-height:1.15}}.cupom small{{display:block;font-size:12px;color:#7A5A44;margin-top:6px}}
-.cupom button{{margin-top:12px;border:0;background:var(--cor);color:#fff;font-weight:700;border-radius:22px;padding:11px 22px;font-size:15px;font-family:inherit;cursor:pointer}}
-.cupom a{{display:inline-block;margin:10px 0 0 8px;color:var(--cor2);font-weight:600;font-size:14px}}
-h2{{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;color:var(--cor2);margin:22px 16px 10px}}h2 i{{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:13px;opacity:.7}}
-main{{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 16px 10px}}
-.card{{background:#fff;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 1px 4px #4a2c1a1a;border:1px solid var(--linha);display:flex;flex-direction:column}}
-.img{{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0}}.img img{{display:block;width:100%;height:100%;object-fit:contain;background:#fff}}
-.selo{{position:absolute;top:8px;left:8px;background:var(--cor);color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px}}
-.loja{{font-size:11px;color:#8A7A66;padding:8px 10px 0}}.tit{{font-size:13px;padding:4px 10px;line-height:1.3;flex:1;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}}
-.preco{{padding:0 10px;font-size:16px;font-weight:700}}.preco s{{display:block;color:#8A7A66;font-size:12px;font-weight:400}}.preco b{{color:#3F6B38}}
-.btn{{margin:10px;background:var(--cor);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700}}
-.vazio{{text-align:center;padding:20px 16px;font-size:15px}}
-footer{{text-align:center;font-size:11px;color:#999;padding:16px 16px 24px}}
+{SITE_CSS}
+.voltar{{display:inline-block;margin:14px 16px 0;color:var(--car2);font-weight:600;text-decoration:none;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}}
+.hero{{padding-top:16px}}
+.cupom{{position:relative;max-width:460px;margin:24px auto 6px;background:#fff;color:var(--choc);border:1px solid var(--ouro);border-radius:3px;padding:20px 18px 18px;text-align:center;box-shadow:0 0 0 5px var(--papel),0 0 0 6px var(--ouro),0 14px 30px #3B211626}}
+.cupom b{{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:27px;color:var(--choc);line-height:1.15}}.cupom small{{display:block;font-size:12px;color:var(--cacau);margin-top:8px}}
+.cupom button{{margin-top:14px;border:0;background:var(--choc);color:var(--creme);font-weight:600;border-radius:2px;padding:13px 22px 11px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-family:inherit;cursor:pointer}}
+.cupom a{{display:inline-block;margin:12px 0 0 10px;color:var(--car2);font-weight:600;font-size:13px}}
+.preco s{{display:block}}
+.vazio{{text-align:center;padding:20px 16px;font-size:15px;color:var(--cacau)}}
 </style></head><body>
 <a class="voltar" href="../">← Todas as ofertas</a>
-<header><img class="logo" src="../logo.png" alt="bella lucce"><p class="sobre">BELLA LUCCE</p><h1>Área Océane</h1><p>Maquiagem, skincare e cabelo da loja oficial da Océane · atualizado {agora:%d/%m %H:%M}{conferido}</p></header>
+<header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce</p><h1>Área <em>Océane</em></h1><div class="orn">✦</div><p class="lead">Maquiagem, skincare e cabelo da loja oficial da Océane · atualizado {agora:%d/%m %H:%M}{conferido}</p></header>
 <section class="cupom"><b>Cupom {OCEANE_CUPOM_SITE}: 10% OFF no site da Océane</b><small>Copie e cole o cupom no carrinho do site da Océane.</small><button type="button" data-copiar="{OCEANE_CUPOM_SITE}">Copiar cupom</button><a href="{e(loja)}" target="_blank" rel="nofollow sponsored noopener">Ir para a Océane →</a></section>
 {blocos}
 <footer>#publi · Links de afiliada da Bella Lucce: a Océane pode nos pagar uma comissão, sem custo a mais para você. Preços da loja oficial; podem mudar a qualquer momento — confira no site antes de comprar.</footer>

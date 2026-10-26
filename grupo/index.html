@@ -112,6 +112,38 @@
                     font-size: .78rem; color: var(--caramelo-esc); }
   .faq a { color: var(--caramelo-esc); font-weight: 600; }
   small { display: block; margin-top: 18px; color: #7a5a44; line-height: 1.4; }
+  /* 26/10 noite (dona: "fundo claro, aí com detalhes de marrom escuro"): mesma paleta da vitrine */
+  :root { --choc:#3B2116; --cacau:#5E3521; --ouro:#C9A36A; --papel:#FBF4E6; }
+  body { background: var(--papel) linear-gradient(180deg, #F4E8D2 0, #FBF4E6 420px) no-repeat; color: var(--choc); }
+  img.logo { border: 1px solid var(--ouro); box-shadow: 0 0 0 4px var(--papel), 0 0 0 5px var(--ouro); }
+  h1, h2 { color: var(--choc); font-weight: 600; }
+  h1 { font-size: 1.9rem; }
+  p.sub { color: var(--cacau); }
+  p.bf { background: var(--choc); color: #F4E8D2; letter-spacing: .1em; text-transform: uppercase; font-size: .7rem; border-radius: 3px; }
+  a.botao { background: linear-gradient(180deg, #5E3521, #3B2116); color: #F4E8D2; border-radius: 3px; box-shadow: 0 10px 22px #3B211640;
+            text-transform: uppercase; letter-spacing: .08em; font-size: .98rem; }
+  a.botao svg { fill: #F4E8D2; }
+  a.botao:active { background: var(--cacau); }
+  a.botao.sec { background: #fff; color: var(--choc); border: 1px solid var(--ouro); text-transform: none; }
+  .fixo { background: rgba(251, 244, 230, .97); border-top: 1px solid var(--ouro); }
+  .aviso button { border-color: var(--choc); color: var(--choc); }
+  .aviso button.sim { background: var(--choc); color: #F4E8D2; }
+  .faixa .rot { color: var(--cacau); text-transform: uppercase; letter-spacing: .14em; font-size: .7rem; }
+  a.mini { border: 1px solid var(--ouro); border-radius: 3px; }
+  a.mini b { background: var(--choc); border-radius: 2px; }
+  a.mini span { color: var(--choc); font-family: "Cormorant Garamond", Georgia, serif; font-size: .95rem; font-weight: 700; }
+  p.confianca { color: var(--cacau); }
+  a.card { background: #fff; border: 1px solid var(--ouro); border-radius: 3px; box-shadow: 0 6px 16px #3B21161a; color: var(--choc); }
+  a.card .pct { background: var(--choc); border-radius: 2px; }
+  a.card .por { font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.3rem; font-weight: 700; color: var(--choc); }
+  p.canal a { color: var(--choc); }
+  h2.faq-tit, #achados h2 { font-style: italic; }
+  .faq details { background: #fff; border: 1px solid var(--ouro); border-radius: 3px; }
+  .faq details[open] { border-color: var(--choc); box-shadow: 0 6px 16px #3B21161a; }
+  .faq summary { color: var(--choc); }
+  .faq summary::after { background: var(--choc); color: #F4E8D2; }
+  .faq .tags span { border-color: var(--ouro); color: var(--choc); }
+  .faq a { color: var(--choc); }
   /* fica por ÚLTIMO de propósito: antes das regras normais ela perdia (11/10 18h10) */
   /* 11/10 (revisão): em tela de 320 px o botão quebrava em duas linhas e o aviso ocupava três */
   @media (max-width: 350px) {
