@@ -1461,6 +1461,18 @@ CONTRATIPO_PERFUME = re.compile(
 # regex acima ficam de base/reserva se o arquivo faltar ou quebrar
 MARCAS_ARQ = config.CONFIG / "marcas_conhecidas.json"
 
+# 26/10 (dona): o que a NOSSA loja vende (config/midia.json) — no grupo, com link de outra loja, compete com o nosso preço
+PRODUTO_DA_LOJA = re.compile(
+    r"max ?love.*(matte|30 ?h|batom liquido)|(matte|30 ?h|batom liquido).*max ?love"
+    r"|vivai.*(lip ?balm|ursinho|uniblush|blush)|(lip ?balm|ursinho|uniblush|blush).*vivai"
+    r"|febella.*(lip ?balm|gloss|particula|dourad)|(lip ?balm|gloss|particula|dourad).*febella"
+    r"|gloss.*ursinho|ursinho.*(gloss|chaveiro)"
+    r"|batom magico.*(lua|neve|flor)|batom (magico )?de flor|lua ?& ?neve")
+
+
+def produto_da_loja(o: dict) -> bool:
+    return bool(PRODUTO_DA_LOJA.search(_sem_acento(o.get("titulo") or "")))
+
 
 def _sem_acento(t: str) -> str:
     import unicodedata
@@ -4216,6 +4228,69 @@ def familias_recentes_da_marca() -> set:
     return {chave_produto(dict(r).get("titulo") or "") for r in linhas if dict(r).get("titulo")}
 
 
+# 26/10 noite (dona: "quero mais variação… Boticário, Natura, Maybelline… não tô vendo nada… só mesmo de 5": em 6 h o
+# Al Wataniah saiu 5×, CeraVe 4×, Medicube 3×): a mesma marca no máx. MARCA_DIA_MAX vezes no dia e com MARCA_INTERVALO_H
+# entre uma e outra; marca que ainda não saiu hoje vai na frente. Se o teto secar a fila, vale o dobro (grupo não para).
+MARCA_DIA_MAX, MARCA_INTERVALO_H = 2, 4
+
+
+def marca_do_post(titulo: str) -> str | None:
+    """A marca reconhecida do título, normalizada ("o boticário" e "boticario" = "boticario"), ou None. Junta as listas
+    do código e as do config/marcas_conhecidas.json; marca da lista "nunca" não conta."""
+    t = titulo or ""
+    ls = listas_marcas()
+    nunca = ls["nunca"]
+
+    def chave(txt: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", re.sub(r"^o\s+", "", _sem_acento(txt).strip()))
+    for rx in (CONTRATIPO_PERFUME, MARCAS_POPULARES, DERMO, MARCAS_SKINCARE, LUXO, MARCAS, MARCA_EXTRA):
+        for m in rx.finditer(t):
+            antes = t[m.start() - 1] if m.start() else " "
+            depois = t[m.end()] if m.end() < len(t) else " "
+            if not antes.isalnum() and not depois.isalnum() and _sem_acento(m.group(0)).strip() not in nunca:
+                return chave(m.group(0))
+    s = _sem_acento(t)
+    for rx in (ls["contratipo_perfume"], ls["populares"], ls["crescendo"]):
+        for m in (rx.finditer(s) if rx else ()):
+            if m.group(0).strip() not in nunca:
+                return chave(m.group(0))
+    return None
+
+
+def marcas_postadas_hoje() -> dict:
+    """{marca: (vezes hoje, último horário)} do que saiu no grupo hoje."""
+    out: dict = {}
+    try:
+        linhas = db.consultar("SELECT titulo, publicado_em FROM ofertas WHERE publicado_em >= date('now','localtime')")
+    except Exception:  # noqa: BLE001 — sem a leitura, a regra não barra nada
+        return out
+    for r in linhas or []:
+        r = dict(r)
+        if m := marca_do_post(r.get("titulo") or ""):
+            n, ult = out.get(m, (0, ""))
+            out[m] = (n + 1, max(ult, r.get("publicado_em") or ""))
+    return out
+
+
+def variar_marcas(cand: list[dict], agora: datetime | None = None, fator: int = 1) -> list[dict]:
+    """Tira a marca que já bateu o teto do dia ou saiu há menos de MARCA_INTERVALO_H; deixa 1 por marca na fila e põe
+    na frente quem ainda não saiu hoje. Sem marca (≥ 10 mil vendidos) e as FONTES_SO_BELEZA (regra própria) passam."""
+    agora = agora or datetime.now()
+    hoje = marcas_postadas_hoje()
+    corte = (agora - timedelta(hours=MARCA_INTERVALO_H / fator)).isoformat(sep=" ", timespec="seconds")
+    out, vistas = [], {}
+    for o in cand:
+        m = None if o.get("fonte") in FONTES_SO_BELEZA else marca_do_post(o.get("titulo") or "")
+        if m:
+            n, ult = hoje.get(m, (0, ""))
+            if n >= MARCA_DIA_MAX * fator or ult >= corte:
+                continue
+        vistas[m] = vistas.get(m, 0) + 1
+        # ordem: 1ª da marca que ainda não saiu hoje → 1ª das outras → repetidas da mesma marca no fim da fila
+        out.append(((bool(m) and vistas[m] > 1), bool(m) and hoje.get(m, (0,))[0] > 0, o))
+    return [o for *_, o in sorted(out, key=lambda x: x[:2])]
+
+
 def rodadas_que_faltam(agora: datetime | None = None) -> int:
     """Rodadas do grupo que ainda faltam hoje (config/achadinhos.json: horário e intervalo). Fora do horário = o dia
     inteiro (a fila que conta é a de amanhã cedo)."""
@@ -4308,6 +4383,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         o.get("fonte") in FONTES_SO_BELEZA
         and OCEANE_FORA_SITE.search(f"{o.get('titulo') or ''} {o.get('link_loja') or ''}"))))
     regras.append(("acima do mercado", lambda o: not acima_do_mercado(o)))
+    # 26/10 (dona, batom Max Love 30h de outra loja no grupo: "vendemos na nossa loja… aí fica difícil competir com
+    # preço"): produto que a NOSSA loja vende não sai com link de outro vendedor
+    regras.append(("produto da nossa loja", lambda o: not produto_da_loja(o)))
     # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
     # "De" maior que o "Por" não vai. 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número
     # era olhado e a legenda escondia o "De" não confiável, então o post saía só com "Por"
@@ -4348,6 +4426,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         return o.get("fonte") in FONTES_SO_BELEZA and chave_produto(o.get("titulo") or "") in fam_marca
     cand = [o for o in cand if not familia_repetida(o)]
     marca(f"família da marca própria sem repetir em {OCEANE_FAMILIA_H} h", cand)
+    variada = variar_marcas(cand, agora)
+    cand = variada if len(variada) >= min(POUCO_ESTOQUE, len(cand)) // 4 else variar_marcas(cand, agora, fator=2)
+    marca(f"marca no máx. {MARCA_DIA_MAX}×/dia e {MARCA_INTERVALO_H} h entre uma e outra", cand)
 
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (04/10: a linha de beleza também — TETO_TIPO, "cílios 900 vezes")
