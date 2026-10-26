@@ -2652,11 +2652,14 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
 def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho conferido: se a frase escolhida não combina com o tipo do produto, vai uma frase neutra."""
     from vendas import ganchos, destaques_reais
-    dr = destaques_reais.frase_para(o, n, recentes)  # 26/10 (dona): a maioria com 1–2 características REAIS do anúncio
-    o = com_tipo(o)  # 08/10 noite: "Eudora Diva Esplêndida Feminino 100ml" → frase de perfume, não "10 MIL VENDIDOS"
-    preco = o.get("preco") or 0
-    if dr and gancho_confere(dr, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(dr, preco):
+    ot = com_tipo(o)  # 08/10 noite: "Eudora Diva Esplêndida Feminino 100ml" → frase de perfume, não "10 MIL VENDIDOS"
+    preco = ot.get("preco") or 0
+    # 26/10 (dona): a maioria com 1–2 características REAIS do anúncio (a 1ª opção que passa nas checagens de tipo)
+    dr = destaques_reais.frase_para(o, n, recentes, aceita=lambda f: gancho_confere(
+        f, ot.get("titulo") or "", ot.get("grupo")) and ganchos.economia_ok(f, preco))
+    if dr:
         return dr
+    o = ot
     g = _gancho_bruto(o, n, recentes)
     # 06/10 (Rita): frase de economia ("SEM GASTAR MUITO", "GASTANDO POUCO") só até R$ 120
     if gancho_confere(g, o.get("titulo") or "", o.get("grupo")) and ganchos.economia_ok(g, preco):
