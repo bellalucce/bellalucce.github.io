@@ -746,7 +746,7 @@ def sinais_de(o: dict) -> dict:
 # 14/10 (dona: "Nem que esteja inflado o valor, você vai pôr… Tira essa regra… Eu só quero que a pessoa entre e o valor
 # que eu publiquei seja o valor que ela vai comprar"): o "De" inflado NÃO barra mais nada nem esconde o "De" riscado.
 # O que continua valendo: o "Por" publicado = o preço que a pessoa paga (link vivo, preço conferido).
-DE_INFLADO_LIBERADO = True
+DE_INFLADO_LIBERADO = False  # 26/10 noite dona: "Quero promoções honestas… não ter promoção inflada" → trava de volta
 
 
 def de_inflado(o: dict) -> bool:
@@ -2031,6 +2031,60 @@ def embutir_faixa_grupo(pagina, dados: list[dict]) -> int:
     return len(sel)
 
 
+# 26/10 noite (dona: "o site tá muito simples… a gente reformulou a página num tom mais Dark Academy, mais caramelo…
+# deixar ele lindo"): visual do site na paleta ampliada do Instagram (Bianca 20/10: café, chocolate, cacau, caramelo,
+# latte, creme). Fundo escuro, cartão de papel creme, filetes dourados, Cormorant itálico nos títulos. Texto pequeno
+# nunca em caramelo sobre escuro (contraste 3,6) — só creme/latte. Vale para a vitrine e a /oceane/.
+SITE_CSS = """:root{--cafe:#21140D;--choc:#3B2116;--cacau:#5E3521;--car:#B9683C;--car2:#8E4B27;--ouro:#C9A36A;--latte:#E2C7A2;--creme:#F4E8D2;--papel:#FBF4E6;--linha:#C9A36A59}
+*{box-sizing:border-box}html{background:var(--cafe)}
+body{margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Arial,sans-serif;font-weight:400;color:var(--creme);background:var(--cafe) linear-gradient(180deg,#3B2116 0,#21140D 520px) no-repeat;min-height:100vh}
+a{color:inherit}
+.serif{font-family:'Cormorant Garamond',Georgia,serif}
+.hero{position:relative;text-align:center;padding:30px 16px 26px;background:radial-gradient(90% 70% at 50% 0%,#B9683C33 0,#5E352100 70%)}
+.hero:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:5px;border-top:1px solid var(--ouro);border-bottom:1px solid var(--linha)}
+.logo{width:78px;height:78px;border-radius:50%;display:block;margin:0 auto 12px;border:1px solid var(--ouro);box-shadow:0 0 0 5px #21140D,0 0 0 6px var(--linha),0 10px 24px #0008}
+.sobre{font-size:10.5px;letter-spacing:.32em;font-weight:600;color:var(--latte);margin:0 0 6px;text-transform:uppercase}
+.hero h1{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(36px,9vw,58px);line-height:1;color:var(--creme);letter-spacing:.01em}
+.hero h1 em{font-style:italic;font-weight:500;color:var(--latte)}
+.orn{display:flex;align-items:center;justify-content:center;gap:10px;margin:14px auto 12px;max-width:260px;color:var(--ouro);font-size:12px}
+.orn:before,.orn:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,#C9A36A00,var(--ouro),#C9A36A00)}
+.lead{margin:0 auto;max-width:520px;font-size:14.5px;line-height:1.55;color:var(--latte);font-weight:300}
+.selos{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 8px;padding:0;margin:14px 0 0}
+.selos li{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--creme);border:1px solid var(--linha);border-radius:2px;padding:6px 9px 4px;background:#21140D99}
+.acoes{display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:18px}
+.entrar,.oce{display:block;width:100%;max-width:400px;text-decoration:none;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;border-radius:2px;padding:14px 16px 12px}
+.entrar{background:linear-gradient(180deg,#C77A4C,#B9683C 55%,#8E4B27);color:var(--papel);box-shadow:0 1px 0 #ffffff40 inset,0 10px 22px #0007;border:1px solid #E2C7A266}
+.oce{color:var(--latte);border:1px solid var(--linha);background:#3B211699}
+.passos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:760px;margin:22px auto 0;padding:0 16px}
+.passos div{text-align:center;padding:12px 6px 10px;border:1px solid var(--linha);border-radius:2px;background:#3B211680}
+.passos b{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:22px;color:var(--latte);line-height:1}
+.passos span{display:block;margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--creme);font-weight:300}
+h2.sec{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-style:italic;font-size:30px;color:var(--creme);margin:26px 16px 12px;display:flex;align-items:baseline;gap:10px}
+h2.sec:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ouro),#C9A36A00)}
+h2.sec i{font-family:'Josefin Sans',sans-serif;font-style:normal;font-size:11px;letter-spacing:.2em;color:var(--latte);text-transform:uppercase}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:14px;padding:0 16px 30px;max-width:1240px;margin:0 auto}
+.card{background:var(--papel);color:var(--choc);border-radius:3px;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;border:1px solid #E2C7A2;box-shadow:0 10px 24px #0000006b,0 0 0 1px #21140D}
+.img{position:relative;aspect-ratio:1;background:#fff;padding:10px;overflow:hidden;min-height:0;border-bottom:1px solid #E2C7A2}
+.img img{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
+.selo{position:absolute;top:8px;left:8px;background:var(--choc);color:var(--creme);font-weight:600;font-size:12px;letter-spacing:.06em;padding:5px 8px 3px;border-radius:2px;border:1px solid var(--ouro)}
+.loja{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--car2);padding:10px 11px 0;font-weight:600}
+.tit{font-size:13px;padding:5px 11px 4px;line-height:1.35;flex:1;color:var(--choc);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
+.preco{padding:2px 11px 0;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:700;color:var(--choc);line-height:1.1}
+.preco s{font-family:'Josefin Sans',sans-serif;color:#8A6A55;font-size:12px;font-weight:400;margin-right:6px}
+.preco b{font-weight:700}
+.hist{margin:4px 11px 0;font-size:11.5px;font-weight:600;color:#4F6B2E}
+.cupom{margin:7px 11px 0;font-size:12px;color:var(--choc);background:#F4E8D2;border:1px dashed var(--car);border-radius:2px;padding:5px 7px}
+.btn{margin:11px;background:var(--choc);color:var(--creme);text-align:center;border-radius:2px;padding:11px 8px 9px;font-weight:600;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;transition:background .2s}
+.card:hover .btn,.lnk:hover .btn{background:var(--car2)}
+.lnk{display:flex;flex-direction:column;flex:1;text-decoration:none;color:inherit}
+.share{margin:-3px 11px 11px;text-align:center;font-size:11px;letter-spacing:.06em;font-weight:600;color:var(--cacau);text-decoration:none}
+footer{text-align:center;font-size:11px;line-height:1.6;color:#A88B70;padding:18px 16px 30px;max-width:760px;margin:0 auto;border-top:1px solid var(--linha)}
+.ig{display:block;text-align:center;margin:4px 0 18px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:20px;color:var(--latte);text-decoration:none}
+@media (min-width:760px){main{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px}.hero{padding-top:40px}}
+@media (max-width:360px){.passos span{font-size:10.5px}.passos b{font-size:19px}}
+"""
+
+
 def vitrine(horas: int = 36) -> str:
     """Gera dados/achadinhos/site/index.html (celular primeiro). Só ofertas aprovadas, com link, do nosso nicho."""
     ofs = selecionar_vitrine(horas)
@@ -2069,7 +2123,7 @@ def vitrine(horas: int = 36) -> str:
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>PROMOS DE BELEZA VIP | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
@@ -2215,7 +2269,7 @@ def pagina_oceane(agora: datetime | None = None) -> str:
     loja = f"https://www.oceane.com.br/?utmi_pc={OCEANE_UTMI}"
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Área Océane · cupom BELLALUCCE 10% OFF · Bella Lucce</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <link rel="canonical" href="{SITE_URL}/oceane/">
 <meta property="og:title" content="Área Océane · cupom BELLALUCCE 10% OFF"><meta property="og:type" content="website">
