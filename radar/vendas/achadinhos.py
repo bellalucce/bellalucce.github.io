@@ -1423,6 +1423,36 @@ MAKE_RX = re.compile(r"(?i)batom|gloss|\bbase\b|corretivo|r[íi]mel|c[íi]lios|s
 MARCA_EXTRA = re.compile(r"(?i)vnox|rommanel|bamoer|curren|bio extratus|cadiveu|acquaflora|jacques janine|truss|lowell|amend|"
                          r"revlon|bra[ée]\b|itallian|trivitt|laikou|natura|botic[áa]rio|vizzano|moleca|anacapri|"
                          r"granado|phebo|nyx|maybelline|vult|kafurux|isoi|lizz|britânia|philco|taiff|mondial")
+# 26/10 (dona: "quero só coisa conhecida… não precisa ser marca cara, mas conhecida… uns esmaltes de marca nada a ver…
+# marca que tá começando a ficar conhecida tudo bem, mas tem umas que eu nunca vi na vida"): marcas populares e as que
+# estão crescendo com influencer. Só marca que a cliente reconhece; o resto não vai para o grupo (SO_MARCA_CONHECIDA).
+MARCAS_POPULARES = re.compile(
+    r"(?<!\w)(?:oc[ée]ane|risqu[ée]|impala|colorama|ana hickmann|big universo|dailus|vult|ruby rose|ruby kisses|"
+    r"mari maria|boca rosa|bruna tavares|\bbt\b|fran by|franciny ehlke|max love|vizzela|melu|macrilan|ricca|kiss new york|"
+    r"catharine hill|pink cheeks|sheglam|wepink|wepink|phállebeauty|phallebeauty|luisance|bella femme|playboy|tracta|"
+    r"quem disse,? berenice|contém ?1g|contem ?1g|jequiti|mahogany|o botic[áa]rio|eudora|natura|avon|payot|adcos|"
+    r"simple organic|sol de janeiro|bath ?& ?body works|victoria.?s secret|rare beauty|fenty|kiko|catrice|nyx|e\.l\.f|"
+    r"revlon|essence cosmetics|yenzah|niina secrets|nina secrets|océane|vizzela|klasme|hidrabene|widi care|inoar|"
+    r"novex|embelleze|haskell|skala|salon line|lola|forever liss|kerasys|tsubaki|amend|bra[ée]|truss|lowell|"
+    r"monange|rexona|protex|palmolive|colgate|oral-?b|gillette|veet|head ?& ?shoulders|seda cocriações|"
+    r"arezzo|schutz|santa lolla|vizzano|moleca|beira ?rio|ramarim|piccadilly|usaflex|havaianas|ipanema|melissa|"
+    r"grendene|rider|petite jolie|dakota|bebec[êe]|via marte|carmen steffens|anacapri|capodarte|chilli beans|"
+    r"vivara|life by vivara|pandora|rommanel|swarovski|michael kors|guess|calvin klein|tommy hilfiger|lacoste|"
+    r"colcci|hering|puket|hope|triumph|duloren|lupo|jansport|kipling|vans|converse|all star|fila|olympikus|mizuno|"
+    r"asics|new balance|skechers|crocs|nike|adidas|puma|farm rio|zara|"
+    r"tramontina|oxford|brinox|electrolux|mondial|brit[âa]nia|philco|arno|walita|cadence|oster|wap|black ?\+? ?decker|"
+    r"karsten|buddemeyer|santista|camesa|altenburg|stanley|polishop|taiff|gama italy|lizz|"
+    r"cerave|la roche|vichy|nivea|dove|garnier|neutrogena|l.or[ée]al|maybelline|pantene|elseve|wella|"
+    r"principia|creamy|sallve|granado|phebo)(?!\w)", re.I)
+SO_MARCA_CONHECIDA = False  # TEMP (agente 26/10): desligado até a lista ficar pronta — grupo não pode parar
+# 26/10 (dona: "réplica eu quero… tipo da Brand Collection… permita mais réplica de perfume"): contratipo de perfume com
+# marca própria (ANVISA, sem logo de grife) conta como marca conhecida mesmo com "inspirado no…" no título
+CONTRATIPO_PERFUME = re.compile(
+    r"(?i)(?<!\w)(?:brand collection|lattafa|maison alhambra|armaf|al wataniah|afnan|rasasi|al haramain|"
+    r"french avenue|fragrance world|paris elysees|la rive|ciclo cosm[ée]ticos|lonkoom|mahogany|fiorucci)(?!\w)")
+# "estilo Melissa", "inspirado no Dior": a marca no título não é a marca do produto
+NAO_E_A_MARCA = re.compile(r"(?i)\btipo\b|estilo |inspirad|similar|r[ée]plica|contratipo|primeira linha|1ª linha|"
+                           r"compat[íi]vel com|para (?:iphone|samsung|xiaomi|apple)")
 JOIA_TIPO = [(r"brincos?\b", "brinco"), (r"\bcolar(?:es)?\b|gargantilha|choker", "colar"), (r"pulseira|bracelete", "pulseira"),
              (r"\ban(?:el|[ée]is)\b", "anel"), (r"tornozeleira", "tornozeleira"), (r"presilha|piranha|tiara", "presilha")]
 ABAS_SITE = [("make", "Make"), ("skincare", "Skincare"), ("dermo", "Dermo"), ("perfume", "Perfume"), ("cabelo", "Cabelo"),
@@ -4552,6 +4582,8 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
     cand, recentes, amazon_ok = _candidatos(horas, so_com_link_curto)
     cand = dentro_do_teto_dia(cand)  # 09/10 (dona): Shein no máx. 1 POR DIA (TETO_FONTE_DIA)
+    if SO_MARCA_CONHECIDA:  # 26/10 (dona): "quero só coisa conhecida… marca que eu nunca ouvi falar nem dá vontade"
+        cand = [o for o in cand if marca_reconhecida(o)]
     # 05/10: a lista da revisora (nuvem._linhas_da_fila) só precisa do TEXTO — sem baixar e medir 40 fotos (prendia a
     # rodada do servidor). Quem posta continua conferindo a foto de cada uma.
     foto_ok = foto_boa if conferir_foto else (lambda o: True)
@@ -4806,7 +4838,7 @@ def dentro_do_teto_dia(lista: list[dict]) -> list[dict]:
 MAX_LOJA_SEGUIDA = 3  # 08/10 (revisão: 105 da Shopee seguidos em 07/10) — ver fila_posts
 # 08/10 noite (Beto: 22 perfumes seguidos e 8 numa rodada): a linha padrão (PADRAO_LINHA) é beleza variada — perfume no
 # máx. 2 em cada 10 posts (fora as vagas do tema do dia e os pedidos da dona)
-PERFUME_JANELA, PERFUME_MAX_JANELA = 10, 2
+PERFUME_JANELA, PERFUME_MAX_JANELA = 10, 3  # 26/10 (dona: "permita mais réplica de perfume", tipo Brand Collection): 2 → 3
 
 
 def eh_perfume_post(o: dict) -> bool:
@@ -5043,6 +5075,27 @@ def marca_conhecida(o: dict) -> bool:
     t = o.get("titulo") or ""
     return o.get("fonte") not in FONTES_SO_BELEZA and bool(
         MARCAS.search(t) or DERMO.search(t) or MARCAS_SKINCARE.search(t) or LUXO.search(t) or MARCA_EXTRA.search(t))
+
+
+def marca_reconhecida(o: dict) -> bool:
+    """26/10 (dona: "quero só coisa conhecida, de nome, de marca… não precisa ser cara"): a oferta só vai ao grupo se a
+    cliente reconhece a marca — grife, dermo, marca popular ou que está crescendo (MARCAS_POPULARES). A Océane vem da
+    fonte própria. Marca citada como "tipo/estilo/inspirado" não conta."""
+    if o.get("fonte") in FONTES_SO_BELEZA:
+        return True
+    t = o.get("titulo") or ""
+    if CONTRATIPO_PERFUME.search(t):
+        return True
+    if NAO_E_A_MARCA.search(t):
+        return False
+    # marca como PALAVRA inteira: sem isso "Natural" virava Natura e "Espuma" virava Puma
+    for rx in (MARCAS, DERMO, MARCAS_SKINCARE, LUXO, MARCA_EXTRA, MARCAS_POPULARES, _FAIXA_MARCA):
+        for m in rx.finditer(t):
+            antes = t[m.start() - 1] if m.start() else " "
+            depois = t[m.end()] if m.end() < len(t) else " "
+            if not antes.isalnum() and not depois.isalnum():
+                return True
+    return False
 
 
 def nome_da_marca(titulo: str) -> str | None:
