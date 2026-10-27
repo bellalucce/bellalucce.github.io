@@ -5586,9 +5586,11 @@ def _publicar_loja(pasta, radar) -> None:
     (pasta / "loja").mkdir(exist_ok=True)
     lista = []
     if foco := foco_loja(None, cfg):  # 14/10 (dona disse SIM à Vitória): na janela do foco a vitrine mostra SÓ os itens dele
+        vistos = set()
         for chave, p, ok in itens_do_foco(cfg, foco):
-            if not ok:
+            if not ok or chave in vistos:  # 27/10: item repetido no foco (mais vezes no grupo) aparece 1× só na vitrine
                 continue
+            vistos.add(chave)
             foto = config.RAIZ / p["foto"]
             nome_arq = chave.replace(":", "_").replace("kit_ml_", "kit_")
             destino = pasta / "loja" / f"{nome_arq}.jpg"
