@@ -4199,8 +4199,8 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
         raise PedidoErro(f"{mlb}: a página não mostrou título e preço (anúncio pausado/encerrado?)")
     if not (d.get("foto") and re.match(r"https://http2\.mlstatic\.com/", d["foto"])):
         raise PedidoErro(f"{mlb}: sem foto do anúncio")
-    if (px := foto_px(d["foto"])) < FOTO_MIN_PX:
-        raise PedidoErro(f"{mlb}: foto com {px} px (mínimo {FOTO_MIN_PX})")
+    if (px := foto_px(d["foto"])) < FOTO_MIN_PEDIDO:
+        raise PedidoErro(f"{mlb}: foto com {px} px (mínimo {FOTO_MIN_PEDIDO})")
     titulo = d["titulo"]
     grupo = _grupo_final(_grupo(titulo), titulo)
     de, preco = d.get("preco_antigo"), d["preco"]
@@ -5231,6 +5231,7 @@ def vendedor(o: dict) -> str:
     return f"shopee:{m.group(1) or m.group(2)}" if m else ""
 
 
+FOTO_MIN_PEDIDO = 300  # 27/10: pedido da dona abaixo de 600 px não é barrado — o envio amplia (ver foto_boa)
 FOTO_MIN_PX = 600  # maior lado da foto que vai pro grupo (a Promobit guarda 200–300 px → esticada fica borrada)
 _FOTO_PX_ARQ = config.DADOS / "achadinhos" / "foto_px.json"
 
@@ -5313,7 +5314,10 @@ def foto_boa(o: dict) -> bool:
     # 07/10 (verificador do servidor 68%: 7 fotos de 400 px da Promobit e 1 de 442 px da Shopee saíram entre 18h e 21h,
     # com a fila curta): só foto REAL com ≥ 600 px — sem foto boa do mesmo produto, a oferta é PULADA (a ampliação de
     # 05/10 esticava 400 px para 900 e ia borrada; ampliar_foto ficou fora do grupo)
-    return bool(f) and foto_px(f) >= FOTO_MIN_PX
+    # 27/10 (dona: "quando tiver coisa baixa dos pixels do mínimo, você resolve aí e posta do mesmo jeito"): pedido
+    # DELA com foto real entre FOTO_MIN_PEDIDO e 600 px vai — o envio (whatsapp._quadro_nitido) amplia com nitidez e
+    # centraliza no quadro branco 1080×1080
+    return bool(f) and foto_px(f) >= (FOTO_MIN_PEDIDO if o.get("pedido_dona") else FOTO_MIN_PX)
 
 
 def foto_do_mesmo_produto(o: dict, fotos: dict | None = None) -> str | None:
