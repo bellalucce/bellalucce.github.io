@@ -3820,12 +3820,17 @@ def perfume_grife_sem_ml(o: dict) -> bool:
 # 06/10 (Beto): o programa da Vivara (Awin) PROÍBE divulgar preço/parcela, "promoção" e % OFF — e todo post do grupo e
 # card do site tem "Por R$" → oferta Vivara (a Promobit traz o link da vivara.com.br) não sai em lugar nenhum
 SEM_PRECO = re.compile(r"(?i)vivara")
+# 27/10 (dona: "era da vivara… pq não pode"): a regra é do programa da Vivara NA AWIN, que só vale para o link de lá
+# (vivara.com.br). A loja oficial da Vivara no Mercado Livre vai com o NOSSO link do ML e segue as regras do ML.
+MARKETPLACE = re.compile(r"(?i)mercadoliv|mercadolibre|meli\.la|amazon\.|amzn\.|magazinevoce|magazineluiza|shopee")
 
 
 LIMITE_CANDIDATOS = 8000  # quantas aprovadas (por score) entram no funil do grupo
 
 
 def preco_proibido(o: dict) -> bool:
+    if MARKETPLACE.search(" ".join(str(o.get(k) or "") for k in ("loja", "link_loja"))):
+        return False
     return bool(SEM_PRECO.search(" ".join(str(o.get(k) or "") for k in ("loja", "link_loja", "titulo"))))
 
 
