@@ -2858,7 +2858,7 @@ def gancho_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
 def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
     """Gancho do post: desconto absurdo → preço por unidade em kit → frase do TIPO/CARACTERÍSTICA do produto
     (vendas/ganchos.py) → sinal real de venda / frase universal. `recentes` = ganchos dos últimos posts (não repetir)."""
-    from vendas import ganchos
+    from vendas import ganchos, destaques_reais
     d, titulo, preco = o.get("desconto") or 0, o.get("titulo") or "", o.get("preco") or 0
     s0 = sinais_de(o)  # 06/10: achado da Eva (parecido com a foto da divulgação) → gancho de DUPE ("QUEM VÊ JURA…")
     if (g := (s0.get("gancho_dona") or "").strip()) and not NOTA_INTERNA.search(g):  # 09/10: `pedido --texto`
@@ -2894,7 +2894,8 @@ def _gancho_bruto(o: dict, n: int = 0, recentes: list[str] | None = None) -> str
     sinais = s0
     opcoes = []
     vend = sinais.get("vendidos_num", 0) or 0
-    if vend >= 10000:  # número real do anúncio, em vez de "tá bombando" genérico
+    social_recente = any(destaques_reais.eh_social(r) for r in (recentes or [])[-(destaques_reais.SOCIAL_JANELA - 1):])
+    if vend >= 10000 and not social_recente:  # número real do anúncio (27/10: no máx. 1 a cada 6 posts com nota/vendas)
         opcoes.append(f"MAIS DE {vend // 1000} MIL VENDIDOS 🔥")
     if sinais.get("top"):
         opcoes.append("A GALERA AMOU ESSA 🔥")
