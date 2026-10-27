@@ -29,6 +29,8 @@ REPERTORIO: dict[str, list[str]] = {
         "SUA PELE VAI AGRADECER ✨", "AMIGAS NÃO GUARDAM SEGREDO! 🤫"],  # "segredo de amiga" = dica de cuidado (dona)
     "PELE DE FILTRO NA VIDA REAL 💄": [
         "PELE DE FILTRO NA VIDA REAL 💄", "PELE UNIFORME EM MINUTOS 💄", "ACABAMENTO DE MAKE DE SALÃO 💄"],
+    "UNHAS DE SALÃO EM CASA 💅": [  # 27/10: esmalte saía "PELE DE FILTRO" (dona)
+        "UNHAS DE SALÃO EM CASA 💅", "MÃO FEITA GASTANDO POUCO 💅", "ESMALTE BOM NO PRECINHO 💅"],
     "OLHAR PODEROSO NO PRECINHO 👁️": [
         "OLHAR PODEROSO NO PRECINHO 👁️", "MAKE DE OLHO QUE CHAMA ATENÇÃO 👁️", "DO DIA A DIA À BALADA 👁️"],
     "BOCA LINDA GASTANDO POUCO 💋": [

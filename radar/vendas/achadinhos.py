@@ -2392,6 +2392,10 @@ BENEFICIOS = [
      # 07/10 (Beto): "Contorno dos Olhos Revitalift" (creme) saía "ROSTO MAIS DESENHADO NA MAKE" — é skincare
      r"contorno (?:d[oa]s? |de )?olhos|creme (?:para |de )?(?:a )?(?:[áa]rea d[oa]s )?olhos|eye cream|[áa]rea dos olhos",
      "PELE LISINHA E COM VIÇO, AMIGA ✨"),
+    # 27/10 (dona: "Esmalte Base Setim Colorama" saiu "PELE DE FILTRO NA VIDA REAL 💄" — "isso aqui foi bem errado"):
+    # unha não tinha frase e o "Base" do esmalte caía na base de rosto; o termo que vem primeiro no título vence
+    (r"esmalte|top coat|base (?:para |de )?unhas?|fortalecedor de unhas?|unhas? posti[çc]as?|press ?on|manicure",
+     "UNHAS DE SALÃO EM CASA 💅"),
     (r"base|corretivo|concealer|p[óo] compacto|primer|fixador de maquiagem|bb cream|cc cream|blush|iluminador|"
      r"contorno(?! (?:d[oa]s? |de )?olhos| labial| (?:d[oa]s? |de |para )?(?:l[áa]bios|boca))|bronzer|cushion",
      "PELE DE FILTRO NA VIDA REAL 💄"),  # 10/10 (Rita): "Lápis Contorno Labial" saiu ROSTO MAIS DESENHADO
@@ -2498,7 +2502,7 @@ TECNOLOGIA = re.compile(r"(?<!\w)(?:smart|smart ?watch|smartwatch|inteligente|bl
 PRA_ELE = "PRESENTE CERTO PRA ELE 🎁"
 FEMININAS = {"CHEIROSA O DIA INTEIRO, AMIGA 🌸", "BRILHO NO LOOK SEM GASTAR MUITO ✨", "LOOK NOVO GASTANDO POUCO 👗",
              TREINO, "PÉ LINDO E CONFORTÁVEL 👟", "SALTO LINDO PRO LOOK 👠", "A BOLSA QUE COMBINA COM TUDO 👜"}
-BENEFICIOS_BELEZA = 12  # as 12 primeiras frases são de beleza/cabelo/perfume
+BENEFICIOS_BELEZA = 13  # as 13 primeiras frases são de beleza/cabelo/perfume
 # 30/09: frases variadas e por característica moram em vendas/ganchos.py (repertório próprio, sem repetir)
 SEGREDO = "AMIGAS NÃO GUARDAM SEGREDO! 🤫"  # frase de DICA de cuidado (retinol, protetor, tratamento) — dona, 30/09
 DICAS = ("PELE PROTEGIDA", "CÍLIOS", "PELE LISINHA", "CABELO MACIO")
