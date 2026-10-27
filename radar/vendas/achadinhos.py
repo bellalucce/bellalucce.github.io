@@ -2119,6 +2119,10 @@ def vitrine(horas: int = 36) -> str:
     grupo = canais().get("grupo_whatsapp")
     entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">Entrar no grupo VIP do WhatsApp · grátis</a>'
               if grupo else "")
+    # 26/10 (dona: "Manda p what's da loja"): 1 linha + botão para a /curadoria/ — só aparece com o número da loja
+    curadoria = ('<section class="cura"><p>Quer um preço vigiado, um link conferido ou ajuda para achar algo? '
+                 'A gente faz de graça, pelo WhatsApp da loja.</p><a class="oce" href="curadoria/">Curadoria grátis '
+                 '· Rastreia, Confere, Acha</a></section>' if whatsapp_loja() else "")
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
@@ -2140,10 +2144,12 @@ nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;lette
 .busca{{display:flex;gap:12px;align-items:center;padding:14px 16px 16px;max-width:1240px;margin:0 auto}}.busca input{{flex:1;min-width:0;border:1px solid var(--ouro);border-radius:2px;padding:12px 14px 10px;font-size:14px;background:#fff;color:var(--choc);font-family:inherit}}.busca input::placeholder{{color:#9A7B66}}.busca input:focus{{outline:1px solid var(--ouro)}}.busca span{{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cacau);white-space:nowrap}}
 #lista>p{{color:var(--cacau);text-align:center;grid-column:1/-1}}
 #mais{{display:block;margin:0 auto 30px;border:1px solid var(--choc);background:transparent;color:var(--choc);font-weight:600;border-radius:2px;padding:14px 26px 12px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-family:inherit;cursor:pointer}}
+.cura{{max-width:520px;margin:18px auto 0;padding:0 16px;text-align:center}}.cura p{{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--cacau)}}.cura .oce{{margin:0 auto}}
 .nossa{{max-width:1240px;margin:0 auto}}.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,175px);gap:14px;overflow-x:auto;padding:0 16px 14px}}.nossa .btn{{background:var(--car2)}}
 </style></head><body>
 <header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume e cabelo das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="https://shopee.com.br/shop/254425847" target="_blank" rel="noopener">Nossa loja Bella Lucce na Shopee</a><a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
 <section class="passos"><div><b>Garimpo</b><span>a gente procura nas lojas grandes</span></div><div><b>Confere</b><span>preço, loja e se o desconto é real</span></div><div><b>Você compra</b><span>direto na loja, sem pagar nada a mais</span></div></section>
+{curadoria}
 {faixa}
 <h2 class="sec">Ofertas de hoje</h2>
 <nav><button class="on" data-g="">Tudo</button>{abas}</nav>
@@ -2173,6 +2179,10 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
         pagina_oceane()
     except Exception as ex:  # noqa: BLE001
         print("área Océane falhou:", ex)
+    try:  # 26/10: /curadoria/ — sem o número da loja não gera nada; erro nela não pode derrubar a vitrine
+        pagina_curadoria()
+    except Exception as ex:  # noqa: BLE001
+        print("curadoria falhou:", ex)
     return str(SITE / "index.html")
 
 
@@ -2279,6 +2289,85 @@ def pagina_oceane(agora: datetime | None = None) -> str:
 {CONTADOR_SITE}
 </body></html>"""
     pasta = SITE / "oceane"
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "index.html").write_text(pagina, encoding="utf-8")
+    return str(pasta / "index.html")
+
+
+# ---------------- curadoria do site (/curadoria/) ----------------
+# 26/10 (dona: "Manda p what's da loja"): 3 serviços grátis — Rastreia (preço vigiado), Confere (loja/original/preço) e
+# Acha (sob encomenda). Cada botão abre o WhatsApp DA LOJA com a mensagem pronta para a pessoa completar; os pedidos
+# viram registro em `vendas curadoria add`. O número fica em WHATSAPP_LOJA ou em config/achadinhos.json →
+# "whatsapp_loja" (a nuvem lê o mesmo arquivo). Sem número: a página não é gerada e a vitrine não mostra o bloco.
+WHATSAPP_LOJA = ""
+CURADORIA_SERVICOS = [
+    ("rastreia", "Rastreia", "Fala o produto que você quer e a gente fica de olho no preço: avisa quando chegar no "
+                             "menor e manda um comparativo por semana.",
+     "Oi, Bella Lucce! Quero que vocês rastreiem o preço de:\nProduto: \nLink (se tiver): \nQuanto eu queria pagar: "),
+    ("confere", "Confere", "Manda o link e a gente diz se a loja é confiável, se o produto parece original e se o "
+                           "desconto é de verdade.",
+     "Oi, Bella Lucce! Podem conferir este link para mim?\nLink: \nO que me preocupa (loja, original, preço): "),
+    ("acha", "Acha", "Descreve o que você procura e a gente encontra opções em lojas confiáveis.",
+     "Oi, Bella Lucce! Estou procurando:\nO que é: \nCor, tamanho ou tipo: \nAté quanto quero gastar: "),
+]
+
+
+def whatsapp_loja() -> str:
+    """Número do WhatsApp da loja só com dígitos e DDI 55 ("" = não configurado ou inválido)."""
+    try:
+        num = canais().get("whatsapp_loja") or WHATSAPP_LOJA
+    except Exception:  # noqa: BLE001 — config ilegível não pode derrubar a vitrine
+        num = WHATSAPP_LOJA
+    num = re.sub(r"\D", "", str(num or ""))
+    if len(num) in (10, 11):
+        num = "55" + num
+    return num if len(num) in (12, 13) and num.startswith("55") else ""
+
+
+def link_curadoria(texto: str, numero: str | None = None) -> str:
+    """wa.me do WhatsApp da loja com a mensagem já escrita ("" sem número)."""
+    from urllib.parse import quote
+    numero = whatsapp_loja() if numero is None else numero
+    return f"https://wa.me/{numero}?text={quote(texto, safe='')}" if numero else ""
+
+
+def pagina_curadoria(numero: str | None = None) -> str:
+    """Gera SITE/curadoria/index.html (a nuvem copia para /curadoria/). Sem número da loja não gera ("" de volta)."""
+    numero = whatsapp_loja() if numero is None else numero
+    if not numero:
+        return ""
+    e = _html.escape
+    cards = "".join(
+        f'<section class="serv" id="{k}"><b>{nome}</b><p>{e(txt)}</p>'
+        f'<a class="entrar" href="{e(link_curadoria(msg, numero))}" target="_blank" rel="noopener">'
+        f'Pedir pelo WhatsApp</a></section>' for k, nome, txt, msg in CURADORIA_SERVICOS)
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Curadoria grátis · Rastreia, Confere, Acha · Bella Lucce</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
+<link rel="canonical" href="{SITE_URL}/curadoria/">
+<meta property="og:title" content="Curadoria grátis da Bella Lucce"><meta property="og:type" content="website">
+<meta name="description" content="Grátis, pelo WhatsApp da loja: a gente vigia o preço do produto que você quer, confere se um link é confiável e acha opções em lojas seguras.">
+<style>
+{SITE_CSS}
+.voltar{{display:inline-block;margin:14px 16px 0;color:var(--car2);font-weight:600;text-decoration:none;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}}
+.hero{{padding-top:16px}}
+.servs{{display:grid;gap:16px;max-width:760px;margin:24px auto 0;padding:0 16px}}
+.serv{{background:#fff;border:1px solid var(--ouro);border-radius:3px;padding:20px 18px 18px;text-align:center;box-shadow:0 8px 20px #3B21161a}}
+.serv b{{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:32px;color:var(--choc);line-height:1}}
+.serv p{{margin:10px auto 16px;max-width:440px;font-size:14px;line-height:1.55;color:var(--cacau)}}
+.serv .entrar{{margin:0 auto}}
+.nota{{max-width:560px;margin:22px auto 26px;padding:0 16px;text-align:center;font-size:12.5px;line-height:1.6;color:var(--cacau)}}
+@media (min-width:760px){{.servs{{grid-template-columns:repeat(3,1fr)}}.serv{{display:flex;flex-direction:column}}.serv p{{flex:1}}}}
+</style></head><body>
+<a class="voltar" href="../">← Todas as ofertas</a>
+<header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza</p><h1>Curadoria <em>grátis</em></h1><div class="orn">✦</div><p class="lead">Escolha o que você precisa, toque no botão e mande a mensagem pronta para o WhatsApp da loja. É só completar os campos.</p></header>
+<div class="servs">{cards}</div>
+<p class="nota">Não cobramos nada. Somos uma loja online e respondemos pelo WhatsApp assim que der. Seu número só é usado para responder o seu pedido.</p>
+<footer>#publi · Quando indicamos um produto, o link pode ser de afiliada: a loja pode nos pagar uma comissão, sem custo a mais para você. Preços mudam a qualquer momento; confira na loja antes de comprar.</footer>
+{CONTADOR_SITE}
+</body></html>"""
+    pasta = SITE / "curadoria"
     pasta.mkdir(parents=True, exist_ok=True)
     (pasta / "index.html").write_text(pagina, encoding="utf-8")
     return str(pasta / "index.html")
