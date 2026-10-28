@@ -342,7 +342,10 @@ BEM_ESTAR = re.compile(r"vitamin|multivitam|suplement|col[áa]geno|whey|creatina
 PET = re.compile(r"para (c[ãa]es|cachorros?|gatos?|pets?|felinos?|caninos?)|\bpet\b|\bra[çc][ãa]o\b|arranhador|"
                  r"caixa de areia|areia sanit|coleira|comedouro|cama de cachorro|casinha de cachorro", re.I)
 CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|cobertor|manta de sof|tapete|"
-                        r"papel higi[êe]nico|umidificador|balan[çc]a", re.I)  # casa (antes caíam em "beleza")
+                        r"papel higi[êe]nico|umidificador|balan[çc]a|"
+                        # 28/10 (dona: "ferro de passar? nas promos"): "Ferro… Base de Alumínio" caía em beleza pelo "base "
+                        r"ferro (?:de passar|a vapor|a seco)|passadeira|vaporizador (?:de|para) roupas?|"
+                        r"t[áa]bua de passar", re.I)  # casa (antes caíam em "beleza")
 
 
 def _grupo_final(g: str, titulo: str) -> str:
