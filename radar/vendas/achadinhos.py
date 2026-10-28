@@ -4143,10 +4143,12 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
                       re.I))
     d["oficial"], d["loja_nome"] = bool(m), (_html.unescape(m.group(1)).strip() if m else "")
     if d.get("foto"):  # miniatura do mlstatic → a original (~1200 px)
-        d["foto"] = re.sub(r"(mlstatic\.com/)D_Q_NP_(?:2X_)?(.+)-[A-Z]{1,2}\.(webp|jpg)$", r"\1D_NQ_NP_2X_\2-F.\3",
-                           d["foto"])
+        # 28/10: o ML passou a pôr o nome do produto depois do tamanho ("…_102026-R-base-mascara….webp") e a foto ficava
+        # na miniatura (250 px, 4 pedidos da dona barrados) → o nome sai junto
+        d["foto"] = re.sub(r"(mlstatic\.com/)D_Q_NP_(?:2X_)?(\d+-MLB\d+_\d+)-[A-Z]{1,2}(?:-[\w-]+)?\.(webp|jpg)$",
+                           r"\1D_NQ_NP_2X_\2-F.\3", d["foto"])
         # 09/10: og:image do ML vem "-O" (500 px) → "-F" (tamanho cheio) ANTES de medir (FOTO_MIN_PX)
-        d["foto"] = re.sub(r"(mlstatic\.com/.+)-O\.(webp|jpe?g|png)$", r"\1-F.\2", d["foto"])
+        d["foto"] = re.sub(r"(mlstatic\.com/.+_\d+)-O(?:-[\w-]+)?\.(webp|jpe?g|png)$", r"\1-F.\2", d["foto"])
     d["do_anuncio"] = re.sub(r"\D", "", mlb) in html
     return d
 
