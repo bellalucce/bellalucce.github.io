@@ -3875,6 +3875,9 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         o, p = dict(r), ped[r["id"]]
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
             continue  # já saiu depois do pedido
+        # 28/10 (dona: Ofertas Relâmpago do ML "que vai durar pouco"): pedido com "ate" não sai depois que a oferta acaba
+        if p.get("ate") and datetime.now().isoformat(timespec="seconds") >= str(p["ate"]):
+            continue
         # 23/10 (dona, sobre macacão/medicube sem "De" e MAC/Kérastase de loja não oficial: "posta mesmo assim",
         # "coloque então"): pedido com "forcar" no pedidos_dona.json pula a exigência do "De" e os vetos
         forcar = bool(p.get("forcar"))
