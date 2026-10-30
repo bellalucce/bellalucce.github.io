@@ -896,6 +896,33 @@ def vencendo(titulo: str, folga_dias: int = 60) -> bool:
 VENDA_DIRETA = re.compile(r"(?i)\bavon\b")  # Jequiti testada 26/10: quase só infantil (Cebolinha, Hello Kitty)
 
 
+def natal_boa_marketplace(o: dict) -> bool:
+    """30/10 (Especial de Natal das 18h, 31/10–25/12; Hermes: "preciso de Natal também do ML e da Amazon", a fila não
+    deixa um marketplace passar de metade em 8 posts): decoração/mimo que casa com o filtro da noite (agenda → "noites",
+    sem o "evitar") passa pela régua da noite — nota ≥ 4,6, vendidos (Amazon: avaliações) ≥ vendidos_min (2.000),
+    desconto ≥ 15% com "De" maior que o preço e preço ≤ R$ 300. Igual ao natal_boa da Shopee (shopee_afiliados)."""
+    try:
+        from vendas import datas as _dt
+        noites = _dt.agenda().get("noites") or []
+    except Exception:  # cópia do site sem o módulo/agenda → régua comum
+        return False
+    s, hoje = o.get("sinais") or {}, date.today().isoformat()
+    preco, de = float(o.get("preco") or 0), float(o.get("preco_antigo") or 0)
+    try:
+        vend = int(float(s.get("vendidos_num") or 0))
+    except (TypeError, ValueError):
+        vend = 0
+    for t in noites:
+        try:
+            if (hoje <= t.get("ate", "") and _dt.casa(o, t) and float(o.get("nota") or 0) >= 4.6
+                    and vend >= int(t.get("vendidos_min", 2000)) and int(o.get("desconto") or 0) >= 15
+                    and 0 < preco <= 300 and de > preco):
+                return True
+        except (TypeError, ValueError, AttributeError, re.error):
+            continue
+    return False
+
+
 def aprovada(o: dict) -> bool:
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
     if not eh_produto(o) or vencendo(o.get("titulo") or ""):
@@ -927,6 +954,8 @@ def aprovada(o: dict) -> bool:
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         if s.get("pedido_dona"):  # 09/10: a dona mandou (`achadinhos pedido`) → passa por cima do desconto mínimo
             return True  # 23/10 (dona: "não precisa ser de loja oficial"): nem a trava de loja oficial abaixo vale
+        if o["fonte"] != "shopee_afiliados" and natal_boa_marketplace(o):
+            return True
         if s.get("origem") == "referencia":
             # 23/10 (dona: "tem que voltar a ver os grupos… não tô vendo nada" / "não precisa ser de loja oficial"): o que
             # os grupos grandes postaram já foi escolhido por gente. Medido: 300 itens deles no sem_par, quase todos
