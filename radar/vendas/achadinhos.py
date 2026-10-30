@@ -964,7 +964,10 @@ def aprovada(o: dict) -> bool:
             except ImportError:
                 nmin, vmin, dmin = 4.7, 500, 20
             return nota >= nmin and vend >= vmin and d >= dmin
-        bom, viral = nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
+        if o["fonte"] == "shopee_afiliados" and s.get("origem") == "natal_boa":
+            # 30/10 (dona: "todo dia especial de Natal… decoração, árvore, mimo"): coletar_natal já filtrou; régua dela
+            return nota >= 4.6 and vend >= 2000 and d >= 15
+        bom, viral =nota >= 4.6 and vend >= 1000, nota >= 4.5 and vend >= 10000
         # 07/10 (dona: "cadê as maquiagens?" — Rafa: Maybelline Sky High da loja oficial, nota 5, -24%, barrada só por ter
         # menos de 1.000 vendidos): loja OFICIAL bem avaliada já é confiável → conta como "bom"
         bom = bom or (bool(s.get("oficial")) and nota >= 4.5)
@@ -4587,13 +4590,14 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     permitidos = permitidos_teste or canais().get("grupos_permitidos")
     if permitidos:
         regras.append((f"só {', '.join(permitidos)}", lambda o: o.get("grupo") in permitidos))
-    if so_feminino_ligado():
-        regras.append(("modo feminino", lambda o: no_perfil_feminino(o)))
+    from vendas import datas as _dt
+    if so_feminino_ligado():  # 30/10: na noite de Natal a decoração/mimo do tema passa (datas.libera_noite)
+        regras.append(("modo feminino", lambda o: no_perfil_feminino(o) or _dt.libera_noite(o)))
     # 26/10 (dona: "quero só coisa conhecida… marca que eu nunca ouvi falar nem dá vontade"): só marca reconhecida
     # (config/marcas_conhecidas.json + listas do código), contratipo de perfume de marca própria ou muitas vendas.
     # Os pedidos da dona entram depois, por cima.
     if SO_MARCA_CONHECIDA:
-        regras.append(("só marca conhecida", marca_reconhecida))
+        regras.append(("só marca conhecida", lambda o: marca_reconhecida(o) or _dt.libera_noite(o)))
     for nome, passa in regras:
         cand = [o for o in cand if passa(o)]
         marca(nome, cand)
