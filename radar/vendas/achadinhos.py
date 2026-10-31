@@ -2503,7 +2503,9 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
     def card_radar(o: dict) -> str:
         t = cortar(limpar_titulo(o["titulo"]), 80)
         de = o.get("preco_antigo") or 0
-        selo = f'<span class="selo">-{int(o["desconto"])}%</span>' if o.get("desconto") and de > o["preco"] else ""
+        # 31/10 (1ª versão no ar): "De R$ 139,75 por R$ 27,95" de vendedor da Shopee passava → "De" e selo só até 2×
+        de = de if o["preco"] < de <= 2 * o["preco"] else 0
+        selo = f'<span class="selo">-{int(o["desconto"])}%</span>' if o.get("desconto") and de else ""
         visto = str(o.get("atualizado_em") or "")
         visto = f'<div class="visto">preço visto {visto[8:10]}/{visto[5:7]} às {visto[11:16]}</div>' if len(visto) >= 16 else ""
         return (f'<a class="card" href="{e(o["_link"])}" target="_blank" rel="nofollow sponsored noopener" data-c="shopee">'
