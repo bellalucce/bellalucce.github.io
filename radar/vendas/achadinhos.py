@@ -4154,6 +4154,9 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
         # 28/10 (dona: Ofertas Relâmpago do ML "que vai durar pouco"): pedido com "ate" não sai depois que a oferta acaba
         if p.get("ate") and datetime.now().isoformat(timespec="seconds") >= str(p["ate"]):
             continue
+        # 31/10 (dona, toalha natalina: "quero esse produto na parte de natal"): pedido com "desde" só sai a partir dessa hora
+        if p.get("desde") and datetime.now().isoformat(timespec="seconds") < str(p["desde"]):
+            continue
         # 23/10 (dona, sobre macacão/medicube sem "De" e MAC/Kérastase de loja não oficial: "posta mesmo assim",
         # "coloque então"): pedido com "forcar" no pedidos_dona.json pula a exigência do "De" e os vetos
         forcar = bool(p.get("forcar"))
