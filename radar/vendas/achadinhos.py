@@ -2216,6 +2216,10 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
         pagina_oceane()
     except Exception as ex:  # noqa: BLE001
         print("área Océane falhou:", ex)
+    try:  # 31/10 (E3): /amigo-secreto/ — remontada junto com a vitrine; erro nela não pode derrubar a vitrine
+        pagina_amigo_secreto(ofs)
+    except Exception as ex:  # noqa: BLE001
+        print("amigo secreto falhou:", ex)
     try:  # 26/10: /curadoria/ — sem o número da loja não gera nada; erro nela não pode derrubar a vitrine
         pagina_curadoria()
     except Exception as ex:  # noqa: BLE001
@@ -2326,6 +2330,234 @@ def pagina_oceane(agora: datetime | None = None) -> str:
 {CONTADOR_SITE}
 </body></html>"""
     pasta = SITE / "oceane"
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "index.html").write_text(pagina, encoding="utf-8")
+    return str(pasta / "index.html")
+
+
+# ---------------- lista de amigo secreto (/amigo-secreto/) ----------------
+# 31/10 (estratégia E3 aprovada, cerebro/10-Mercado/2026-10-31-Estrategia-compradoras-grupo.md): lista que as membros
+# encaminham ao grupo do amigo secreto da família ou da firma. 3 faixas (até R$ 30, 50 e 80); em cada uma vêm primeiro os
+# NOSSOS kits/produtos (preço escrito em config/midia.json ou promoção valendo — o PC leva em radar/config/amigo_secreto.json)
+# e depois marca conhecida da Shopee com preço visto nas últimas AS_HORAS h e o NOSSO link de afiliada. Montada a cada
+# vitrine() (nuvem, ~20 min), nunca estática. No fim, o botão do grupo (/grupo/?de=as, que conta "clique-grupo-as").
+AS_FAIXAS = [(30.0, "Até R$ 30", "presentinho"), (50.0, "Até R$ 50", "de R$ 30 a R$ 50"),
+             (80.0, "Até R$ 80", "de R$ 50 a R$ 80")]
+AS_HORAS = 30
+AS_POR_FAIXA = 4
+# presente de amigo secreto: nada de farmácia/tratamento/tamanho de salão
+AS_FORA = re.compile(r"(?i)prot(?:etor|\.)\s*solar|fotoprotet|\bfps|acidificante|"
+                     # tamanho com variação ("30ml,50ml,100ml", "10ml [mini] / 30ml"): o preço é o do menor — na lista
+                     # de presente ia parecer o do maior
+                     r"\d\s?ml\s*(?:\[[^\]]*\]\s*)?(?:[/,]\s*|\s+)\d+\s?ml|"
+                     r"ureadin|antiqueda|anticaspa|absorvente|antitranspirante|desodorante (?:aerosol|roll|antitransp)|\brefil\b|\b(?:500|1000)\s?(?:ml|g)\b|"
+                     r"\b1\s?(?:kg|l|litro)\b|caspa|calos|unha encravada|hemorr|íntim|intim")
+AS_JS = """<script>
+/* contador grátis (GoatCounter, sem cookie): visita por origem (?de=) e toque em cada item/botão — sem dado pessoal */
+(function () {
+  var de = "";
+  try { de = (new URLSearchParams(location.search).get("de") || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 24); } catch (e) {}
+  window.goatcounter = { path: function () { return "/amigo-secreto/" + (de ? "?de=" + de : ""); } };
+  document.addEventListener("click", function (ev) {
+    try {
+      var a = ev.target && ev.target.closest ? ev.target.closest("a[data-c]") : null;
+      if (!a || !window.goatcounter || !window.goatcounter.count) return;
+      var c = a.getAttribute("data-c");
+      window.goatcounter.count({ path: "as-" + c + (de ? "-" + de : ""), title: "Amigo secreto: " + c, event: true });
+    } catch (e) {}
+  }, true);
+})();
+</script>"""
+
+
+def _as_valor(txt: str) -> float:
+    """Menor preço escrito no texto ("Kit 2 R$ 18,90 · Kit 3 R$ 24,90" → 18.9; "R$ 14,90 na Shopee (de R$ 24,90)" → 14.9)."""
+    vals = [_num_brl(m) for m in re.findall(r"R\$\s?\d[\d.]*,\d\d", str(txt or ""))]
+    return min((v for v in vals if v > 0), default=0.0)
+
+
+def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
+    """PC (precisa de config/midia.json e do estoque do Hermes): os NOSSOS itens da lista, kits primeiro →
+    [{chave, nome, preco, valor, link, foto, kit}]. Só Shopee, com estoque, foto e preço que já está escrito (kit) ou a
+    promoção valendo (produto); nada acima do teto da última faixa. `pasta` = repositório do site: grava as fotos
+    reduzidas em loja/as_<chave>.jpg (a nuvem copia loja/ inteira)."""
+    from vendas import midia
+    agora = agora or datetime.now()
+    cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
+    prods = cfg.get("produtos") or {}
+    itens_est = _estoque_itens()
+
+    def tem(prefixos: list) -> bool:
+        return bool(itens_est) and all(any(i["sku"].startswith(p) and i["qtd"] > 0 for i in itens_est) for p in prefixos)
+
+    kits, avulsos, vistos = [], [], set()
+
+    def por(chave: str, nome: str, preco: str, link: str, foto: str, kit: bool) -> None:
+        valor = _as_valor(preco)
+        if chave in vistos or not (link and "shopee" in link and foto and 0 < valor <= AS_FAIXAS[-1][0]):
+            return
+        if not (config.RAIZ / foto).is_file():
+            return
+        vistos.add(chave)
+        (kits if kit else avulsos).append({"chave": chave, "nome": re.sub(r"\s*\((?:[^()]*Shopee[^()]*)\)\s*$", "", nome),
+                                           "preco": re.sub(r"\s*\(Shopee\)\s*$", "", preco).strip(), "valor": valor,
+                                           "link": link, "foto": foto, "kit": kit})
+
+    if foco := foco_loja(agora, cfg):  # itens do foco já trazem o link CURTO oficial da Shopee
+        for chave, p, ok in itens_do_foco(cfg, foco):
+            if ok:
+                link = next((u for u in (p.get("links") or {}).values() if "shopee" in u), "")
+                preco = preco_loja_site(prods[chave], agora) if chave in prods else str(p.get("preco") or "")
+                por(chave, p.get("nome", chave), preco, link, p.get("foto", ""), chave.startswith("item:"))
+    for k in cfg.get("kits_grupo") or []:  # kit do Leve Mais por Menos com anúncio e preço próprios
+        if k.get("ativo") and k.get("preco") and tem(k.get("estoque") or []):
+            por(f"kit:{k.get('id')}", k["nome"], k["preco"], (k.get("links") or {}).get("Shopee", ""), k.get("foto", ""), True)
+    for sku, p in prods.items():  # produto avulso só com a promoção da Shopee valendo
+        if promo_valendo(p, agora) and midia.tem_estoque(sku):
+            por(sku, p["nome"], preco_loja_site(p, agora), (p.get("links") or {}).get("Shopee", ""),
+                p.get("foto_grupo") or p.get("foto", ""), False)
+    out = kits + avulsos
+    if pasta is not None:
+        from PIL import Image
+        (pasta / "loja").mkdir(exist_ok=True)
+        for it in out:
+            nome_arq = "as_" + re.sub(r"\W+", "_", it["chave"])
+            fonte, destino = config.RAIZ / it["foto"], pasta / "loja" / f"{nome_arq}.jpg"
+            if not destino.exists() or destino.stat().st_mtime < fonte.stat().st_mtime:
+                im = Image.open(fonte).convert("RGB")
+                im.thumbnail((500, 500))
+                im.save(destino, quality=85)
+            it["foto"] = f"loja/{nome_arq}.jpg"
+    return out
+
+
+def _link_shopee_nosso(o: dict) -> str:
+    """O NOSSO link de afiliada da Shopee (curto da Open API ou an_redir com o nosso id) — senão ""."""
+    u = link_afiliado(o.get("link_loja")) or ""
+    return u if re.match(r"https://s\.shopee\.com\.br/\w+$", u) or "affiliate_id=" in u else ""
+
+
+def ofertas_amigo_secreto(ofs: list[dict], agora: datetime | None = None) -> dict[float, list[dict]]:
+    """Itens do radar por faixa {teto: [ofertas]}: Shopee, marca conhecida, preço visto nas últimas AS_HORAS h, NOSSO link,
+    1 por marca na lista toda, 2 por tipo por faixa, AS_POR_FAIXA por faixa. `ofs` = selecionar_vitrine() (já com as
+    travas do site: nicho, bonito, foto ≥ 600 px, "de" crível)."""
+    agora = agora or datetime.now()
+    limite = (agora - timedelta(hours=AS_HORAS)).isoformat(sep=" ", timespec="seconds")
+    cand = []
+    for o in ofs:
+        t, preco = o.get("titulo") or "", o.get("preco") or 0
+        if not (0 < preco <= AS_FAIXAS[-1][0] and str(o.get("atualizado_em") or "") >= limite and o.get("foto")
+                and "shopee.com.br" in str(o.get("link_loja") or "") and o.get("fonte") != "oceane_afiliados"):
+            continue
+        if not (marca_conhecida(o) or MARCA_BONITA.search(t) or GRIFE_ACERVO.search(t)) or _FAIXA_RUIM.search(t) \
+                or AS_FORA.search(t) or de_inflado(o):
+            continue
+        if link := _link_shopee_nosso(o):
+            cand.append({**o, "_link": link})
+    cand.sort(key=lambda o: -(o["_rank"] if "_rank" in o else (o.get("score") or 0) + pontos_beleza(o)))
+    out: dict[float, list[dict]] = {teto: [] for teto, _, _ in AS_FAIXAS}
+    marcas, tipos, toks = set(), {}, []
+    for o in cand:
+        teto = next(t for t, _, _ in AS_FAIXAS if o["preco"] <= t)
+        if len(out[teto]) >= AS_POR_FAIXA:
+            continue
+        mb = MARCA_BONITA.search(o["titulo"])
+        marca = marca_site(o["titulo"]) or (re.sub(r"\W+", "", _sem_acento(mb.group(0).lower())) if mb else None)
+        tipo, tk = tipo_site(o), _tokens_de_produto(o["titulo"])
+        if (marca and marca in marcas) or (tipo and tipos.get((teto, tipo), 0) >= 2) or any(_mesmo_produto(tk, t2) for t2 in toks):
+            continue
+        out[teto].append(o)
+        toks.append(tk)
+        if marca:
+            marcas.add(marca)
+        if tipo:
+            tipos[(teto, tipo)] = tipos.get((teto, tipo), 0) + 1
+    return out
+
+
+def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None = None) -> str:
+    """Gera SITE/amigo-secreto/index.html (a nuvem copia para /amigo-secreto/)."""
+    agora = agora or datetime.now()
+    ofs = selecionar_vitrine() if ofs is None else ofs
+    radar = ofertas_amigo_secreto(ofs, agora)
+    arq = config.CONFIG / "amigo_secreto.json"  # PC → radar/config (kits_amigo_secreto, no publicar_site)
+    try:
+        nossos = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else []
+    except ValueError:
+        nossos = []
+    e = _html.escape
+
+    def preco_nosso(txt: str) -> str:
+        if m := re.match(r"^(R\$ [\d.,]+) na \w+ \(de (R\$ [\d.,]+)\)$", txt):
+            return f"<s>De {e(m[2])}</s><b>Por {e(m[1])}</b>"
+        return f'<b>{e(txt)}</b>' if len(txt) <= 9 else f'<span class="pt">{e(txt)}</span>'
+
+    def card_nosso(p: dict) -> str:
+        foto = p["foto"] if p["foto"].startswith("http") else f"../{p['foto']}"
+        c = ("kit-" if p.get("kit") else "loja-") + re.sub(r"[^a-z0-9]+", "-", p["chave"].lower()).strip("-")
+        return (f'<a class="card nosso" href="{e(p["link"])}" target="_blank" rel="noopener" data-c="{e(c)}">'
+                f'<div class="img"><img loading="lazy" decoding="async" width="300" height="300" src="{e(foto)}" '
+                f'alt="{e(p["nome"])}"></div><div class="loja">Bella Lucce · nossa loja</div><div class="tit">{e(p["nome"])}</div>'
+                f'<div class="preco">{preco_nosso(p["preco"])}</div><div class="btn">Ver na nossa loja</div></a>')
+
+    def card_radar(o: dict) -> str:
+        t = cortar(limpar_titulo(o["titulo"]), 80)
+        de = o.get("preco_antigo") or 0
+        selo = f'<span class="selo">-{int(o["desconto"])}%</span>' if o.get("desconto") and de > o["preco"] else ""
+        visto = str(o.get("atualizado_em") or "")
+        visto = f'<div class="visto">preço visto {visto[8:10]}/{visto[5:7]} às {visto[11:16]}</div>' if len(visto) >= 16 else ""
+        return (f'<a class="card" href="{e(o["_link"])}" target="_blank" rel="nofollow sponsored noopener" data-c="shopee">'
+                f'<div class="img"><img loading="lazy" decoding="async" width="300" height="300" '
+                f'src="{e(miniatura_shopee(o["foto"]))}" alt="{e(t)}" onerror="this.style.visibility=\'hidden\'">{selo}</div>'
+                f'<div class="loja">Shopee</div><div class="tit">{e(t)}</div>'
+                f'<div class="preco">{f"<s>De {_brl(de)}</s>" if de > o["preco"] else ""}<b>{_brl(o["preco"])}</b></div>'
+                f'{visto}<div class="btn">Ver na Shopee</div></a>')
+
+    blocos, n_total, anteriores = "", 0, 0.0
+    for teto, nome, sub in AS_FAIXAS:
+        meus = [p for p in nossos if anteriores < (p.get("valor") or 0) <= teto]
+        cards = [card_nosso(p) for p in meus] + [card_radar(o) for o in radar[teto]]
+        anteriores = teto
+        if not cards:
+            continue
+        n_total += len(cards)
+        blocos += (f'<h2 class="sec" id="ate-{int(teto)}">{nome} <i>{sub}</i></h2><main>{"".join(cards)}</main>')
+    if not n_total:
+        blocos = '<p class="vazio">A lista é renovada várias vezes por dia com os preços do momento. Volte daqui a pouco 💛</p>'
+    from urllib.parse import quote
+    zap = "https://wa.me/?text=" + quote("Ideias de presente pro amigo secreto, até R$ 30, R$ 50 e R$ 80 🎁 "
+                                         f"{SITE_URL}/amigo-secreto/?de=as-zap", safe="")
+    atalhos = "".join(f'<li><a href="#ate-{int(t)}">{n}</a></li>' for t, n, _ in AS_FAIXAS)
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Lista de amigo secreto: presentes de beleza até R$ 30, R$ 50 e R$ 80 · Bella Lucce</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.png"><meta property="og:image" content="{SITE_URL}/logo.png">
+<link rel="canonical" href="{SITE_URL}/amigo-secreto/">
+<meta property="og:title" content="Lista de amigo secreto 🎁 presentes de beleza até R$ 30, 50 e 80"><meta property="og:type" content="website">
+<meta property="og:description" content="Maquiagem, skincare, perfume e cabelo de marcas conhecidas, com o preço do momento. Manda no grupo do amigo secreto.">
+<meta name="description" content="Ideias de presente de amigo secreto até R$ 30, R$ 50 e R$ 80: maquiagem, skincare, perfume e cabelo de marcas conhecidas, com o preço conferido nas últimas horas.">
+<style>
+{SITE_CSS}
+.voltar{{display:inline-block;margin:14px 16px 0;color:var(--car2);font-weight:600;text-decoration:none;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}}
+.hero{{padding-top:16px}}
+.selos a{{text-decoration:none}}
+.acoes .entrar{{max-width:360px}}
+.preco s{{display:block}}
+.preco .pt{{display:block;font-family:'Josefin Sans',sans-serif;font-size:14px;font-weight:600;line-height:1.35}}
+.visto{{margin:4px 11px 0;font-size:11px;color:#7A5A44}}
+.nosso{{border-color:var(--ouro)}}.nosso .loja{{color:var(--choc)}}.nosso .btn{{background:var(--car2)}}
+.fim{{max-width:520px;margin:6px auto 26px;padding:0 16px;text-align:center}}.fim p{{margin:0 0 12px;font-size:14px;line-height:1.55;color:var(--cacau)}}.fim .entrar{{margin:0 auto}}
+.vazio{{text-align:center;padding:20px 16px;font-size:15px;color:var(--cacau)}}
+</style></head><body>
+<a class="voltar" href="../">← Todas as ofertas</a>
+<header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · lista de presentes</p><h1>Amigo <em>secreto</em></h1><div class="orn">✦</div><p class="lead">Presentes de beleza de marcas que todo mundo conhece, separados por valor. Manda esta lista no grupo do amigo secreto da família ou da firma.</p><ul class="selos">{atalhos}<li>Atualizado {agora:%d/%m %H:%M}</li></ul><div class="acoes"><a class="entrar" href="{e(zap)}" target="_blank" rel="noopener" data-c="compartilhar">Mandar a lista no WhatsApp</a></div></header>
+{blocos}
+<section class="fim"><p>Quer receber promoção de beleza assim todo dia? O grupo é grátis e você sai quando quiser.</p><a class="entrar" href="/grupo/?de=as" data-c="grupo">Entrar no grupo VIP do WhatsApp</a></section>
+<footer>#publi · Os itens da Shopee têm link de afiliada da Bella Lucce: a loja pode nos pagar uma comissão, sem custo a mais para você. Os itens "Bella Lucce · nossa loja" são da nossa loja na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
+{AS_JS}
+{CONTADOR_SITE}
+</body></html>"""
+    pasta = SITE / "amigo-secreto"
     pasta.mkdir(parents=True, exist_ok=True)
     (pasta / "index.html").write_text(pagina, encoding="utf-8")
     return str(pasta / "index.html")
@@ -5758,6 +5990,11 @@ def publicar_site() -> str:
         # resumo do histórico de preço (só quem tem 7+ dias) → selo "menor preço" também no site montado na nuvem
         (radar / "dados" / "historico.json").write_text(json.dumps(minimos(), separators=(",", ":")), encoding="utf-8")
     _publicar_loja(pasta, radar)
+    try:  # 31/10 (E3): os NOSSOS itens da /amigo-secreto/ (a nuvem monta a página com eles + o radar da Shopee)
+        (radar / "config" / "amigo_secreto.json").write_text(
+            json.dumps(kits_amigo_secreto(pasta), ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as ex:  # noqa: BLE001 — sem os nossos itens a página sai só com o radar
+        print("amigo secreto (itens da loja) falhou:", ex)
     try:  # 15/10 (dona: "pode encurtar a Océane"): páginas /o/<codigo>/ + conferência das que já subiram
         from vendas.integracoes import oceane_curto
         print(oceane_curto.ciclo())

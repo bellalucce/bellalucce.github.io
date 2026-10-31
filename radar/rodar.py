@@ -46,6 +46,8 @@ def main() -> None:
         shutil.copyfile(a.SITE / arq, SAIDA / arq)
     if (a.SITE / "oceane").exists():  # 09/10 (dona): área só da Océane, montada pelo vitrine() junto com a página
         shutil.copytree(a.SITE / "oceane", SAIDA / "oceane", dirs_exist_ok=True)
+    if (a.SITE / "amigo-secreto").exists():  # 31/10 (E3): lista de amigo secreto, remontada pelo vitrine() a cada rodada
+        shutil.copytree(a.SITE / "amigo-secreto", SAIDA / "amigo-secreto", dirs_exist_ok=True)
     if (a.SITE / "curadoria").exists():  # 26/10: Rastreia/Confere/Acha — só existe com o número do WhatsApp da loja
         shutil.copytree(a.SITE / "curadoria", SAIDA / "curadoria", dirs_exist_ok=True)
     for arq in ("logo.png", "favicon.png", "README.md"):
@@ -77,7 +79,8 @@ def main() -> None:
     base = "https://bellalucce.github.io"
     paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
         ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + (
-        ["/curadoria/"] if (SAIDA / "curadoria").exists() else []) + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
+        ["/curadoria/"] if (SAIDA / "curadoria").exists() else []) + (
+        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
