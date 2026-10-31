@@ -2345,6 +2345,8 @@ AS_FAIXAS = [(30.0, "Até R$ 30", "presentinho"), (50.0, "Até R$ 50", "de R$ 30
              (80.0, "Até R$ 80", "de R$ 50 a R$ 80")]
 AS_HORAS = 30
 AS_POR_FAIXA = 4
+AS_COREANO = re.compile(r"(?i)(?<!\w)(?:celimax|beauty of joseon|skin1004|medicube|anua|cosrx|tirtir|torriden|round lab|"
+                        r"laneige|some by mi|biodance|numbuzin|rom&nd|peripera|arencia|innisfree|missha|axis-?y)(?!\w)")
 # presente de amigo secreto: nada de farmácia/tratamento/tamanho de salão
 AS_FORA = re.compile(r"(?i)prot(?:etor|\.)\s*solar|fotoprotet|\bfps|acidificante|"
                      # tamanho com variação ("30ml,50ml,100ml", "10ml [mini] / 30ml"): o preço é o do menor — na lista
@@ -2451,6 +2453,12 @@ def ofertas_amigo_secreto(ofs: list[dict], agora: datetime | None = None) -> dic
             continue
         if not (marca_conhecida(o) or MARCA_BONITA.search(t) or GRIFE_ACERVO.search(t)) or _FAIXA_RUIM.search(t) \
                 or AS_FORA.search(t) or de_inflado(o):
+            continue
+        # 31/10: presente tem que ser original — grife, coreano ou desconto ≥ 45% só da loja oficial da marca (a 1ª versão
+        # trouxe Laneige 15 ml a R$ 19,99 e "Kit Boca Rosa base + máscara" a R$ 25,99, ambos de revendedora)
+        de = o.get("preco_antigo") or 0
+        desc = o.get("desconto") or (round(100 * (1 - preco / de)) if de > preco else 0)
+        if (LUXO.search(t) or AS_COREANO.search(t) or desc >= 45) and not loja_oficial_da_marca(o):
             continue
         if link := _link_shopee_nosso(o):
             cand.append({**o, "_link": link})
