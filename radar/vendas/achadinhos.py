@@ -1464,6 +1464,8 @@ NOMES = {"beleza": "Beleza", "cabelo": "Cabelo", "perfume": "Perfumes", "esporte
 SITE = config.DADOS / "achadinhos" / "site"
 # 11/10 (Vitória: só a /grupo media visita; sem contador não dá para saber se Pinterest/Linktree/Shopee trazem alguém):
 # contador grátis e sem cookie (GoatCounter) em todas as páginas montadas. Se o serviço cair, nada quebra.
+# 31/10: o CSP das páginas montadas (script-src 'self') BLOQUEAVA o count.js — a principal, a /oceane e a /curadoria
+# nunca contaram. Toda página com CONTADOR_SITE precisa de gc.zgo.at no script-src e do goatcounter no connect-src.
 CONTADOR_SITE = '<script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>'
 
 
@@ -2160,7 +2162,7 @@ def vitrine(horas: int = 36) -> str:
                  '· Rastreia, Confere, Acha</a></section>' if whatsapp_loja() else "")
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
-    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>PROMOS DE BELEZA VIP | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
@@ -2297,7 +2299,7 @@ def pagina_oceane(agora: datetime | None = None) -> str:
     conferido = (f" · preços da loja conferidos às {visto[11:16]} de {visto[8:10]}/{visto[5:7]}" if len(visto) >= 16
                  else "")
     loja = f"https://www.oceane.com.br/?utmi_pc={OCEANE_UTMI}"
-    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Área Océane · cupom BELLALUCCE 10% OFF · Bella Lucce</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
@@ -2376,7 +2378,7 @@ def pagina_curadoria(numero: str | None = None) -> str:
         f'<section class="serv" id="{k}"><b>{nome}</b><p>{e(txt)}</p>'
         f'<a class="entrar" href="{e(link_curadoria(msg, numero))}" target="_blank" rel="noopener">'
         f'Pedir pelo WhatsApp</a></section>' for k, nome, txt, msg in CURADORIA_SERVICOS)
-    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+    pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Curadoria grátis · Rastreia, Confere, Acha · Bella Lucce</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
