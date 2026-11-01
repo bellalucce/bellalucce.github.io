@@ -4932,8 +4932,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     except Exception:  # noqa: BLE001 — sem a leitura das referências, segue só pela marca
         ref_frente = set()
 
-    lojas_24h = {loja_de(dict(r)) for r in db.consultar(
-        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []}
+    # 31/10 (dona: "só tem Shopee… Mercado Livre, Amazon, Magalu, não vejo" — Amazon com 1 post em 24 h já contava como
+    # "teve post" e perdia o desempate para a Shopee com 78): conta QUANTOS posts cada loja teve, não só sim/não
+    posts_loja_24h: dict = {}
+    for r in db.consultar(
+            "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []:
+        lj = loja_de(dict(r))
+        posts_loja_24h[lj] = posts_loja_24h.get(lj, 0) + 1
 
     def variar(lista: list) -> tuple[list, list, set, int]:
         """Tipo que saiu há pouco não repete e fica 1 por tipo; depois o teto do tipo por dia. A janela só encolhe se o
@@ -4943,7 +4948,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         # que a referência postou, depois o de marca conhecida (antes ficava o de maior score e o da referência sumia)
         # 26/10 noite: a loja sem post há 24 h ganha o desempate (a Magalu perdia aqui toda vez para Shopee/ML do mesmo
         # tipo e sumia antes de chegar ao rodízio de fila_posts)
-        pref = sorted(lista, key=lambda o: (loja_de(o) in lojas_24h, o["id"] not in ref_frente, not marca_conhecida(o)))
+        pref = sorted(lista, key=lambda o: (posts_loja_24h.get(loja_de(o), 0) >= LOJA_FARTA_24H, o["id"] not in ref_frente,
+                                            not marca_conhecida(o), posts_loja_24h.get(loja_de(o), 0)))
         for i, h in enumerate(JANELAS_TIPO_H):
             corte = (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
             bloq = {k for k, quando in saiu_tipo.items() if quando >= corte}
@@ -5211,8 +5217,11 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
         f"LIMIT {max(MAX_LOJA_SEGUIDA, LOJA_JANELA - 1)}") or []][::-1]
     lojas_cand = {loja_de(x) for x in cand}
-    lojas_dia = {loja_de(dict(r)) for r in db.consultar(  # 26/10: lojas com post nas últimas 24 h (rodízio, abaixo)
-        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []}
+    posts_dia: dict = {}  # 26/10: lojas com post nas últimas 24 h (rodízio, abaixo); 31/10: quantos posts cada uma
+    for r in db.consultar(
+            "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em >= datetime('now', 'localtime', '-24 hours')") or []:
+        posts_dia[loja_de(dict(r))] = posts_dia.get(loja_de(dict(r)), 0) + 1
+    lojas_dia = set(posts_dia)
     # 08/10 noite (Beto 07/10: 22 perfumes seguidos na fila e 8 numa rodada): no máx. PERFUME_MAX_JANELA perfumes em
     # cada PERFUME_JANELA posts, contando o fim da rodada anterior. As vagas do TEMA do dia (ex.: "Quarta do Perfume",
     # pedido da dona em 07/10) e os pedidos da dona não têm esse teto — mas contam na janela
@@ -5350,10 +5359,15 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             moda_hoje[tp] = moda_hoje.get(tp, 0) + 1
     # 26/10 noite: loja sem post há 24 h com oferta válida na fila ganha 1 vaga na rodada ANTES do padrão de vagas — o
     # subtipo da vaga ("Bk", "Mb"…) vinha antes do rodízio e a Magalu (protetor/hidratante) nunca acertava a vaga
+    # 31/10 (dona: "Mercado Livre, Amazon, Magalu, não vejo… nunca mais"): a vaga vale também para a loja com POUCOS
+    # posts em 24 h (< LOJA_FARTA_24H), não só para a de zero — 1 post da Amazon no dia já tirava a vaga dela. A de
+    # menos posts vai primeiro.
     paradas = [x for k in ("B", "M", "C", "O") for x in filas[k]
-               if loja_de(x) not in lojas_dia and all(loja_de(y) != loja_de(x) for y in out) and not eh_masculino(x)
+               if posts_dia.get(loja_de(x), 0) < LOJA_FARTA_24H and all(loja_de(y) != loja_de(x) for y in out)
+               and not eh_masculino(x)
                and not por_vendedor.get(vendedor(x)) and not tipo_na_rodada(x, out) and perfume_cabe(x)]
-    for o in sorted(paradas, key=lambda x: (x["id"] not in frente, not marca_conhecida(x)))[:6] if len(out) < n else []:
+    for o in sorted(paradas, key=lambda x: (posts_dia.get(loja_de(x), 0) > 0, x["id"] not in frente,
+                                            not marca_conhecida(x), posts_dia.get(loja_de(x), 0)))[:6] if len(out) < n else []:
         for f in filas.values():
             if o in f:
                 f.remove(o)
@@ -5419,7 +5433,10 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         # sem post — as "referências" da frente ganhavam sempre do rodízio. Loja sem post há 24 h passa na frente.
         def _rodizio(x: dict) -> tuple:
             parada = loja_de(x) not in lojas_dia and all(loja_de(y) != loja_de(x) for y in out)
-            return (not parada, x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
+            # 31/10 (dona: "nos outros grupos a maioria é Amazon, Magalu… só tem Shopee"): loja que já passou de
+            # LOJA_FARTA_24H posts em 24 h perde para a que teve poucos, mesmo com referência/marca
+            farta = posts_dia.get(loja_de(x), 0) >= LOJA_FARTA_24H
+            return (not parada, farta, x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
         for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x), *_rodizio(x)))[:6]:
             fila.remove(o)
@@ -5488,6 +5505,9 @@ MARKETPLACES = ("shopee", "mercadolivre", "amazon", "magalu")
 # (14h31–15h03) e a Shopee foi 53 de 72 em 12/10 → nenhum marketplace passa da metade de cada MKT_JANELA posts
 MKT_JANELA, MKT_MAX_JANELA = 8, 4
 LOJA_RODIZIO_JANELA = 10  # 16/10: rodízio de lojas na vaga (ver fila_posts)
+# 31/10: loja com mais que isso de posts em 24 h (a Shopee faz ~80/dia) cede a vaga a ML/Amazon/Magalu/Océane que
+# tenham oferta válida — no desempate do tipo (variar) e no rodízio da vaga (fila_posts)
+LOJA_FARTA_24H = 25
 
 
 def loja_cabe(loja: str, seq: list[str]) -> bool:
