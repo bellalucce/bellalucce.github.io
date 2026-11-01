@@ -941,7 +941,8 @@ def aprovada(o: dict) -> bool:
     if o["fonte"] == "awin_docebeleza":  # 05/10: conferida à mão (loja de dermo, "de" = tabela das marcas): ≥ 25% off
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] == "magalu_epoca":  # 06/10 (dona): Época no Magalu, "de" conferido no site da própria Época
-        return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume") and bool(s.get("de_conferido"))
+        # 31/10 (dona: "pode liberar o Magalu"): sem conferência também vale — o "De" inflado já foi barrado acima
+        return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] == "oceane_afiliados":  # 08/10 (dona): loja oficial da marca, "de" = ListPrice da própria loja (VTEX)
         # "fora" = a rodada seguinte viu o produto sem promoção/sem estoque (integracoes/oceane.py) → sai até voltar
         return d >= 15 and o.get("grupo") in ("beleza", "cabelo", "perfume") and not s.get("fora")
