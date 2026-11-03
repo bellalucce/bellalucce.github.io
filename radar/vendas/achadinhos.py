@@ -3594,7 +3594,10 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     return "\n".join(linhas), str(config.RAIZ / p["foto"])
 
 
-LEMBRETE_HORAS = (12, 18)  # 30/09 (dona): "repete 2× por dia" — quem entrou depois não vê as ofertas da manhã
+# 03/11 (dona): "para de ficar mandando toda hora que ele chegou agora… Pra mandar promoção só" — desligado
+# (era (12, 18) desde 30/09; a mensagem do site ela fixa à mão)
+LEMBRETE_HORAS: tuple[int, ...] = ()
+REFIXAR_LEMBRETE = False  # 03/11: idem — o servidor refixava (e reenviava) o lembrete de 29 em 29 dias
 TEXTO_LEMBRETE = ("📌 *CHEGOU AGORA?*\n\nTodas as ofertas de hoje ficam no nosso site, separadinhas por categoria 👇\n{site}"
                   "\n\n_Aqui no grupo chegam ofertas novas o dia todo, das 8h às 22h._")  # 01/10 (dona): até as 22h
 
