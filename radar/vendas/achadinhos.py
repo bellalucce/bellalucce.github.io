@@ -1026,6 +1026,9 @@ def aprovada(o: dict) -> bool:
 # "tentada" por 24 h → nenhuma oferta de ML/Amazon/Magalu do Promobit saiu de 20 a 26/10. Agora: poucos links por ciclo,
 # pausa maior, e no 1º 429 para tudo e espera (1 h, dobrando até 12 h) sem marcar a oferta como tentada.
 PROMOBIT_LINKS_POR_CICLO, PROMOBIT_PAUSA_S = 8, 4
+# 03/11 (Bia, vigia): o 429 continua (28 de 29 sem link) e o ML já sai pela Central de Afiliados → não pede mais
+# o /Redirect/to do Promobit para o ML (não insistir num 429)
+PROMOBIT_SEM_LINK = ("Mercado Livre",)
 _PROMOBIT_PAUSA_ARQ = config.DADOS / "achadinhos" / "promobit_pausa.json"
 
 
@@ -1268,6 +1271,7 @@ def coletar(log=print) -> dict:
             link, tentado = (ant["link_loja"] if ant else None) or o.get("link_loja"), (ant or {}).get("link_tentado_em")
             link = limpar_link(link) if link else None  # link guardado (cache da nuvem) passa pela limpeza atual
             if (ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem)
+                    and o.get("loja") not in PROMOBIT_SEM_LINK
                     and resolvidos < PROMOBIT_LINKS_POR_CICLO and not promobit_em_pausa()):
                 resolvidos += 1
                 try:
