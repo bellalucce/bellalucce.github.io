@@ -3593,7 +3593,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     for c in datas.chegando(agora.date()):
         alvo = dict(ok).get(c.get("loja_sku"))
         if alvo and HORAS_LOJA.index(agora.hour) < 1:  # 06/10 (Kátia): 1×/dia — 2× repetia o MESMO texto às 10h e 13h
-            sku, p = c["loja_sku"], alvo
+            p = alvo
             legenda = c.get("loja_legenda") or legenda
             cabeca = f"*{c.get('loja_chamada', 'PRESENTE DA NOSSA LOJINHA 🎁')}*"
             break
@@ -4805,11 +4805,16 @@ def rodadas_que_faltam(agora: datetime | None = None) -> int:
 
 
 def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | None = None,
-                permitidos_teste: list | None = None) -> tuple[list[dict], set, str]:
+                permitidos_teste: list | None = None, funil_lojas: dict | None = None) -> tuple[list[dict], set, str]:
     """Ofertas que PODEM ir ao grupo agora (filtros baratos, sem baixar foto): (candidatas, tipos que não podem repetir
     agora, corte da Amazon). Base de fila_posts e de estoque(). `funil` (lista) recebe (etapa, quantas sobraram, por
     grupo) a cada filtro — `vendas achadinhos funil` (05/10: achar qual regra seca a fila)."""
     def marca(etapa: str, lista: list) -> None:
+        if funil_lojas is not None:  # 04/11: quantas de CADA LOJA sobraram em cada etapa (motivo medido da cota por loja)
+            por_l: dict = {}
+            for o in lista:
+                por_l[loja_de(o)] = por_l.get(loja_de(o), 0) + 1
+            funil_lojas[etapa] = por_l
         if funil is not None:
             por: dict = {}
             for o in lista:
@@ -4924,6 +4929,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         return o.get("fonte") in FONTES_SO_BELEZA and chave_produto(o.get("titulo") or "") in fam_marca
     cand = [o for o in cand if not familia_repetida(o)]
     marca(f"família da marca própria sem repetir em {OCEANE_FAMILIA_H} h", cand)
+    antes_variedade = list(cand)  # 04/11: o que a cota por loja pode resgatar (só as regras de VARIEDADE caem)
     variada = variar_marcas(cand, agora)
     cand = variada if len(variada) >= min(POUCO_ESTOQUE, len(cand)) // 4 else variar_marcas(cand, agora, fator=2)
     marca(f"marca no máx. {MARCA_DIA_MAX}×/dia e {MARCA_INTERVALO_H} h entre uma e outra", cand)
@@ -4996,6 +5002,12 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     marca(f"tipo sem repetir em {janela} h, 1 por tipo", unicos)
     cand = final
     marca("teto do mesmo tipo por dia", cand)
+    # 04/11 (dona: "um milhão de vezes… não vejo Amazon nem Magalu"): Amazon/Magalu chegavam a 2–3 ofertas boas até aqui e as
+    # regras de VARIEDADE (marca no dia, tipo em 24 h, teto) levavam as últimas → 0. A loja com estoque bom não zera.
+    cand = resgatar_lojas(cand, antes_variedade, agora,
+                          {k for k, quando in saiu_tipo.items()
+                           if quando >= (agora - timedelta(hours=JANELAS_TIPO_H[-1])).isoformat(sep=" ", timespec="seconds")})
+    marca("+ cota por loja (resgate das regras de variedade)", cand)
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
         dest = referencia.na_frente()
@@ -5010,6 +5022,38 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         cand = ped + [o for o in cand if o["id"] not in ids]
         marca("+ pedidos da dona (na frente)", cand)
     return cand, recentes, amazon_ok
+
+
+LOJAS_COTA = ("amazon", "magalu", "mercadolivre", "shopee", "océane")  # lojas com cota (loja_de)
+RESGATE_POR_LOJA = 3  # cada loja chega à fila com pelo menos isto (se tiver estoque bom antes da variedade)
+
+
+def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_recentes: set) -> list[dict]:
+    """04/11: cota por loja na FILA. `antes` = ofertas que já passaram em TODAS as regras de qualidade (foto, preço, De,
+    marca conhecida, perfil…) e só ainda não passaram nas de VARIEDADE; `final` = o que sobrou delas. A loja com menos de
+    RESGATE_POR_LOJA em `final` recebe de volta as melhores de `antes`: 1 por tipo, marca com o teto dobrado, e sem o
+    tipo que saiu há poucas horas (`tipos_recentes`). Nunca traz oferta que a qualidade barrou."""
+    ids = {o["id"] for o in final}
+    tem = {}
+    for o in final:
+        tem[loja_de(o)] = tem.get(loja_de(o), 0) + 1
+    tipos = {chave_variedade(o) for o in final}
+    extra: list[dict] = []
+    for lj in LOJAS_COTA:
+        falta = RESGATE_POR_LOJA - tem.get(lj, 0)
+        if falta <= 0:
+            continue
+        pool = variar_marcas([o for o in antes if loja_de(o) == lj and o["id"] not in ids], agora, fator=2)
+        for o in pool:
+            k = chave_variedade(o)
+            if falta <= 0:
+                break
+            if k in tipos or k in tipos_recentes:
+                continue
+            tipos.add(k)
+            extra.append(o)
+            falta -= 1
+    return final + extra
 
 
 def estoque(horas: int = 30) -> int:
@@ -5491,6 +5535,22 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             if foto_ok(o):
                 out.append(o)
                 break
+
+    # 04/11 (dona: "um sistema que não vai te deixar errar mais"): TRAVA do mix — a rodada não fecha só com uma loja
+    # quando outra tem oferta boa na fila (a que menos postou em 24 h entra; mesmo gênero masculino/feminino da vaga)
+    def _pode_trava(o: dict, atual: list) -> bool:
+        if por_vendedor.get(vendedor(o)) or tipo_na_rodada(o, atual):
+            return False
+        if not loja_cabe(loja_de(o), antes + [loja_de(x) for x in atual]):
+            return False
+        if eh_perfume_post(o) and sum((perf_antes + [eh_perfume_post(x) for x in atual])[-(PERFUME_JANELA - 1):]) >= PERFUME_MAX_JANELA:
+            return False
+        return bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
+    try:
+        from vendas import cota_lojas
+        out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava)
+    except Exception:  # noqa: BLE001 — a trava nunca derruba a rodada
+        pass
     return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
 
 
