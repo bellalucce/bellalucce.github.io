@@ -1608,9 +1608,12 @@ NAO_E_A_MARCA = re.compile(r"(?i)\btipo\b|estilo |inspirad|similar|r[ée]plica|c
 JOIA_TIPO = [(r"brincos?\b", "brinco"), (r"\bcolar(?:es)?\b|gargantilha|choker", "colar"), (r"pulseira|bracelete", "pulseira"),
              (r"\ban(?:el|[ée]is)\b", "anel"), (r"tornozeleira", "tornozeleira"), (r"presilha|piranha|tiara", "presilha")]
 ABAS_SITE = [("make", "Make"), ("skincare", "Skincare"), ("dermo", "Dermo"), ("perfume", "Perfume"), ("cabelo", "Cabelo"),
-             ("bolsas", "Bolsas & acessórios"), ("sapatos", "Sapatos"), ("pijama", "Pijama de seda")]
-BONUS_ABA = {"dermo": 6, "skincare": 4, "make": 3, "perfume": 3, "cabelo": 2, "pijama": 0, "bolsas": 0, "sapatos": 0}
+             ("bolsas", "Bolsas & acessórios"), ("sapatos", "Sapatos"), ("pijama", "Pijama de seda"),
+             ("ele", "Para ele")]  # 04/11 (dona: "coisas de homem também"): o filtro masculino do site
+BONUS_ABA = {"dermo": 6, "skincare": 4, "make": 3, "perfume": 3, "cabelo": 2, "pijama": 0, "bolsas": 0, "sapatos": 0,
+             "ele": 0}
 SITE_MAX, SITE_MAX_MODA, SITE_MAX_FOTO_PEQUENA = 300, 66, 24
+SITE_MAX_ELE = SITE_MAX * 3 // 10  # 04/11: masculino no máx. 3 em 10 também no site (o grupo é 7 delas / 3 deles)
 SITE_MARCA_MAX, SITE_TIPO_MAX = 4, 8
 _FOTO_SITE_ARQ = config.DADOS / "achadinhos" / "foto_site_px.json"
 # abaixo disso a oferta nem entra. Era 280 (só "borrada"); 20/10 (dona: foto ruim = promoção feinha) = o do grupo, 600 px
@@ -1723,8 +1726,10 @@ def pontos_beleza(o: dict) -> int:
 
 
 def aba_site(o: dict) -> str:
-    """Aba do site: make · skincare · dermo · perfume · cabelo · bolsas · sapatos · pijama."""
+    """Aba do site: make · skincare · dermo · perfume · cabelo · bolsas · sapatos · pijama · ele (masculino, 04/11)."""
     t, g = o.get("titulo") or "", o.get("grupo")
+    if eh_masculino(o):
+        return "ele"
     if g == "moda":
         if PIJAMA_SEDA.search(t):
             return "pijama"
@@ -1923,6 +1928,8 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
         tipo, tk = tipo_site(o), _tokens_de_produto(o["titulo"])
         teto_tipo = 20 if tipo == "bolsa" else SITE_TIPO_MAX
         if (moda and n_moda >= SITE_MAX_MODA) or (pequena and n_peq >= SITE_MAX_FOTO_PEQUENA):
+            continue
+        if o["_aba"] == "ele" and sum(x["_aba"] == "ele" for x in sel) >= SITE_MAX_ELE:
             continue
         if marca and marcas.get(marca, 0) >= SITE_MARCA_MAX or tipo and tipos.get(tipo, 0) >= teto_tipo:
             continue
@@ -2169,15 +2176,15 @@ def vitrine(horas: int = 36) -> str:
     # 30/09 segurança: CSP — o site não carrega nada de fora (só fotos https); se algum texto escapasse do E(), o navegador
     # ainda bloquearia script/formulário/objeto de terceiros.
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>PROMOS DE BELEZA VIP | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>PROMOS DE BELEZA VIP | Bella Lucce: promoções de beleza hoje (maquiagem, skincare, dermo, perfume, moda para ela e para ele)</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
 <link rel="canonical" href="https://bellalucce.github.io/">
 <meta property="og:title" content="PROMOS DE BELEZA VIP ✨ | Bella Lucce"><meta property="og:type" content="website">
-<meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume e cabelo com desconto de verdade.">
-<meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume e cabelo da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
+<meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume, cabelo e moda, para elas e para eles, com desconto de verdade.">
+<meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume, cabelo e moda (feminina e masculina) da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
 <style>
 {SITE_CSS}
 nav{{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;position:sticky;top:0;z-index:3;background:#FBF4E6f2;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-bottom:1px solid var(--linha);scrollbar-width:none}}nav::-webkit-scrollbar{{display:none}}
@@ -2190,7 +2197,7 @@ nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;lette
 .cura{{max-width:520px;margin:18px auto 0;padding:0 16px;text-align:center}}.cura p{{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--cacau)}}.cura .oce{{margin:0 auto}}
 .nossa{{max-width:1240px;margin:0 auto}}.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,175px);gap:14px;overflow-x:auto;padding:0 16px 14px}}.nossa .btn{{background:var(--car2)}}
 </style></head><body>
-<header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume e cabelo das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="https://shopee.com.br/shop/254425847" target="_blank" rel="noopener">Nossa loja Bella Lucce na Shopee</a><a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
+<header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza e moda</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume, cabelo e moda, para elas e para eles, das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="https://shopee.com.br/shop/254425847" target="_blank" rel="noopener">Nossa loja Bella Lucce na Shopee</a><a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
 <section class="passos"><div><b>Garimpo</b><span>a gente procura nas lojas grandes</span></div><div><b>Confere</b><span>preço, loja e se o desconto é real</span></div><div><b>Você compra</b><span>direto na loja, sem pagar nada a mais</span></div></section>
 {curadoria}
 {faixa}
@@ -5267,7 +5274,9 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         if lojas_ped.get(loja) or not sem_rajada([o], lojas_cand):
             continue
         # 13/10: as vagas de beleza têm subtipo ("Bk" skincare, "Bp" perfume…) → a Océane (make) só ocupa "B" e "Bm"
-        if o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[(pos_hoje + len(out)) % len(PADRAO_LINHA)] not in ("B", "Bm"):
+        # 04/11: a vaga 2 virou "Mh" (masculino) — a reserva dela é "B" (RESERVA_H), e a Océane continua com as 2 vagas
+        k_oce = (pos_hoje + len(out)) % len(PADRAO_LINHA)
+        if o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[k_oce] not in ("B", "Bm") and RESERVA_H.get(k_oce) != "B":
             continue
         if not tipo_na_rodada(o, out) and foto_ok(o):
             lojas_ped[loja] = 1
@@ -5866,9 +5875,14 @@ def no_perfil_masculino(o: dict) -> bool:
         return False
     if fora_do_nicho_grupo(re.sub(r"(?i)\bfor men\b|\bmen\b", " ", t)):  # "Nivea Men"/"L'Oréal Men Expert" ficam
         return False
-    if o.get("grupo") in LINHA_PRINCIPAL:
-        return True
+    if o.get("grupo") in LINHA_PRINCIPAL:  # relógio/tênis/camisa caídos em "beleza" são categoria errada → fora
+        return not MODA_MASCULINA.search(re.sub(r"(?i)necessaire|\bbolsas?\b|\bmalas?\b", " ", t))
     return o.get("grupo") == "moda" and bool(MODA_MASCULINA.search(t))
+
+
+def masculino_fora(o: dict) -> bool:
+    """04/11: masculino que NÃO entra (cueca, barbearia, lâmina, infantil, categoria errada…) — para os relatórios."""
+    return eh_masculino(o) and not no_perfil_masculino(o)
 
 
 def no_perfil_grupo(o: dict) -> bool:
