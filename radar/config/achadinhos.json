@@ -37,5 +37,27 @@
       8,
       24
     ]
+  },
+  "ritmo": {
+    "ligado": false,
+    "ofertas_por_dia": 9,
+    "horarios": [
+      "09:00",
+      "12:00",
+      "17:00",
+      "20:00"
+    ],
+    "janela_min": 45,
+    "por_produto_dia": 1,
+    "repetir_forte": false,
+    "fluxo_grande": [
+      "telegram"
+    ],
+    "resumo": true,
+    "resumo_hora": "20:00",
+    "resumo_qtd": 5
+  },
+  "extensao": {
+    "planilhas_shopee": false
   }
 }

@@ -3333,8 +3333,9 @@ KIT_VARIADO = re.compile(r"(?i)\b\d{1,3} ?/ ?\d{1,3}\b|\b\d{1,3} (?:ou|e) \d{1,3
 PRIME_TESTE = "https://www.amazon.com.br/prime?tag=bellalucce-20"  # 10/10: teste grátis do Prime com a NOSSA etiqueta
 
 
-def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
-    """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso."""
+def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar: bool = False) -> str:
+    """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso.
+    marcar=True (só a rodada de verdade): Shopee sai com o link marcado deste post (marcador_post, 04/11)."""
     gancho = gancho_post(o, n, recentes)
     if recentes is not None:
         recentes.append(gancho)  # a própria rodada também não repete
@@ -3378,7 +3379,14 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None) -> str:
                       + (f" → fica *{_brl_zap(cc)}*" if isinstance(cc, (int, float)) and cc < (o.get("preco") or 0) else ""))
     # 30/09 (dona): SEM rodapé nas mensagens ("Preço de… pode mudar. #publi · Associado Amazon…") — o aviso de
     # afiliado fica no site e na descrição do grupo, não em cada post
-    linhas += ["", f"🛒 *Compre aqui:* {link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
+    link = None
+    if marcar:  # 04/11 (plano vender e crescer, item 1): marcador por canal e por post (só Shopee)
+        try:
+            from vendas import marcador_post
+            link = marcador_post.link_do_post(o, "whatsapp")
+        except Exception:  # noqa: BLE001 — sem marcador, o link de sempre
+            link = None
+    linhas += ["", f"🛒 *Compre aqui:* {link or link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
     if so_prime:
         return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
