@@ -13,7 +13,7 @@
     "Achadinhos Bella Lucce"
   ],
   "canal_nome": "PROMOS DE BELEZA VIP",
-  "canais_pausados_sem_seguidor": true,
+  "canais_pausados_sem_seguidor": false,
   "canais_seguidores_da_casa": {
     "telegram": 1,
     "whatsapp_canal": 0
@@ -39,7 +39,7 @@
     ]
   },
   "ritmo": {
-    "ligado": false,
+    "ligado": true,
     "ofertas_por_dia": 9,
     "horarios": [
       "09:00",
@@ -58,6 +58,6 @@
     "resumo_qtd": 5
   },
   "extensao": {
-    "planilhas_shopee": false
+    "planilhas_shopee": true
   }
 }

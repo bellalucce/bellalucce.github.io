@@ -71,6 +71,8 @@ def main() -> None:
         shutil.copytree(REPO / "p", SAIDA / "p", dirs_exist_ok=True)
     if (REPO / "o").exists():  # 15/10 (dona: "pode encurtar a Océane"): link curto /o/<codigo>/ do grupo (fora do sitemap)
         shutil.copytree(REPO / "o", SAIDA / "o", dirs_exist_ok=True)
+    if (REPO / "entrar").exists():  # 04/11: convite por origem /entrar/?de=… (fora do sitemap, noindex)
+        shutil.copytree(REPO / "entrar", SAIDA / "entrar", dirs_exist_ok=True)
     if (REPO / "iris").exists():  # 05/10: fotos dos posts da Íris (o Instagram lê daqui) — davam 404, não eram copiadas
         shutil.copytree(REPO / "iris", SAIDA / "iris", dirs_exist_ok=True)
     # 03/10 (dona: "estar onde as pessoas procuram"): Google — robots, mapa do site e arquivo de verificação do Search Console
