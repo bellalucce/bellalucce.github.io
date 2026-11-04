@@ -606,8 +606,7 @@ def pontuar(o: dict) -> float:
     p += 8 if MARCAS.search(o.get("titulo") or "") else 0  # marca conhecida (o que os grupos grandes mais postam)
     p += 4 if 20 <= (o.get("preco") or 0) <= 120 else 0    # faixa de preço que mais sai nos grupos
     titulo = o.get("titulo") or ""
-    # público principal é feminino; 01/10 (dona) masculino também entra (2 vagas em 10 na fila do grupo) → só um ajuste leve
-    p -= 6 if MASCULINO.search(titulo) else 0
+    # 04/11 (dona: "comece a incluir roupas masculinas e acessórios"): masculino tem 3 vagas em 10 → sem penalidade
     p += 4 if re.search(r"feminin|mulher", titulo, re.I) else 0
     p += 10 if EM_ALTA.search(titulo) else 0               # 01/10 (dona): "mais promoção de coisas que estão em alta"
     return round(max(0.0, min(100.0, p)), 1)
@@ -1622,8 +1621,10 @@ def no_nicho_site(o: dict) -> bool:
     """Nicho do site = o do grupo: beleza (make, skincare, dermo), cabelo, perfume, bolsa/joia/óculos/sapato feminino e
     pijama de seda. Casa, eletrônico, infantil, esporte, masculino, ferramenta e alimento ficam de fora."""
     t, g = o.get("titulo") or "", o.get("grupo")
-    if FORA_SITE.search(t) or fora_do_perfil(t) or eh_masculino(o) or preco_proibido(o):  # 06/10: Vivara sem preço
+    if FORA_SITE.search(t) or fora_do_perfil(t) or preco_proibido(o):  # 06/10: Vivara sem preço
         return False
+    if eh_masculino(o):  # 04/11 (dona: grupo e site com coisas masculinas): só o masculino do perfil (no_perfil_masculino)
+        return no_perfil_masculino(o)
     m = FORA_FEMININO.search(t)
     # vitamina C em sérum/creme é skincare (o filtro do grupo só queria barrar suplemento)
     if m and not (m.group(0).lower() == "vitamina" and re.search(r"(?i)s[ée]rum|facial|creme|ampola|booster|pele|rosto", t)):
@@ -1952,7 +1953,7 @@ def selecionar_vitrine(horas: int = 36) -> list[dict]:
 # do botão — a pessoa vê o que tem no grupo sem esperar nada. Mesmas travas da grade da página (desconto crível, até
 # R$ 150, 1 por marca) e SEM Amazon (preço da Amazon em página exige data e hora) nem Mercado Livre.
 FAIXA_GRUPO_INI, FAIXA_GRUPO_FIM = "<!--FAIXA-INI-->", "<!--FAIXA-FIM-->"
-_FAIXA_RUIM = re.compile(r"infantil|kids|crian|beb[eê]|masculin|homem|for men|homme|r[eé]plica|inspirad|contratipo|"
+_FAIXA_RUIM = re.compile(r"infantil|kids|crian|beb[eê]|r[eé]plica|inspirad|contratipo|"  # 04/11: masculino saiu
                          r"primeira linha|1ª linha|\btipo |brand collection|clareamento|melasma|manchas escuras", re.I)
 # 11/10 (revisão): a faixa é a 1ª tela do anúncio pago → marca que a visitante reconhece vem primeiro
 _FAIXA_MARCA = re.compile(r"boca rosa|dailus|bruna tavares|\bbt\b|mari maria|ruby rose|melu|payot|vult|yenzah|bioderma|principia|"
@@ -3856,7 +3857,9 @@ def barrada_na_hora(o: dict) -> bool:
             # 08/10 noite: linha masculina e fora do nicho saem SEMPRE (antes só no modo feminino e só pela palavra
             # "masculino" — Ralph's Club/Malbec/Eudora H passavam), validade só na foto (Océane), título sem o tipo
             # do produto e kit de salão da Shopee comum com "De" de vitrine
-            or eh_masculino(o) or fora_do_nicho_grupo(t) or validade_na_foto(o) or titulo_sem_tipo(o)
+            # 04/11 (dona: "comece a incluir roupas masculinas e acessórios"): o masculino DO PERFIL passa
+            or (not no_perfil_masculino(o) and (eh_masculino(o) or fora_do_nicho_grupo(t)))
+            or validade_na_foto(o) or titulo_sem_tipo(o)
             or kit_salao_shopee(o) or titulo_com_defeito(o))
 
 
@@ -4876,7 +4879,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         regras.append((f"só {', '.join(permitidos)}", lambda o: o.get("grupo") in permitidos))
     from vendas import datas as _dt
     if so_feminino_ligado():  # 30/10: na noite de Natal a decoração/mimo do tema passa (datas.libera_noite)
-        regras.append(("modo feminino", lambda o: no_perfil_feminino(o) or _dt.libera_noite(o)))
+        regras.append(("modo feminino", lambda o: no_perfil_grupo(o) or _dt.libera_noite(o)))  # 04/11: + masculino
     # 26/10 (dona: "quero só coisa conhecida… marca que eu nunca ouvi falar nem dá vontade"): só marca reconhecida
     # (config/marcas_conhecidas.json + listas do código), contratipo de perfume de marca própria ou muitas vendas.
     # Os pedidos da dona entram depois, por cima.
@@ -4930,7 +4933,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por
         # rodada): se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx.
         # 8/dia). 07/10 (dona: "por que parou de postar?" — de manhã eram 38 no perfil e saía 0–1 por rodada): 20 → 60
-        if so_feminino_ligado() and sum(1 for o in out if no_perfil_feminino(o)) < 60:
+        if so_feminino_ligado() and sum(1 for o in out if no_perfil_grupo(o)) < 60:
             out = _teto(2)
         return out
     alvo = min(VARIEDADE_MIN, rodadas_que_faltam(agora) + 4)  # 1 post por rodada até o fim do horário, com folga
@@ -5136,8 +5139,8 @@ def detalhe_barradas(horas: int = 30) -> str:
                    LOJAS_FOTO.search(o.get("link_loja") or "") or foto_do_mesmo_produto(o)))),
               ("vencendo", lambda o, t: vencendo(t)),
               ("vetada pelas revisoras", lambda o, t: revisao_fila.vetada(o, vet, chaves_vet)),
-              ("linha masculina", lambda o, t: eh_masculino(o)),
-              ("fora do nicho", lambda o, t: fora_do_nicho_grupo(t)),
+              ("linha masculina", lambda o, t: eh_masculino(o) and not no_perfil_masculino(o)),  # 04/11
+              ("fora do nicho", lambda o, t: fora_do_nicho_grupo(t) and not no_perfil_masculino(o)),
               ("título sem o tipo do produto", lambda o, t: titulo_sem_tipo(o)),
               ("farmácia/dermo na Shopee sem loja oficial", lambda o, t: farmacia_shopee_comum(o)),
               ("kit de salão na Shopee comum", lambda o, t: kit_salao_shopee(o)),
@@ -5385,9 +5388,14 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             ultimo.append(o["grupo"])
             break
     inicio = (pos + len(out)) % len(PADRAO_LINHA)
-    for vez in (PADRAO_LINHA[inicio:] + PADRAO_LINHA * (n // len(PADRAO_LINHA) + 12)):
+    for k_vaga in range(inicio, inicio + len(PADRAO_LINHA) * (n // len(PADRAO_LINHA) + 13)):
         if len(out) >= n or not any(filas.values()) or tentativas > n * 10:
             break
+        vez = PADRAO_LINHA[k_vaga % len(PADRAO_LINHA)]
+        # 04/11: sem masculino na fila, a vaga "h" volta a ser a vaga feminina que ocupava antes (RESERVA_H) → sem
+        # homem, o mix é o 6/3/1 de antes
+        if vez.endswith("h") and not any(eh_masculino(x) for x in filas[vez[0]]):
+            vez = RESERVA_H[k_vaga % len(PADRAO_LINHA)]
         fila = filas[vez[0]] or next((filas[k] for k in ("B", "M", "C", "O") if filas[k]), [])
 
         def _livres(f: list, variar: bool = True) -> list:
@@ -5446,7 +5454,9 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             farta = posts_dia.get(loja_de(x), 0) >= LOJA_FARTA_24H
             return (not parada, farta, x["id"] not in frente, not marca_conhecida(x), seq_lojas.count(loja_de(x)))
         # 01/10 (Marcos): foto ruim no 1º da fila PERDIA a vaga (o "variado" sumia) → tenta o próximo da mesma vaga
-        for o in sorted(livres, key=lambda x: (eh_masculino(x) != quer_h, _pref(x), *_rodizio(x)))[:6]:
+        # 04/11 (dona: masculino "3" em 10): vaga que não é "h" NUNCA leva masculino (espera a vaga dele)
+        for o in sorted([x for x in livres if quer_h or not eh_masculino(x)],
+                        key=lambda x: (eh_masculino(x) != quer_h, _pref(x), *_rodizio(x)))[:6]:
             fila.remove(o)
             tentativas += 1
             if foto_ok(o):  # foto pequena/borrada de origem → não vai pro grupo (fica pro site, que usa miniatura)
@@ -5712,7 +5722,14 @@ OCEANE_VALIDADE_H = 14
 # "Bk" skincare, "Bp" perfume, "Bc" cabelo, "Bo" corpo/unha/outros e 1 "B" livre (a melhor da fila); moda: "Mb" bolsa,
 # "Ma" acessório (pulseira, brinco, colar, óculos…), "Mv" o tipo que menos saiu hoje (sapato, pijama…). Sem o subtipo
 # na fila, a vaga leva a melhor do mesmo grupo (nunca fica vazia)
-PADRAO_LINHA = ("Bm", "Mb", "B", "Bk", "C", "Bp", "Ma", "Bc", "Mv", "Bo")
+# 04/11 (dona: "comece a incluir roupas masculinas e acessórios, coisas de homem também… não mais ou igual a coisas de
+# mulheres, mas uma quantidade boa" → "3"): em cada 10, 7 para elas (a proporção 6/3/1 reduzida: 4 beleza "Bm" make,
+# "Bk" skincare, "Bp" perfume, "Bc" cabelo; 2 moda "Mb" bolsa, "Ma" acessório; 1 "C" casa bonita) e 3 masculinas
+# espalhadas: 2 "Mh" moda masculina (roupa, tênis, relógio, carteira, boné, mochila…) e 1 "Bh" beleza masculina
+# (perfume de marca, barba, skincare). Sem masculino na fila, a vaga "h" leva a melhor feminina do mesmo grupo.
+PADRAO_LINHA = ("Bm", "Mb", "Mh", "Bk", "C", "Bh", "Bp", "Ma", "Mh", "Bc")
+# vaga "h" sem masculino na fila → a vaga feminina de antes (6/3/1): "B" livre, "Bo" corpo/unha, "Mv" moda variada
+RESERVA_H = {2: "B", 5: "Bo", 8: "Mv"}
 
 
 def tipo_linha(o: dict) -> str:
@@ -5825,6 +5842,38 @@ NAO_BOLSA = re.compile(r"t[ée]rmica|marmita|lancheira|mochila|escolar|necessair
 def eh_masculino(o: dict) -> bool:
     t = o.get("titulo") or ""
     return bool(MASCULINO.search(t)) and not re.search(r"feminin|unissex|mulher|calcinha|pour femme|for her\b", t, re.I)
+
+
+# 04/11 (dona: "comece a incluir roupas masculinas e acessórios, coisas de homem também"): o masculino que entra no
+# grupo — moda (roupa, tênis, relógio, carteira, boné, mochila, cinto, óculos, corrente) e beleza (perfume de marca,
+# barba, skincare, cabelo). As regras de qualidade continuam as mesmas (marca conhecida, sem réplica, "De" honesto…).
+MODA_MASCULINA = re.compile(
+    r"(?i)\bcamisas?\b|\bcamisetas?\b|\bpolos?\b|\bbermudas?\b|\bcal[çc]as?\b|jaquetas?|moletom|\bblusas?\b|\bregatas?\b|"
+    r"\bt[êe]nis\b|sapat[êe]nis|\bsapatos?\b|mocassim|\bchinelos?\b|\bslides?\b|\bbotas?\b|rel[óo]gios?|carteiras?|"
+    r"\bbon[ée]s?\b|mochilas?|\bcintos?\b|[óo]culos|\bcorrentes?\b|\bpulseiras?\b|pochete|\bshoulder ?bag|\bbolsas?\b|"
+    r"\bmalas?\b|necessaire|\bpijamas?\b|\bsu[ée]ter\b|cardig[ãa]|\bjeans\b")
+# fora do masculino do grupo: roupa íntima, ferramenta de barbearia, lâmina/descartável, desodorante de axila (o
+# "Desodorante Colônia" é perfume e fica), infantil/juvenil e uniforme/EPI
+MASC_FORA = re.compile(r"(?i)cueca|\bboxer\b|\bsungas?\b|m[áa]quinas? (?:de )?(?:cortar|corte|acabamento)|navalha|gillette|"
+                       r"l[âa]minas?\b|old spice|\baxe\b|testosteron|desodorante(?! col[ôo]nia)|infantil|crian[çc]a|"
+                       r"\bkids?\b|menino|juvenil|uniforme|\bepi\b|seguran[çc]a do trabalho|\bsex|er[óo]tic")
+
+
+def no_perfil_masculino(o: dict) -> bool:
+    """04/11: produto masculino que pode ir ao grupo (vagas "Mh"/"Bh" do PADRAO_LINHA) e ao site."""
+    t = o.get("titulo") or ""
+    if not eh_masculino(o) or MASC_FORA.search(t) or MODA_FORA.search(t) or fora_do_perfil(t):
+        return False
+    if fora_do_nicho_grupo(re.sub(r"(?i)\bfor men\b|\bmen\b", " ", t)):  # "Nivea Men"/"L'Oréal Men Expert" ficam
+        return False
+    if o.get("grupo") in LINHA_PRINCIPAL:
+        return True
+    return o.get("grupo") == "moda" and bool(MODA_MASCULINA.search(t))
+
+
+def no_perfil_grupo(o: dict) -> bool:
+    """04/11: público do grupo = feminino (7 em 10) + masculino do perfil (3 em 10)."""
+    return no_perfil_feminino(o) or no_perfil_masculino(o)
 
 
 def marcar_postado(id_oferta: str) -> None:
