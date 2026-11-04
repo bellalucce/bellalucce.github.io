@@ -3080,7 +3080,8 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
     probs = []
     quando = (quando or "").replace("T", " ")
     o = com_tipo(o)  # 08/10 noite: confere a frase contra o título COM o tipo (o mesmo que sai no post)
-    linhas = (texto or "").replace("⁠", "").split("\n")
+    from vendas import black_friday  # 04/11: a linha de topo da Black não é o gancho
+    linhas = black_friday.sem_topo((texto or "").replace("⁠", "")).split("\n")
     if NOTA_INTERNA.search(texto or ""):  # 15/10 (dona): nome de grupo concorrente / anotação de agente no post
         probs.append(f"anotação interna ou nome de outro grupo no post: {NOTA_INTERNA.search(texto).group(0)}")
     if not gancho_confere(linhas[0].strip("* "), o.get("titulo") or "", o.get("grupo"),
@@ -3243,7 +3244,8 @@ def ganchos_recentes(limite: int = 60) -> list[str]:
     """Ganchos dos últimos posts do grupo (do mais antigo ao mais novo) — para não repetir frase."""
     linhas = db.consultar("SELECT saida FROM ia_exemplos WHERE fonte = 'grupo' ORDER BY id DESC LIMIT ?", (limite,)) \
         if db.consultar("SELECT 1 FROM sqlite_master WHERE name = 'ia_exemplos'") else []
-    return [(r["saida"] or "").split("\n", 1)[0].strip("* ") for r in reversed(linhas)]
+    from vendas import black_friday  # 04/11: o gancho é a 1ª linha sem o topo da Black
+    return [black_friday.sem_topo(r["saida"] or "").split("\n", 1)[0].strip("* ") for r in reversed(linhas)]
 
 
 def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
@@ -3356,6 +3358,12 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
         por += f" _(às {hora})_"
     linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
+    try:  # 04/11 (dona: "sempre vai pôr referência a Black, sempre"): esquenta e Black — topo no alto da legenda
+        from vendas import black_friday
+        if topo := black_friday.topo_da_legenda(None, n):
+            linhas = [topo, ""] + linhas
+    except Exception:  # noqa: BLE001 — a Black nunca derruba a legenda
+        pass
     if o.get("preco_antigo") and de_confiavel(o):
         linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
     linhas.append(por)
@@ -3386,6 +3394,12 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
             link = marcador_post.link_do_post(o, "whatsapp")
         except Exception:  # noqa: BLE001 — sem marcador, o link de sempre
             link = None
+    try:  # 04/11: e uma frase com "Black" no corpo (hashtag ou "preço de Black"), variando
+        from vendas import black_friday
+        if fr := black_friday.frase(None, n):
+            linhas += ["", fr]
+    except Exception:  # noqa: BLE001
+        pass
     linhas += ["", f"🛒 *Compre aqui:* {link or link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
     if so_prime:
         return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
@@ -4908,6 +4922,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     for nome, passa in regras:
         cand = [o for o in cand if passa(o)]
         marca(nome, cand)
+    try:  # 04/11 (dona: "só vai postar as melhores promoções"): esquenta e Black — filtro duro que solta se o grupo secar
+        from vendas import black_friday
+        if black_friday.ativo(agora):
+            cand = black_friday.filtrar(cand, agora, lojas=LOJAS_COTA, loja_de=loja_de)
+            marca(f"Black: só as melhores (nível {black_friday.ULTIMO_NIVEL['nivel']})", cand)
+    except Exception as e:  # noqa: BLE001 — o filtro nunca para o grupo: com erro, segue sem ele
+        print(f"black_friday (filtro): {type(e).__name__}: {str(e)[:120]}")
     # 12/10 (Rita, 1ª leitura dos títulos consertados): o conserto encurta, e anúncios diferentes viram o MESMO título
     # no post ("Tênis Feminino Plataforma" 4×) → o mesmo título não sai 2× no dia; na fila fica o primeiro
     try:
@@ -4997,6 +5018,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     unicos, final, recentes, janela = variar(cand)
     if len(final) < POUCO_ESTOQUE and voltam:
         de_volta = [o for o in voltam if all(passa(o) for _, passa in regras) and not familia_repetida(o)]
+        try:  # 04/11 (Black): quem volta depois de dias também tem de ser "das melhores"
+            from vendas import black_friday
+            de_volta = [o for o in de_volta if black_friday.passa_no_nivel_atual(o, agora)]
+        except Exception:  # noqa: BLE001
+            pass
         if de_volta:
             unicos, final, recentes, janela = variar(cand + de_volta)
     marca(f"tipo sem repetir em {janela} h, 1 por tipo", unicos)
