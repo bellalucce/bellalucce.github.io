@@ -3449,6 +3449,15 @@ SITE_URL = "https://bellalucce.github.io"
 HORAS_LOJA = (10, 13, 16, 19)  # 4 posts/dia de produto NOSSO no grupo (exposição grátis; 30/09: 1 visita/semana no ML)
 
 
+def _horas_do_ritmo() -> tuple[int, ...] | None:
+    """04/11 22h (revisão): com o ritmo do grupo ligado, as horas cheias dele (fora delas a rodada não posta); senão None."""
+    try:
+        from vendas import ritmo
+        return ritmo.horas_do_grupo()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def foco_loja(agora: datetime | None = None, cfg: dict | None = None) -> dict | None:
     """14/10 (dona disse SIM à Vitória): config/midia.json → foco_loja valendo AGORA (desde ≤ agora ≤ ate) ou None.
     Dentro da janela o grupo/Telegram e a vitrine do site mostram SÓ os itens do foco (1 post/dia, alternando)."""
@@ -3531,6 +3540,9 @@ def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | N
     horas = [int(h) for h in foco.get("horas") or [19]]
     # 22/10 (dona: "já posta… mescla coisa que tá parada"): 'por_hora' = 1 post em CADA hora da lista, girando os itens
     por_hora = bool(foco.get("por_hora"))
+    if rh := _horas_do_ritmo():  # 04/11 22h (revisão): ritmo ligado → o foco sai nos horários do grupo
+        horas = list(rh) if por_hora else [horas[0] if horas[0] in rh else min((h for h in rh if h >= horas[0]),
+                                                                                default=rh[-1])]
     if agora.minute >= 15 or agora.hour not in (horas if por_hora else horas[:1]):  # sem 'por_hora': 1×/dia
         return None
     itens = itens_do_foco(cfg, foco)
@@ -3572,7 +3584,8 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
     if foco := foco_loja(agora, cfg):  # 14/10: janela de foco (só as 3 ofertas, 1×/dia) — fora dela, tudo como antes
         return _post_do_foco(cfg, foco, agora)
-    if agora.hour not in HORAS_LOJA or agora.minute >= 15:
+    horas_loja = _horas_do_ritmo() or HORAS_LOJA  # 04/11 22h: ritmo ligado → nos horários do grupo
+    if agora.hour not in horas_loja or agora.minute >= 15:
         return None
     prods = cfg["produtos"]
 
@@ -3597,7 +3610,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
            and (config.RAIZ / q["foto"]).exists()]
     if not ok:
         return None
-    vez = agora.timetuple().tm_yday * len(HORAS_LOJA) + HORAS_LOJA.index(agora.hour)
+    vez = agora.timetuple().tm_yday * len(horas_loja) + horas_loja.index(agora.hour)
     sku, p = ok[vez % len(ok)]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
     cabeca = "*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*"
@@ -3606,7 +3619,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     from vendas import datas
     for c in datas.chegando(agora.date()):
         alvo = dict(ok).get(c.get("loja_sku"))
-        if alvo and HORAS_LOJA.index(agora.hour) < 1:  # 06/10 (Kátia): 1×/dia — 2× repetia o MESMO texto às 10h e 13h
+        if alvo and horas_loja.index(agora.hour) < 1:  # 06/10 (Kátia): 1×/dia — 2× repetia o MESMO texto às 10h e 13h
             p = alvo
             legenda = c.get("loja_legenda") or legenda
             cabeca = f"*{c.get('loja_chamada', 'PRESENTE DA NOSSA LOJINHA 🎁')}*"
@@ -3839,10 +3852,61 @@ VITAMINA_SKINCARE = re.compile(r"(?i)s[ée]rum|facial|creme|ampola|booster|\bpel
 COLA_DE_BELEZA = re.compile(r"(?i)c[íi]lios|\bunhas?\b|peruca|\blace\b|\bwig\b|\btips?\b|posti[çc]")
 
 
+# 04/11 22h (chat AUXILIAR): às 20h03 o grupo postou "Pinhas Natal Enfeite Natural Decoração Pendente Artesanato
+# Guirlanda" como último post do dia; quem entrou às 21h38 viu isso e saiu em 1 minuto (5 entradas e 3 saídas em 0–5 min
+# no dia). Decoração, enfeite, Natal de casa, artesanato e utilidade doméstica não são o nicho (beleza, cabelo,
+# perfume, moda e o masculino de academia). "Kit de Natal" de perfume/maquiagem NÃO é barrado: só a palavra "Natal"
+# não conta, e qualquer palavra de beleza no título libera.
+DECORACAO_FORTE = re.compile(
+    r"(?i)\bpinhas?\b|guirlandas?|\benfeites?\b|pres[ée]pio|[áa]rvores? (?:de )?natal|pisca[- ]?piscas?|"
+    r"\bbolas? (?:de |p/ |para )?natal|papai noel|natalin[oa]s?|decora[çc][ãa]o (?:de |para |p/ )?natal|"
+    r"artesanato|\bartesanais\b|\bcenogr[áa]fic")
+DECORACAO_SUAVE = re.compile(  # essas só barram se o título não for da "casa bonita" que a dona aprovou (CASA_BONITA)
+    r"(?i)decora[çc][ãa]o|decorativ[oa]s?|\bdecor\b|"
+    # utilidade doméstica
+    r"\bpanelas?\b|frigideira|escorredor|lixeira|vassoura|\brodos?\b|esponjas? (?:de )?(?:lavar|cozinha|a[çc]o)|"
+    r"organizador(?:es)? (?:de )?(?:cozinha|geladeira|gaveta|arm[áa]rio|sapatos?|roupas?|banheiro|mantimentos)|"
+    r"potes? herm[ée]ticos?|cortinas?\b|capa (?:de|para) (?:sof[áa]|colch[ãa]o)|tapete (?:de )?banheiro|varal|"
+    r"cabideiro|prateleiras?|utens[íi]lios?|talheres|facas? (?:de )?cozinha|t[áa]buas? (?:de )?(?:corte|carne)|"
+    r"\bralador|abridor de|saca[- ]?rolhas?|toalha de mesa|jogo americano|porta[- ]?temperos?|marmitas?|"
+    r"mop\b|pano de (?:ch[ãa]o|prato)|\bmesa posta\b")
+BELEZA_VALE = re.compile(  # palavra de beleza no título = é do nicho, mesmo com "Natal"/"enfeite" junto
+    r"(?i)perfum|col[ôo]nia|maquiag|batom|\bgloss\b|\bsombras?\b|paleta|skin ?care|s[ée]rum|hidratante|shampoo|"
+    r"condicionador|cabelos?|capilar|esmalte|body (?:splash|spray)|\bcreme\b|m[áa]scara (?:facial|capilar|de trat)|"
+    r"sabonete|desodorante|fragr[âa]ncia|cosm[ée]tic|c[íi]lios|\bunhas?\b|presilha|tiara|scrunchie|xuxinha|"
+    r"\bbase\b|corretivo|blush|r[íi]mel|delineador|protetor solar|\bkit (?:de )?beleza|"
+    # moda e acessório são do nicho ("Sandália Feminina Salto Bloco Enfeite ABS" não é decoração)
+    r"sand[áa]lia|sapat|\bbolsas?\b|brincos?|colar\b|pulseira|bijuteri|[óo]culos|vestido|blusa|\bcal[çc]a|\bshorts?\b|"
+    r"camiseta|t[êe]nis|\bsaia\b|\bcropped\b")
+
+
+def decoracao_fora_do_nicho(titulo: str) -> bool:
+    """Decoração/enfeite/Natal de casa/artesanato/utilidade doméstica (DECORACAO_FORTE/SUAVE) sem nenhuma palavra de
+    beleza. config/achadinhos.json → "natal_decoracao_liberada": true devolve a decoração do Especial de Natal das 18h
+    (agenda "noites"): ali só a decoração de Natal da noite passa, o resto do filtro continua valendo."""
+    t = titulo or ""
+    if BELEZA_VALE.search(t):
+        return False
+    forte, suave = DECORACAO_FORTE.search(t), DECORACAO_SUAVE.search(t)
+    if not (forte or suave):
+        return False
+    if suave and not forte and CASA_BONITA.search(t):
+        return False
+    if forte:
+        try:
+            if canais().get("natal_decoracao_liberada") and re.search(r"(?i)natal|natalin", t):
+                return False
+        except Exception:  # noqa: BLE001 — config ilegível = barra
+            pass
+    return True
+
+
 def fora_do_nicho_grupo(titulo: str) -> bool:
     """FORA_NICHO_GRUPO, menos a cola de cílios/unha/peruca (07/10: "New Show Cílios… + 1 Cola", "Cola Alongamento de
     Cílios", "Cola Ultra Hold Lace Wig" eram barradas como cola de sapato)."""
     if COLAGENO_SUPLEMENTO.search(titulo or "") and not COLAGENO_COSMETICO.search(titulo or ""):
+        return True
+    if decoracao_fora_do_nicho(titulo):  # 04/11 22h: pinhas/guirlanda/enfeite/utilidade doméstica
         return True
     return any(not (m.group(0).lower() == "cola" and COLA_DE_BELEZA.search(titulo))
                for m in FORA_NICHO_GRUPO.finditer(titulo or ""))
