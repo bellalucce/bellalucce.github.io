@@ -588,6 +588,36 @@ def _promobit(caminho: str, cli: httpx.Client) -> list[dict]:
 
 
 # ---------------- qualidade ----------------
+AMAZON_PCT = {"beleza": 13, "cabelo": 13, "perfume": 13, "moda": 11}  # tabela do Associados BR (10/10 e 04/11)
+
+
+def pct_comissao(o: dict) -> float:
+    """Comissão em PERCENTUAL (0 a 40). O ML grava inteiro (24), a Shopee grava fração (0,28): os dois viram %."""
+    s = o.get("sinais")
+    if isinstance(s, str):
+        try:
+            s = json.loads(s or "{}")
+        except ValueError:
+            s = {}
+    try:
+        c = float((s or {}).get("comissao") or 0)
+    except (TypeError, ValueError):
+        c = 0.0
+    if 0 < c <= 1:
+        c *= 100
+    if not c and (str(o.get("id") or "").startswith("amz") or "amazon" in str(o.get("loja") or "").lower()):
+        c = AMAZON_PCT.get(o.get("grupo"), 8)
+    return min(c, 40.0)
+
+
+def ganho_afiliado(o: dict) -> float:
+    """R$ que a loja ganha por venda = preço x comissão (04/11, pedido da dona: 'maior retorno para afiliado')."""
+    try:
+        return round(float(o.get("preco") or 0) * pct_comissao(o) / 100, 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def pontuar(o: dict) -> float:
     """0–100. Só entra na vitrine/grupo o que é promoção boa DE VERDADE (pedido do usuário)."""
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
@@ -601,7 +631,8 @@ def pontuar(o: dict) -> float:
     p += 16 if vend >= 50000 else 12 if vend >= 10000 else 8 if vend >= 5000 else 4 if vend >= 1000 else 0  # viral
     destaque = s.get("destaque")  # ML: texto ("MAIS VENDIDO"); Promobit: sim/não
     p += 5 if isinstance(destaque, str) and re.search(r"MAIS VENDIDO|IMPERD", destaque, re.I) else 0
-    p += min(s.get("comissao", 0), 20) * 0.4               # ML Afiliados: comissão maior = mais ganho para a loja
+    p += min(pct_comissao(o), 20) * 0.4                    # comissão maior = mais ganho para a loja (ML % inteiro, Shopee fração)
+    p += min(ganho_afiliado(o), 45) / 45 * 10              # 04/11: retorno em R$ por venda (preço x %), até +10
     p += PESO_GRUPO.get(o.get("grupo"), 0)                 # segue a linha do grupo
     p += 8 if MARCAS.search(o.get("titulo") or "") else 0  # marca conhecida (o que os grupos grandes mais postam)
     p += 4 if 20 <= (o.get("preco") or 0) <= 120 else 0    # faixa de preço que mais sai nos grupos
@@ -1346,6 +1377,7 @@ def salvar_ml_afiliados(itens: list[dict]) -> dict:
                                                                     it.get("foto") or "") else None,
                  "link_fonte": None, "link_loja": limpar_link(it.get("url")),
                  "nota": it.get("nota"), "vendidos": f"{vend} vendidos" if vend else None, "sinais": sinais}
+            sinais["ganho"] = ganho_afiliado(o)  # R$ por venda (preço x %), 04/11
             o["score"], ok = pontuar(o), aprovada(o)
             ant = con.execute("SELECT 1 FROM ofertas WHERE id = ?", (o["id"],)).fetchone()
             con.execute("""INSERT INTO ofertas (id, fonte, loja, titulo, grupo, preco, preco_antigo, desconto, cupom, foto,
@@ -3318,10 +3350,7 @@ def faixa_comissao(o: dict) -> int:
     """Quanto a oferta nos paga, em 3 faixas (2 = paga bem, 1 = médio, 0 = pouco ou não sei). Shopee: a taxa vem da
     Open API em sinais.comissao (0,03 a 0,20+). Tabela do Amazon Associados Brasil conferida em 10/10: beleza 13%,
     roupas 11%, bolsas e calçados 7%. Mercado Livre ~8% em beleza; Océane 7% (programa #SQUAD)."""
-    try:
-        c = float(sinais_de(o).get("comissao") or 0)
-    except (TypeError, ValueError):
-        c = 0.0
+    c = pct_comissao(o) / 100  # 04/11: o ML grava 24 (%), antes qualquer ML com 5% contava como "paga bem"
     loja = (o.get("loja") or "").lower()
     if "amazon" in loja or str(o.get("fonte") or "").startswith("amazon") or str(o.get("id") or "").startswith("amz"):
         return 2 if o.get("grupo") in ("beleza", "cabelo", "perfume", "moda") else 1
@@ -3882,8 +3911,9 @@ BELEZA_VALE = re.compile(  # palavra de beleza no título = é do nicho, mesmo c
 
 def decoracao_fora_do_nicho(titulo: str) -> bool:
     """Decoração/enfeite/Natal de casa/artesanato/utilidade doméstica (DECORACAO_FORTE/SUAVE) sem nenhuma palavra de
-    beleza. config/achadinhos.json → "natal_decoracao_liberada": true devolve a decoração do Especial de Natal das 18h
-    (agenda "noites"): ali só a decoração de Natal da noite passa, o resto do filtro continua valendo."""
+    beleza. config/achadinhos.json → "natal_decoracao_liberada": true (LIGADO 04/11 23h, dona: "mantém o especial de
+    Natal… é a única coisa que eu tenho certeza que dá bom") devolve TODA a decoração de Natal (pinha, guirlanda, enfeite,
+    árvore, pisca-pisca…); só a utilidade doméstica (panela, organizador…) continua fora."""
     t = titulo or ""
     if BELEZA_VALE.search(t):
         return False
@@ -3894,7 +3924,7 @@ def decoracao_fora_do_nicho(titulo: str) -> bool:
         return False
     if forte:
         try:
-            if canais().get("natal_decoracao_liberada") and re.search(r"(?i)natal|natalin", t):
+            if canais().get("natal_decoracao_liberada"):
                 return False
         except Exception:  # noqa: BLE001 — config ilegível = barra
             pass
@@ -5487,7 +5517,9 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
         # 1.057 aprovadas não tinham marca conhecida e saíam misturadas): marca conhecida sai ANTES da sem marca;
         # dentro de cada lado, a comissão maior
         for f in filas.values():  # ordenação estável: dentro da mesma faixa vale a ordem de antes (pontuação)
-            f.sort(key=lambda o: (o["id"] not in frente, not marca_conhecida(o), -faixa_comissao(o)))
+            # 04/11: dentro da mesma faixa, quem rende mais R$ por venda (preço x %) sai antes (3 degraus: 30, 15)
+            f.sort(key=lambda o: (o["id"] not in frente, not marca_conhecida(o), -faixa_comissao(o),
+                                  -min(int(ganho_afiliado(o) // 15), 2)))
     # 01/10 (Marcos): 1 lojista da Shopee fez 27% dos posts (todos com ~70% "de" fixo) → no máx. 1 por rodada
     por_vendedor = {vendedor(o): 1 for o in out if vendedor(o)}
     # 01/10 (Mila): com 3 por rodada, "1 por rodada" ainda deu 33% de um lojista → 1 por lojista a cada 10 posts
