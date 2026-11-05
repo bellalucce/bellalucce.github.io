@@ -1355,7 +1355,7 @@ def _vendidos_num(txt: str | None) -> int:
     return int(n * (1000 if m.group(2) else 1))
 
 
-def salvar_ml_afiliados(itens: list[dict]) -> dict:
+def salvar_ml_afiliados(itens: list[dict], auditar_no_fim: bool = True) -> dict:
     """Ofertas da Central de Afiliados do ML (js/ml_afiliados.js, via receptor). Fonte oficial para afiliados: link =
     página do anúncio + nosso matt_tool (link_afiliado). Mesmo filtro de qualidade das outras fontes."""
     _tabela()
@@ -1393,7 +1393,9 @@ def salvar_ml_afiliados(itens: list[dict]) -> dict:
             _guardar_precos(con, [(o["id"], o["preco"])])
             novos += ant is None
             aprov += ok
-    problemas = auditar()
+    # 04/11: auditar() leva ~50 s com 11 mil ofertas; a coleta manda lotes de 100 e só audita 1 vez, no fim (o 2º lote
+    # chegava depois do corte e a coleta ficava sem "fim")
+    problemas = auditar() if auditar_no_fim else []
     return {"salvos": len(itens), "novos": novos, "aprovados": aprov, "auditoria": len(problemas)}
 
 
