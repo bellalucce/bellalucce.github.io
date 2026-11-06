@@ -24,9 +24,17 @@
   "telegram": "",
   "posts_por_rodada": 6,
   "intervalo_entre_posts_s": [
-    15,
-    30
+    70,
+    140
   ],
+  "atraso_inicial_s": [
+    20,
+    150
+  ],
+  "copiar_referencias": {
+    "ligado": true,
+    "quem": "dona 05/11 21h55: copiar a maioria das ofertas das referências, só trocando pelo nosso link, até ela gostar"
+  },
   "horario": [
     8,
     22
@@ -56,7 +64,11 @@
     ],
     "resumo": true,
     "resumo_hora": "20:00",
-    "resumo_qtd": 5
+    "resumo_qtd": 5,
+    "cotas_hora": {
+      "8": 2, "9": 5, "10": 1, "11": 4, "12": 3, "13": 3, "14": 1,
+      "15": 6, "16": 1, "17": 4, "18": 3, "19": 4, "20": 2, "21": 4
+    }
   },
   "extensao": {
     "planilhas_shopee": true

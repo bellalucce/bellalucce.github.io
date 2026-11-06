@@ -3154,8 +3154,7 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
         probs.append("preço exclusivo Prime sem o aviso 'pra quem é Prime'")
     if s.get("so_pix") and " no Pix" not in (texto or ""):
         probs.append("preço só no Pix sem o aviso 'no Pix'")
-    if "amazon.com.br" in (o.get("link_loja") or "") and "*Por:*" in (texto or "") and "_(às " not in (texto or ""):
-        probs.append("Amazon sem a hora do preço")
+    # (05/11 dona: sem horário na frente do preço → saiu a trava "Amazon sem a hora do preço")
     # 03/10 (dona apagou o post): "O pato protetor solar muda de cor quando exposto ao sol, mas não muda…" — título que é
     # FRASE traduzida (não nome de produto) nunca vai para o grupo
     t = (o.get("titulo") or "").strip()
@@ -3386,8 +3385,8 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     so_prime = bool(sinais.get("so_prime"))
     if so_prime:
         por += " pra quem é Prime"
-    if hora := hora_do_preco(o):  # 30/09 (dona): Amazon exige data/hora junto do preço → "hora curtinha"
-        por += f" _(às {hora})_"
+    # 05/11 18h07 dona: "pare de colocar horário na frente do preço… tem cliente que está se confundindo, achando que a
+    # promoção só vai até aquele horário… só não põe nada" — substitui a regra de 30/09 (hora da Amazon junto do preço)
     linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
     try:  # 04/11 (dona: "sempre vai pôr referência a Black, sempre"): esquenta e Black — topo no alto da legenda
         from vendas import black_friday
@@ -5391,6 +5390,33 @@ def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
 
 
 def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True) -> list[dict]:
+    """05/11 21h55 (dona: "até eu gostar realmente das postagens vc vai copiar a maioria das ofertas e somente trocar
+    colocando nosso link"): com o modo cópia ligado, a rodada é pedido da dona → cópias das referências (a ordem delas)
+    → o resto da fila normal só completa o que faltar."""
+    normal = _fila_normal(n, horas, so_com_link_curto, conferir_foto)
+    try:
+        from vendas import referencia
+        copias = referencia.copias_prontas(max(n * 3, 10), so_com_link_curto) if referencia.copiar_ligado() else []
+    except Exception as e:  # noqa: BLE001 — o modo cópia nunca derruba a rodada
+        print(f"modo cópia: {type(e).__name__}: {str(e)[:120]}")
+        copias = []
+    if not copias:
+        return normal
+    ped = set(pedidos_dona())
+    out = [o for o in normal if o["id"] in ped]
+    ids = {o["id"] for o in out}
+    foto_ok = foto_boa if conferir_foto else (lambda o: True)
+    for o in copias:
+        if len(out) >= n:
+            break
+        if o["id"] not in ids and dentro_do_teto_dia([o]) and foto_ok(o):
+            out.append(o)
+            ids.add(o["id"])
+    out += [o for o in normal if o["id"] not in ids][:max(0, n - len(out))]
+    return out
+
+
+def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True) -> list[dict]:
     """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
