@@ -6081,7 +6081,8 @@ MODA_MASCULINA = re.compile(
     r"\bmalas?\b|necessaire|\bpijamas?\b|\bsu[ée]ter\b|cardig[ãa]|\bjeans\b")
 # fora do masculino do grupo: roupa íntima, ferramenta de barbearia, lâmina/descartável, desodorante de axila (o
 # "Desodorante Colônia" é perfume e fica), infantil/juvenil e uniforme/EPI
-MASC_FORA = re.compile(r"(?i)cueca|\bboxer\b|\bsungas?\b|m[áa]quinas? (?:de )?(?:cortar|corte|acabamento)|navalha|gillette|"
+MASC_FORA = re.compile(r"(?i)cueca|\bboxer\b|\bsungas?\b|m[áa]quin(?:a|inha)s?\b.{0,40}?\b(?:cortar|corte|acabamento)|"
+                       r"\baparador(?:es)?\b|barbeador|navalha|gillette|"  # 06/11: "Maquininha Dragão Acabamento… Aparador" passou
                        r"l[âa]minas?\b|old spice|\baxe\b|testosteron|desodorante(?! col[ôo]nia)|infantil|crian[çc]a|"
                        r"\bkids?\b|menino|juvenil|uniforme|\bepi\b|seguran[çc]a do trabalho|\bsex|er[óo]tic")
 
