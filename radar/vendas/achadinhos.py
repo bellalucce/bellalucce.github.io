@@ -5389,11 +5389,14 @@ def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     return bool(t) and any(tipo_repetivel(x) == t for x in out)
 
 
-def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True) -> list[dict]:
+def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True,
+               canal: str = "grupo") -> list[dict]:
     """05/11 21h55 (dona: "até eu gostar realmente das postagens vc vai copiar a maioria das ofertas e somente trocar
     colocando nosso link"): com o modo cópia ligado, a rodada é pedido da dona → cópias das referências (a ordem delas)
-    → o resto da fila normal só completa o que faltar."""
-    normal = _fila_normal(n, horas, so_com_link_curto, conferir_foto)
+    → o resto da fila normal só completa o que faltar.
+    06/11 (alarme de mix: Amazon, Magalu e Océane fora de 6 rodadas do grupo e 7 do Telegram): as cópias das
+    referências são quase só Shopee e ML e passavam POR CIMA da trava de lojas → a trava roda também no fim daqui."""
+    normal = _fila_normal(n, horas, so_com_link_curto, conferir_foto, canal)
     try:
         from vendas import referencia
         copias = referencia.copias_prontas(max(n * 3, 10), so_com_link_curto) if referencia.copiar_ligado() else []
@@ -5413,10 +5416,20 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
             out.append(o)
             ids.add(o["id"])
     out += [o for o in normal if o["id"] not in ids][:max(0, n - len(out))]
+    try:  # a cópia é a MAIORIA, não tudo: loja com oferta boa na fila normal ainda entra (cota_lojas)
+        from vendas import cota_lojas
+        ids = {o["id"] for o in out}
+        restos = [o for o in normal if o["id"] not in ids]
+        out = cota_lojas.trava_na_fila(out, restos, n, cota_lojas.posts_24h(),
+                                       lambda o, atual: bool(dentro_do_teto_dia([o])) and bool(foto_ok(o)),
+                                       atrasadas=cota_lojas.atrasadas(canal))
+    except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
+        print(f"trava de lojas (modo cópia): {type(e).__name__}: {str(e)[:120]}")
     return out
 
 
-def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True) -> list[dict]:
+def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True,
+                 canal: str = "grupo") -> list[dict]:
     """Próximas ofertas para o grupo: aprovadas, com link e foto, ainda não postadas; o melhor de cada tipo de produto
     (sem repetir tipo postado nas últimas 24 h) e variando categoria (sem 3 iguais seguidas).
     01/10 (dona): Shopee SEMPRE com link curto oficial → sem ele a oferta espera (so_com_link_curto)."""
@@ -5698,9 +5711,10 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
         return bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
     try:
         from vendas import cota_lojas
-        out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava)
-    except Exception:  # noqa: BLE001 — a trava nunca derruba a rodada
-        pass
+        out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava,
+                                       atrasadas=cota_lojas.atrasadas(canal))
+    except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
+        print(f"trava de lojas: {type(e).__name__}: {str(e)[:120]}")
     return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
 
 
