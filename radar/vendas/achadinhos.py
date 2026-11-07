@@ -4354,6 +4354,8 @@ def ml_pausado(agora: datetime | None = None) -> str | None:
         desde = datetime.fromisoformat(d["desde"])
     except (OSError, ValueError, KeyError, TypeError):
         return None
+    if d.get("liberado"):  # 07/11: o teste do vigia_bloqueios passou (bloqueio.voltou) — pausa encerrada antes das 6 h
+        return None
     return d["desde"] if (agora or datetime.now()) - desde < timedelta(hours=ML_PAUSA_H) else None
 
 
@@ -4371,6 +4373,11 @@ def _get_ml(url: str, cli: httpx.Client) -> str:
     r = cli.get(url, headers=CABECALHO_NAVEGADOR, follow_redirects=True)
     if PAREDE_ML.search(str(r.url)) or r.status_code in (403, 429):
         _pausar_ml(str(r.url)[:80])
+        try:  # 07/11: antes a pausa daqui era muda; agora entra no vigia_bloqueios (testa e, se não passar, chama a dona)
+            from vendas import bloqueio
+            bloqueio.registrar("pedido", f"o ML pediu verificação no pedido ({r.status_code})", str(r.url)[:80])
+        except Exception:  # noqa: BLE001
+            pass
         raise MLBloqueado(f"ML pediu verificação ao abrir {url.split('?')[0]} — parei o ML por {ML_PAUSA_H} h")
     if r.status_code >= 400:
         raise PedidoErro(f"ML respondeu {r.status_code} em {url.split('?')[0]}")
