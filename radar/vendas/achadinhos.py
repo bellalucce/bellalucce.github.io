@@ -3859,6 +3859,9 @@ FORA_NICHO_GRUPO = re.compile(
     # 06/10 noite (Rita/Beto): ainda passavam — lancheira, gel/creme dental e escova interdental, pomada de assadura,
     # lâmina de barbear/de reposição, íntimo (sabonete, protetor diário Intimus) e kit de REVENDA ("+ tag Mimo para cliente")
     r"lancheira|bolsa t[ée]rmica|dental|dentek|assaduras?|"
+    # 08/11 07h (prova do juiz LoRA): "Kit Viagem Higiene Bucal Colgate Escova Fio Plax" e "Sensodyne Multipack Triplo"
+    # saíam como beleza — higiene bucal sem a palavra "dental"
+    r"higiene bucal|sa[úu]de bucal|sensodyne|\bplax\b|colgate|oral[- ]?b\b|"
     r"l[âa]minas? (?:de )?(?:barbear|reposi[çc][ãa]o|corte|acabamento|depila\w*)|l[âa]minas? (?:philips|wahl|kemei|\d+ ?mm)|"
     r"oneblade|(?<!moda )\b[íi]ntim[oa]s?\b|intimus|protetor di[áa]rio|"
     r"mimos? (?:para|pra|p/) (?:clientes?|revenda)|\brevenda\b|\btags? (?:mimo|para (?:clientes?|bijuteria|brincos?))|"
@@ -3877,8 +3880,9 @@ FORA_NICHO_GRUPO = re.compile(
     r"suporte (?:de parede|para (?:secador|chapinha|prancha))|organizador de sal[ãa]o")
 # colágeno de BEBER sem dizer o tipo ("Colágeno Pura Vida em pó sabor Chocolate 450g", "1 Pote Colágeno…") — o de
 # creme/sérum/máscara ("Gota de Colágeno Kokeshi", "Creme… com Colágeno 350g", "Elseve Collagen") é cosmético e fica
-COLAGENO_SUPLEMENTO = re.compile(r"(?i)col[áa]genos?\b.*?(?:\bsabor\b|\bem p[óo]\b|\bpotes?\b|sach[êe]s?\b|c[áa]psulas?|"
-                                 r"comprimidos?|\bcaps\b)|\bpotes?\b.*?col[áa]geno")
+# 08/11 07h (prova do juiz LoRA): "Collagen Peptides Renova Be… 30 Doses Tangerina" passava (inglês + "doses")
+COLAGENO_SUPLEMENTO = re.compile(r"(?i)(?:col[áa]genos?|collagen)\b.*?(?:\bsabor\b|\bem p[óo]\b|\bpotes?\b|sach[êe]s?\b|"
+                                 r"c[áa]psulas?|comprimidos?|\bcaps\b|\d+ doses\b|peptides?)|\bpotes?\b.*?col[áa]geno")
 COLAGENO_COSMETICO = re.compile(r"(?i)creme|s[ée]rum|loção|lo[çc][ãa]o|gel\b|m[áa]scara|shampoo|condicionador|leave|"
                                 r"hidratante|facial|gota|ampola|t[ôo]nico")
 # vitamina C/E em sérum, creme ou ampola é skincare (dermo = nicho); "vitamina" em cápsula/goma é suplemento (fica fora)
