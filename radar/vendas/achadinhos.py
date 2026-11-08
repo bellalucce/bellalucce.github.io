@@ -112,6 +112,8 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
     "esporte": r"creatina|whey|pré-treino|halter|esteira|bicicleta|academia|suplemento|colágeno",
 }
 PALAVRAS["eletronicos"] += r"|motorola|samsung|iphone|xiaomi|redmi|galaxy|kindle|echo dot|alexa|smartwatch|playstation|xbox"
+# 08/11 03h (inspetor da escola LoRA): "Lapis Olhos Esfumador" e "Inoar… Super Ampola" ficavam em "outros" e o curador pulava
+PALAVRAS["beleza"] += r"|l[áa]pis (?:de )?olhos?|esfumador|\bampolas?\b"
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
 # marca popular. Peso somado ao score — segue uma linha em vez de "aleatório".
 PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6, "infantil": 6, "moda": 5, "pet": 3,
@@ -3809,7 +3811,7 @@ FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(
                            # 09/10 noite (funil: beleza e moda boas caíam aqui por engano): "baby doll" é pijama (liberado
                            # em 09/10 — a busca "baby doll feminino" da Shopee era toda barrada), "baby hair"/"baby
                            # liss" são de cabelo; "proteção térmica" é protetor térmico capilar, não bolsa térmica
-                           r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b(?![- ]?(?:doll|hair|liss))|\bmenin[oa]s?\b|suplement|"
+                           r"\bkids?\b|\bbeb[êe]s?\b|\bbaby\b(?![- ]?(?:doll|hair|liss|got|lips?))|\bmenin[oa]s?\b|suplement|"
                            r"c[áa]psulas|rel[óo]gio|smart ?watch|"
                            r"(?<!prote[çc][ãa]o )t[ée]rmica|marmita|mochila|escolar|maternidade|peniano|vibrat|er[óo]tic|"
                            r"cervical|elizabetano|"
