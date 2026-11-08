@@ -120,7 +120,10 @@ CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|ca
                     r"escova (secadora|alisadora|rotativa)|modelador de cachos|finalizador|leave-?in|[óo]leo capilar|"
                     r"t[ôo]nico capilar|progressiva|tintura|coloraç|anti-?queda|acidificante|bif[áa]sic|"
                    r"k[ée]rastase|\bshamp\b|\bsh\.? ?\+ ?cond\b|\bcond\b(?=[^|]{0,40}\b(?:\d+ ?ml|\d+ ?l)\b)|"
-                   r"wella (?:professionals|invigo|fusion|oil reflections|nutri)",
+                   r"wella (?:professionals|invigo|fusion|oil reflections|nutri)|"
+                   # 07/11 (HERMES): kits de cabelo do ML sem "shampoo" no título caíam em "outros" e a Mila local
+                   # acusava "fora do nicho" (Kit Dacca Cauterização, Kit Fattore Fórmula 12 em 1, Kit Prohair)
+                   r"cauteriza[çc]|p[óo]s[- ]?qu[íi]mica|\bdacca\b|\bfattore\b|\bprohair\b|\bsha ?\+ ?con\b",
                    re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo; 06/10: Kérastase Masque; 10/10: "Shamp + Cond" (Wella caiu em "outros")
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
