@@ -1065,6 +1065,20 @@ PROMOBIT_LINKS_POR_CICLO, PROMOBIT_PAUSA_S = 8, 4
 # o /Redirect/to do Promobit para o ML (não insistir num 429)
 PROMOBIT_SEM_LINK = ("Mercado Livre",)
 _PROMOBIT_PAUSA_ARQ = config.DADOS / "achadinhos" / "promobit_pausa.json"
+ML_RESERVA_POR_CICLO = 10  # 09/11: tentativas da reserva (API oficial do ML) por ciclo de coleta
+
+
+def ml_reserva_link(o: dict, usadas: list) -> tuple[str, float] | None:
+    """09/11: oferta do ML do Promobit sem anúncio → a reserva (catálogo da API oficial) tenta achar o link antes de
+    descartar. DESLIGADA por padrão ("ml_link_reserva": true em config/achadinhos.json); desligada não chama nada."""
+    try:
+        from vendas.integracoes import ml_link_reserva as res
+        if not res.ligada() or len(usadas) >= ML_RESERVA_POR_CICLO or not ml_pausado():
+            return None
+        usadas.append(o.get("id"))
+        return res.achar_anuncio(o.get("titulo") or "", o.get("preco"))
+    except Exception:  # noqa: BLE001 — a reserva nunca derruba a coleta
+        return None
 
 
 class PromobitLimite(Exception):
@@ -1296,7 +1310,7 @@ def coletar(log=print) -> dict:
         novos = aprov = 0
         antes = {r["id"]: r for r in db.consultar("SELECT id, link_loja, link_tentado_em FROM ofertas WHERE fonte = 'promobit'")}
         ontem = (datetime.now() - timedelta(hours=24)).isoformat(sep=" ", timespec="seconds")
-        linhas, resolvidos = [], 0
+        linhas, resolvidos, reservas = [], 0, []
         # fase 1 (internet, SEM segurar o banco): pontua e resolve o link só das aprovadas novas
         # com poucos links por ciclo, beleza de marca conhecida pede o link primeiro
         for o in sorted({x["id"]: x for x in vistos}.values(),
@@ -1321,6 +1335,8 @@ def coletar(log=print) -> dict:
                 except Exception as e:
                     erros.append(f"link {o['id']}: {e}")
                     tentado = agora
+            if ok and not link and o.get("loja") in PROMOBIT_SEM_LINK and (par := ml_reserva_link(o, reservas)):
+                link, o["preco"] = par  # 09/11: reserva do ML (desligada por padrão)
             if link:  # confere de novo com o link real: página de UM produto e sem afiliado de terceiros
                 o["link_loja"] = link
                 ok = aprovada(o)
@@ -3369,6 +3385,64 @@ KIT_VARIADO = re.compile(r"(?i)\b\d{1,3} ?/ ?\d{1,3}\b|\b\d{1,3} (?:ou|e) \d{1,3
                          r"\bkit ?\d{1,3} ?pe[çc]as\b")  # "Kit 4 peças Touca Faixa Modelador… com Xuxinhas" = peças diferentes
 PRIME_TESTE = "https://www.amazon.com.br/prime?tag=bellalucce-20"  # 10/10: teste grátis do Prime com a NOSSA etiqueta
 
+# 09/11 (estudo dos canais concorrentes, proposta do ritmo item 4 — ideia do Claude, NÃO ligada): o canal que mais rende
+# por inscrito explica em 1 linha por que a oferta vale. Só sai com FATO do próprio dado da oferta; sem fato, sem linha.
+# Desligada = legenda idêntica à aprovada. Liga com POR_QUE_VALE = True ou dados/achadinhos/por_que_vale.json
+# {"ligado": true} — só com o sim da dona.
+POR_QUE_VALE = False
+PQV_MEDIANA_MIN = 10      # % abaixo da mediana do mesmo produto para valer a pena dizer
+PQV_NOTA_MIN = 4.8
+PQV_VENDIDOS_MIN = 1000   # "muitas vendas"
+
+
+def por_que_vale_ligado() -> bool:
+    if POR_QUE_VALE:
+        return True
+    try:
+        arq = config.DADOS / "achadinhos" / "por_que_vale.json"
+        return bool(arq.exists() and json.loads(arq.read_text(encoding="utf-8-sig")).get("ligado") is True)
+    except Exception:  # noqa: BLE001 — arquivo quebrado = desligado
+        return False
+
+
+def por_que_vale(o: dict, gancho: str = "", tem_selo: bool = False) -> str:
+    """1 linha curta com o fato que prova a oferta, na ordem: menor preço em 30 dias (histórico) → desconto + cupom
+    que soma (preço com cupom calculado no anúncio) → X% abaixo da mediana do mesmo produto → nota ≥ 4,8 com muitas
+    vendas. '' quando nenhum fato se prova (nunca inventa) ou quando o fato já está no post (selo, gancho)."""
+    preco = o.get("preco") or 0
+    if not preco:
+        return ""
+    # 1) menor preço em 30 dias: o selo_preco já diz isso no PC; aqui só quando o selo não saiu (nuvem: HIST_EXTERNO)
+    if not tem_selo and o.get("id"):
+        if HIST_EXTERNO is not None:
+            d_m = HIST_EXTERNO.get(o["id"])
+            h = {"dias": d_m[0], "minimo": d_m[1]} if d_m and len(d_m) >= 2 else None
+        else:
+            h = historico(o["id"], 30)
+        if h and (h.get("dias") or 0) >= HIST_MIN_DIAS and h.get("minimo") and preco < h["minimo"]:
+            return f"💡 Menor preço dos últimos {min(h['dias'], 30)} dias no nosso radar"
+    sinais = sinais_de(o)
+    # 2) cupom do anúncio que soma com o desconto: "De" confiável + preço com cupom calculado e menor que o "Por"
+    cc = sinais.get("preco_com_cupom")
+    de = o.get("preco_antigo") or 0
+    if (sinais.get("cupom_pagina") and isinstance(cc, (int, float)) and 0 < cc < preco and de > preco
+            and de_confiavel(o)):
+        return f"💡 Desconto + cupom somam: {round((1 - cc / de) * 100)}% a menos que o preço cheio"
+    # 3) X% abaixo da mediana do mesmo produto nas outras ofertas da semana
+    med = mediana_mercado(o)
+    if med and preco < med:
+        pct = round((1 - preco / med) * 100)
+        if pct >= PQV_MEDIANA_MIN:
+            return f"💡 {pct}% abaixo do preço comum desse produto nesta semana"
+    # 4) nota alta com muitas vendas (sem repetir o que o gancho já diz)
+    nota = o.get("nota")
+    vend = sinais.get("vendidos_num") or _vendidos_num(str(o.get("vendidos") or ""))
+    if (isinstance(nota, (int, float)) and nota >= PQV_NOTA_MIN and vend >= PQV_VENDIDOS_MIN
+            and not re.search(r"(?i)vendid|nota|estrela|avalia", gancho or "")):
+        qtd = f"{vend // 1000} mil" if vend >= 1000 else str(vend)
+        return f"💡 Nota {nota:.1f} com mais de {qtd} vendidos".replace(".", ",", 1)
+    return ""
+
 
 def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar: bool = False) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso.
@@ -3404,6 +3478,12 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
+    if por_que_vale_ligado():  # 09/11: chave DESLIGADA; ligada, só sai com fato do dado da oferta
+        try:
+            if pqv := por_que_vale(o, gancho, tem_selo=bool(selo)):
+                linhas.append(pqv)
+        except Exception:  # noqa: BLE001 — a linha extra nunca derruba a legenda
+            pass
     # 08/10 (Vitória, 20 líderes): "Loja oficial" escrito no post dá confiança para clicar — 08/10 noite (Rita): só se
     # a loja for oficial DA MARCA do produto (revendedora Shopee Mall, como a koksara, não)
     if loja_oficial_da_marca(o):
@@ -6148,6 +6228,33 @@ def marcar_postado(id_oferta: str) -> None:
         with open(arq, "a", encoding="utf-8") as f:
             f.write(json.dumps({"id": id_oferta, "publicado_em": datetime.now().isoformat(sep=" ", timespec="seconds")})
                     + "\n")
+
+
+LEGENDAS_POSTADAS_MAX = 2 * 1024 * 1024
+
+
+def registrar_legenda_postada(o: dict, legenda: str, canal: str = "grupo") -> None:
+    """09/11: guarda a legenda enviada (7 dias) para conferir regras como "Black só no anúncio do dia". Nunca derruba o post."""
+    try:
+        arq = config.DADOS / "achadinhos" / "legendas_postadas.jsonl"
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        agora = datetime.now()
+        linha = {"hora": agora.isoformat(timespec="seconds"), "loja": o.get("fonte"), "id": o.get("id"),
+                 "canal": canal, "legenda": legenda}
+        with open(arq, "a", encoding="utf-8") as f:
+            f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        if arq.stat().st_size > LEGENDAS_POSTADAS_MAX:
+            corte = (agora - timedelta(days=7)).isoformat(timespec="seconds")
+            novas = []
+            for ln in arq.read_text(encoding="utf-8").splitlines():
+                try:
+                    if json.loads(ln).get("hora", "") >= corte:
+                        novas.append(ln)
+                except ValueError:
+                    continue
+            arq.write_text("".join(x + "\n" for x in novas), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001 — log não pode derrubar o post
+        print(f"legendas_postadas: {e}")
 
 
 def reavaliar() -> int:
