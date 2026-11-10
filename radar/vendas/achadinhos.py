@@ -3568,7 +3568,22 @@ def _cupom_shopee_manha(o: dict, agora: datetime | None = None) -> str | None:
 
 
 SITE_URL = "https://bellalucce.github.io"
-HORAS_LOJA = (10, 13, 16, 19)  # 4 posts/dia de produto NOSSO no grupo (exposição grátis; 30/09: 1 visita/semana no ML)
+# 4 posts/dia de produto NOSSO no grupo (exposição grátis; 30/09: 1 visita/semana no ML). Eram (10, 13, 16, 19).
+# 10/11 16h40 (dona: "estuda aí por que que não tá vendendo. E resolve"; estudo 30-Planos/2026-11-10-por-que-nao-vende):
+# 11 dos 15 itens comprados pelo grupo saíram entre 18h e 21h, e a meta conta venda da NOSSA loja. Decisão do Claude:
+# continuam 4 por dia, 1 no almoço e 3 de noite.
+HORAS_LOJA = (12, 18, 20, 21)
+
+
+def horas_da_loja() -> tuple[int, ...]:
+    """As horas do post da nossa loja no grupo. 10/11 (lido no registro): com o ritmo por hora (05/11) as "horas do
+    grupo" viraram TODAS as 14 horas do dia e o post da loja saiu de hora em hora (8 vezes até as 16h, com 4 combinados).
+    Com o ritmo ligado valem as HORAS_LOJA que são hora do grupo; se nenhuma for (ritmo de poucos horários), as horas do
+    grupo, como desde 04/11."""
+    do_ritmo = _horas_do_ritmo()
+    if not do_ritmo:
+        return HORAS_LOJA
+    return tuple(h for h in HORAS_LOJA if h in do_ritmo) or do_ritmo
 
 
 def _horas_do_ritmo() -> tuple[int, ...] | None:
@@ -3706,7 +3721,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
     if foco := foco_loja(agora, cfg):  # 14/10: janela de foco (só as 3 ofertas, 1×/dia) — fora dela, tudo como antes
         return _post_do_foco(cfg, foco, agora)
-    horas_loja = _horas_do_ritmo() or HORAS_LOJA  # 04/11 22h: ritmo ligado → nos horários do grupo
+    horas_loja = horas_da_loja()  # 04/11 22h: ritmo ligado → nos horários do grupo; 10/11: 4 por dia de novo
     if agora.hour not in horas_loja or agora.minute >= 15:
         return None
     prods = cfg["produtos"]
