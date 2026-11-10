@@ -4673,6 +4673,10 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
                            r"\1D_NQ_NP_2X_\2-F.\3", d["foto"])
         # 09/10: og:image do ML vem "-O" (500 px) → "-F" (tamanho cheio) ANTES de medir (FOTO_MIN_PX)
         d["foto"] = re.sub(r"(mlstatic\.com/.+_\d+)-O(?:-[\w-]+)?\.(webp|jpe?g|png)$", r"\1-F.\2", d["foto"])
+        # 10/11 12h (pedido da dona, blush Too Faced, barrado com "foto com 250 px"): a vitrine /social traz a miniatura
+        # "D_NQ_NP_…-P.webp", que nenhuma das duas trocas acima pegava → a original ("-F", medida: 1046 px)
+        d["foto"] = re.sub(r"(mlstatic\.com/)D_NQ_NP_(?:2X_)?(\d+-MLB\d+_\d+)-(?!F\b|O\b)[A-Z]{1,2}(?:-[\w-]+)?\.(webp|jpe?g)$",
+                           r"\1D_NQ_NP_2X_\2-F.\3", d["foto"])
     d["do_anuncio"] = re.sub(r"\D", "", mlb) in html
     return d
 
