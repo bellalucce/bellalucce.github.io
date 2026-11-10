@@ -3127,6 +3127,7 @@ REGRA_DE_NO_POST_DESDE = "2026-10-08 17:30:00"   # "sem preço 'De' no post" (fu
 # ganchos novos de 08/10: make em cabelo/contorno dos olhos e perfume em kit capilar (tarde); grife/dupe em enfeite e
 # oleosidade em corretivo (noite)
 REGRAS_GANCHO_NOITE_DESDE = "2026-10-08 17:30:00"
+REGRA_DE_INFLADO_NO_POST_DESDE = "2026-11-10 09:40:00"  # "De" inflado barrado também na conferência final do post
 
 
 def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
@@ -3153,6 +3154,12 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
         probs.append("preço do texto diferente do preço da oferta")
     if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
         probs.append("'de' menor ou igual ao 'por'")
+    # 10/11 (Claude, aplicando a regra da dona de 26/10: "promoções honestas… não ter promoção inflada"): às 09h20 um
+    # colar saiu com "De" R$ 98,33 por R$ 23,60 (4,2×) — a fila aprova na coleta e o preço muda depois. Última trava,
+    # para oferta de qualquer origem; o que a dona pediu à mão (pedido_dona) continua saindo.
+    if (de_inflado(o) and not sinais_de(o).get("pedido_dona") and not o.get("pedido_dona")
+            and (not quando or quando >= REGRA_DE_INFLADO_NO_POST_DESDE)):
+        probs.append("'De' inflado (mais de 2× o 'Por')")
     # 08/10 (Rita, 5ª rodada seguida): post de oferta sem a linha "De:" riscada não vai (regra da dona) — última trava
     if ("*Por:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas)
             and (not quando or quando >= REGRA_DE_NO_POST_DESDE)):
@@ -4226,6 +4233,13 @@ def farmacia_shopee_comum(o: dict) -> bool:
 def tem_de_no_post(o: dict) -> bool:
     p, de = o.get("preco") or 0, o.get("preco_antigo") or 0
     return p > 0 and de > p and de_confiavel(o)
+
+
+def de_passa_na_conferencia(o: dict) -> bool:
+    """10/11 (Claude): as travas do "De" da conferência final (conferir_legenda), sem montar a legenda: a linha "De:"
+    sai no post, é maior que o "Por" e não é inflada. Quem monta a fila usa isto para não entregar, em toda rodada, a
+    mesma oferta que a conferência vai barrar (09h44 e 09h46: 3 cópias sem "De" voltavam em toda rodada)."""
+    return bool(tem_de_no_post(o)) and not de_inflado(o)
 
 
 # 07/10 (Beto, 7× em 06–08/10: Taiff ML de 29/09, Mondial 04/10, fwee 02/10): preço com mais de 24 h não entra na fila
