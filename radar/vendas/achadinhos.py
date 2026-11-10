@@ -5518,8 +5518,138 @@ def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     return bool(t) and any(tipo_repetivel(x) == t for x in out)
 
 
+def mix_da_noite(fila: list[dict], agora: datetime | None = None, de: int = 18, ate: int = 21, teto: float = 60.0,
+                 fracao: float = 0.6, na_frente: set | None = None) -> list[dict]:
+    """10/11 (dona, 16h14: "Eu preciso de vendas, cara, estuda aí por que que não tá vendendo. E resolve."). DECISÃO DO
+    CLAUDE, não da dona. Número do estudo cerebro/30-Planos/2026-11-10-por-que-nao-vende.md ("O que vendeu"): as 7
+    compras do grupo foram todas abaixo de R$ 70 (5 abaixo de R$ 25), 11 de 15 itens comprados saíram entre 18h e 21h e
+    46 de cada 100 posts passavam de R$ 60.
+    Das `de`h às `ate`h59, pelo menos `fracao` das ofertas da rodada (arredonda para cima) têm preço até `teto`: se a
+    fila tem baratas de menos, todas as baratas vão para a frente; se já tem baratas o bastante, não mexe em nada.
+    Só reordena: nunca tira nem duplica oferta, mantém a ordem relativa de cada grupo, e os pedidos da dona
+    (`pedido_dona` ou id em `na_frente`) ficam na frente e fora da conta. Fora do horário devolve a fila igual."""
+    agora = agora or datetime.now()
+    if not (de <= agora.hour <= ate) or len(fila) < 2:
+        return list(fila)
+    na_frente = na_frente or set()
+    ped = [o for o in fila if o.get("pedido_dona") or o.get("id") in na_frente]
+    resto = [o for o in fila if not (o.get("pedido_dona") or o.get("id") in na_frente)]
+    barata = lambda o: 0 < float(o.get("preco") or 0) <= teto  # noqa: E731 — sem preço não conta como barata
+    baratas = [o for o in resto if barata(o)]
+    precisa = -(-int(round(fracao * len(resto) * 1000)) // 1000)  # teto de fracao*N sem erro de ponto flutuante
+    if len(baratas) >= precisa or not baratas:
+        return ped + resto
+    return ped + baratas + [o for o in resto if not barata(o)]
+
+
 def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True,
                canal: str = "grupo") -> list[dict]:
+    """10/11: a ordem final passa por mix_da_noite (18h–21h59, config "mix_noite"; sem a chave = ligado)."""
+    fila = _fila_posts_base(n, horas, so_com_link_curto, conferir_foto, canal)
+    try:
+        cfg = (canais().get("mix_noite") or {})
+        if cfg.get("ligado", True):
+            agora = datetime.now()
+            de, ate = int(cfg.get("de", 18)), int(cfg.get("ate", 21))
+            teto, fracao = float(cfg.get("teto", 60)), float(cfg.get("fracao", 0.6))
+            ped = set(pedidos_dona())
+            # 10/11 17h10 (conferência do Claude): só mudar a ORDEM da rodada não aumenta as baratas (a rodada sai
+            # inteira); o que muda a conta é QUAL oferta entra. Só em rodada de verdade (até MIX_NOITE_MAX_RODADA);
+            # as leituras grandes (estoque da vigia, links curtos) ficam como eram.
+            if de <= agora.hour <= ate and fila and n <= MIX_NOITE_MAX_RODADA:
+                falta = baratas_que_faltam(fila, _precos_postados_desde(agora.replace(hour=de, minute=0, second=0,
+                                                                                      microsecond=0)), teto, fracao, ped)
+                if falta > 0:
+                    ids = {o.get("id") for o in fila}
+                    maior = _fila_posts_base(n + MIX_NOITE_RESERVA, horas, so_com_link_curto, conferir_foto, canal)
+                    fila = troca_por_baratas(fila, [o for o in maior if o.get("id") not in ids], falta, teto,
+                                             lambda o: _protegida_no_mix(o, ped), _cabe_na_troca(_lojas_antes()))
+                    trocadas = len({o.get("id") for o in fila} - ids)
+                    print(f"mix da noite: faltava(m) {falta} barata(s) até R$ {teto:.0f}; troquei {trocadas}")
+            fila = mix_da_noite(fila, agora, de, ate, teto, fracao, ped)
+    except Exception as e:  # noqa: BLE001 — o mix nunca derruba a rodada
+        print(f"mix da noite: {type(e).__name__}: {str(e)[:120]}")
+    return fila
+
+
+MIX_NOITE_MAX_RODADA, MIX_NOITE_RESERVA = 10, 6
+
+
+def _barata(o: dict, teto: float) -> bool:
+    return 0 < float(o.get("preco") or 0) <= teto
+
+
+def baratas_que_faltam(fila: list[dict], precos_da_noite: list[float], teto: float = 60.0, fracao: float = 0.6,
+                       na_frente: set | None = None) -> int:
+    """Quantas ofertas desta rodada precisam virar baratas para a NOITE inteira (o que já saiu desde as 18h + esta
+    rodada) ter `fracao` de ofertas até `teto`. A conta é da noite, não da rodada: de noite a rodada tem 1 ou 2
+    ofertas, e "6 de cada 10" por rodada viraria "todas". Pedido da dona não entra na conta."""
+    na_frente = na_frente or set()
+    conta = [o for o in fila if not (o.get("pedido_dona") or o.get("id") in na_frente)]
+    baratas = sum(1 for o in conta if _barata(o, teto))
+    ja_baratas = sum(1 for p in precos_da_noite if 0 < float(p or 0) <= teto)
+    alvo = -(-int(round(fracao * (len(precos_da_noite) + len(conta)) * 1000)) // 1000)
+    return max(0, min(alvo - ja_baratas - baratas, len(conta) - baratas))
+
+
+def troca_por_baratas(fila: list[dict], reserva: list[dict], faltam: int, teto: float = 60.0, protegida=None,
+                      cabe=None) -> list[dict]:
+    """Troca, de trás para a frente, até `faltam` ofertas caras da rodada por baratas da `reserva` (as próximas da
+    fila). A vaga continua do mesmo lado: cópia por cópia (dona 05/11: "copiar a maioria das ofertas") e linha de
+    beleza por linha de beleza (o mix de categorias que ela aprovou não muda). Oferta `protegida` (pedido da dona,
+    Océane, a grife que abre a rodada) não sai. A cara que saiu não se perde: fica na fila para a próxima rodada."""
+    out = list(fila)
+    lado = lambda o: (bool(o.get("_copia")), o.get("grupo") in LINHA_PRINCIPAL)  # noqa: E731
+    usados = {o.get("id") for o in out}
+    for i in range(len(out) - 1, -1, -1):
+        if faltam <= 0:
+            break
+        o = out[i]
+        if _barata(o, teto) or (protegida and protegida(o)):
+            continue
+        for c in reserva:
+            if (not _barata(c, teto) or c.get("id") in usados or lado(c) != lado(o)
+                    or (cabe and not cabe(c, out, i))):
+                continue
+            out[i] = c
+            usados.add(c.get("id"))
+            faltam -= 1
+            break
+    return out
+
+
+def _protegida_no_mix(o: dict, ped: set) -> bool:
+    return bool(o.get("pedido_dona") or o.get("id") in ped or o.get("fonte") in FONTES_SO_BELEZA
+                or (LUXO.search(o.get("titulo") or "") and (o.get("preco_antigo") or 0) >= 150))
+
+
+def _precos_postados_desde(inicio: datetime) -> list[float]:
+    ini = inicio.isoformat(sep=" ", timespec="seconds")
+    return [float(r["preco"] or 0) for r in db.consultar(
+        f"SELECT preco FROM ofertas WHERE publicado_em >= '{ini}'") or []]
+
+
+def _lojas_antes() -> list[str]:
+    return [loja_de(dict(r)) for r in db.consultar(
+        "SELECT loja, link_loja, fonte FROM ofertas WHERE publicado_em IS NOT NULL ORDER BY publicado_em DESC "
+        f"LIMIT {max(MAX_LOJA_SEGUIDA, LOJA_JANELA - 1)}") or []][::-1]
+
+
+def _cabe_na_troca(antes: list[str]):
+    """A barata que entra respeita o que a rodada já respeitava: tipo sem repetir, teto de perfume, loja sem rajada e
+    teto do dia da fonte (Shein)."""
+    def cabe(c: dict, out: list[dict], i: int) -> bool:
+        outros = out[:i] + out[i + 1:]
+        if tipo_na_rodada(c, outros) or (eh_perfume_post(c) and not eh_perfume_post(out[i])):
+            return False
+        if loja_de(c) != loja_de(out[i]) and not loja_cabe(loja_de(c), antes + [loja_de(x) for x in out[:i]]):
+            return False
+        return bool(dentro_do_teto_dia([c]))
+    return cabe
+
+
+def _fila_posts_base(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conferir_foto: bool = True,
+                     canal: str = "grupo") -> list[dict]:
     """05/11 21h55 (dona: "até eu gostar realmente das postagens vc vai copiar a maioria das ofertas e somente trocar
     colocando nosso link"): com o modo cópia ligado, a rodada é pedido da dona → cópias das referências (a ordem delas)
     → o resto da fila normal só completa o que faltar.

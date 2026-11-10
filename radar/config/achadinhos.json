@@ -71,6 +71,9 @@
     },
     "teto_hora": 6
   },
+  "mix_noite": {
+    "ligado": true, "de": 18, "ate": 21, "teto": 60, "fracao": 0.6
+  },
   "extensao": {
     "planilhas_shopee": true
   }
