@@ -3187,7 +3187,8 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
     # FRASE traduzida (não nome de produto) nunca vai para o grupo
     t = (o.get("titulo") or "").strip()
     if (re.search(r"\b(quando|mas n[ãa]o|porque|enquanto|se voc[êe]|voc[êe] (pode|vai)|isso|esse produto)\b", t, re.I)
-            or re.match(r"^(O|A|Os|As|Um|Uma|Este|Esta|Esse|Essa)\s", t)
+            or (re.match(r"^(O|A|Os|As|Um|Uma|Este|Esta|Esse|Essa)\s", t)
+                and not re.match(r"(?i)^O Botic[áa]rio\b", t))  # 10/11: "O Boticário" é o nome da marca, não artigo de frase
             or (t.endswith(".") and len(t.split()) > 8)):
         probs.append("título parece frase traduzida, não nome de produto")
     return probs
@@ -4129,7 +4130,8 @@ TIPO_PRODUTO = re.compile(
     r"ampoule|booster|creme|cream|lo[çc][ãa]o|lotion|hidratante|moisturi|emuls|\bgel\b|gelatina|espuma|foam|sabonete|"
     r"soap|cleans|limpeza|t[ôo]nico|toner|[áa]gua|micelar|\bh2o\b|demaquil|[óo]leo|\boils?\b|protetor|fps|spf|"
     r"sun ?(?:cream|screen|stick)|suncream|esfolia|peeling|exfoli|scrub|argila|clay|patch|pads?\b|strips?|mask|sheet|"
-    r"desodorante|antitranspirante|shampoo|xampu|condicionador|conditioner|leave|finalizador|fluido|mousse|spray|"
+    # 10/11 (corte de −470 do funil): "Fluído" com acento (Cadiveu) e "Condicionante" são português e diziam o tipo
+    r"desodorante|antitranspirante|shampoo|xampu|condicionador|condicionante|conditioner|leave|finalizador|fl[uú][ií]do|mousse|spray|"
     r"pomada|\bwax\b|\bcera\b|tintura|colora[çc]|descolor|tonaliz|matizad|oxidante|reparador|ativador|definidor|"
     r"alisa|relaxa|tratamento|treatment|reconstru|cronograma|capilar|cabelos?\b|\bfios\b|\bpele\b|facial|rosto|"
     r"acidificante|antiqueda|elseve|"
