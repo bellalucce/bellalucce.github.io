@@ -2446,6 +2446,38 @@ def _as_valor(txt: str) -> float:
     return min((v for v in vals if v > 0), default=0.0)
 
 
+# 10/11 23h55 (Claude; dona 05/11: "tá aparecendo um produto que já tá esgotado"): anúncio com estoque 0 NA SHOPEE não
+# é anunciado pelo Hermes, mesmo com as peças na gaveta. O Kit 4 itens (58220136127) estava na página de Amigo Secreto
+# do site com o anúncio esgotado. Fonte: a leitura mais nova de dados/loja/estoque_shopee_central_*.json (tela Meus
+# produtos da Central). Leitura com mais de ESGOTADO_VALE_DIAS dias não vale: na dúvida, anuncia (como era antes).
+ESGOTADO_VALE_DIAS = 3
+_ITEM_SHOPEE = re.compile(r"shopee\.com\.br/product/\d+/(\d+)")
+
+
+def esgotados_na_shopee(agora: datetime | None = None, pasta: Path | None = None) -> set[str]:
+    """IDs de anúncio da Shopee marcados como esgotados na leitura mais nova da Central (vazio se não há leitura, se
+    ela está velha ou quebrada)."""
+    agora = agora or datetime.now()
+    pasta = pasta or (config.DADOS / "loja")
+    try:
+        arq = max(pasta.glob("estoque_shopee_central_*.json"), key=lambda p: p.name)
+        d = json.loads(arq.read_text(encoding="utf-8"))
+        quando = datetime.fromisoformat(str(d.get("quando")).replace(" ", "T"))
+    except (OSError, ValueError, TypeError):
+        return set()
+    if not timedelta(0) <= agora - quando <= timedelta(days=ESGOTADO_VALE_DIAS):
+        return set()
+    return {str(i.get("id")) for i in d.get("itens") or [] if i.get("esgotado") is True}
+
+
+def esgotado_na_shopee(links, esgotados: set[str]) -> bool:
+    """PURA. `links` = um link ou o dicionário {canal: link} do produto/kit. Link curto (s.shopee) não dá para saber."""
+    if not esgotados:
+        return False
+    urls = links.values() if isinstance(links, dict) else [links]
+    return any((m := _ITEM_SHOPEE.search(str(u or ""))) and m.group(1) in esgotados for u in urls)
+
+
 def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
     """PC (precisa de config/midia.json e do estoque do Hermes): os NOSSOS itens da lista, kits primeiro →
     [{chave, nome, preco, valor, link, foto, kit}]. Só Shopee, com estoque, foto e preço que já está escrito (kit) ou a
@@ -2479,11 +2511,13 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
                 link = next((u for u in (p.get("links") or {}).values() if "shopee" in u), "")
                 preco = preco_loja_site(prods[chave], agora) if chave in prods else str(p.get("preco") or "")
                 por(chave, p.get("nome", chave), preco, link, p.get("foto", ""), chave.startswith("item:"))
+    esg = esgotados_na_shopee(agora)  # 10/11: anúncio esgotado na Shopee não vai para o site
     for k in cfg.get("kits_grupo") or []:  # kit do Leve Mais por Menos com anúncio e preço próprios
-        if k.get("ativo") and k.get("preco") and tem(k.get("estoque") or []):
+        if (k.get("ativo") and k.get("preco") and tem(k.get("estoque") or [])
+                and not esgotado_na_shopee(k.get("links") or {}, esg)):
             por(f"kit:{k.get('id')}", k["nome"], k["preco"], (k.get("links") or {}).get("Shopee", ""), k.get("foto", ""), True)
     for sku, p in prods.items():  # produto avulso só com a promoção da Shopee valendo
-        if promo_valendo(p, agora) and midia.tem_estoque(sku):
+        if promo_valendo(p, agora) and midia.tem_estoque(sku) and not esgotado_na_shopee(p.get("links") or {}, esg):
             por(sku, p["nome"], preco_loja_site(p, agora), (p.get("links") or {}).get("Shopee", ""),
                 p.get("foto_grupo") or p.get("foto", ""), False)
     out = kits + avulsos
@@ -3739,13 +3773,14 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         itens = estoque.itens()
         return all(any(i["sku"].startswith(pre) and i["qtd"] > 0 for i in itens) for pre in prefixos)
 
+    esg = esgotados_na_shopee(agora)  # 10/11: anúncio esgotado na Shopee não entra no rodízio do grupo
     ok = [(k, q) for k, p in prods.items() if (q := _so_shopee(p))["links"] and midia.tem_estoque(k)
-          and (config.RAIZ / q["foto"]).exists()]
+          and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
     # 06/10 (Kátia, dona: "impulsiona os KITS"): kit montado na Shopee pelo Leve Mais por Menos entra no rodízio
     # (config/midia.json → kits_grupo; só com estoque de TODOS os componentes e a foto com as mesmas unidades do kit)
     ok += [(f"kit:{k.get('id', i)}", q) for i, k in enumerate(cfg.get("kits_grupo") or [])
            if k.get("ativo") and (q := _so_shopee(k))["links"] and _tem(k.get("estoque") or [])
-           and (config.RAIZ / q["foto"]).exists()]
+           and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
     if not ok:
         return None
     vez = agora.timetuple().tm_yday * len(horas_loja) + horas_loja.index(agora.hour)
