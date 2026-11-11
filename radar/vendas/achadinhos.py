@@ -3738,7 +3738,7 @@ def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | N
     if pr:
         url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
         linhas = ["*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*", "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
-                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, até {pr['ate'][8:10]}/{pr['ate'][5:7]})_"]
+                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, {ate_da_promo(pr)})_"]
     else:
         url = next(iter(p["links"].values()))
         linhas = [f"*{p['chamada']}*" if p.get("chamada") else "*DA NOSSA LOJINHA 💖*", "", f"🛍️ {legenda}"]
@@ -3802,7 +3802,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         # 01/10 (dona): "lança meus produtos com promoção, sem promoção fica nada a ver" → mesmo modelo das ofertas
         # (De riscado / Por), com a Promoção de Desconto REAL criada na Shopee (config/midia.json → promo)
         linhas = [cabeca, "", f"🛍️ {legenda}", "", f"De: ~{pr['de']}~",
-                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, até {pr['ate'][8:10]}/{pr['ate'][5:7]})_"]
+                  f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, {ate_da_promo(pr)})_"]
         url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
         linhas += ["", f"🛒 *Compre aqui:* {url}"]
     else:
@@ -6552,6 +6552,16 @@ def _com_preco_ao_vivo(p: dict, pr: dict, agora: datetime) -> dict:
     if not (0 < vivo < de) or abs(vivo - por) < 0.005:
         return pr
     return {**pr, "por": f"R$ {vivo:.2f}".replace(".", ","), "por_config": pr["por"]}
+
+
+def ate_da_promo(pr: dict) -> str:
+    """Texto do prazo no post da loja: "até 30/11" (prazo da promoção cadastrada). 11/11 (decisão do Claude): quando o
+    preço dito veio da leitura da Shopee e é diferente do cadastrado (ex.: Oferta Relâmpago de 1 dia: blush a R$ 13,30
+    só em 11/11), o prazo cadastrado não vale para ESSE preço; dizer "até 30/11" seria prometer o que não é verdade.
+    Aí o texto é "preço de hoje"."""
+    if pr.get("por_config"):
+        return "preço de hoje"
+    return f"até {pr['ate'][8:10]}/{pr['ate'][5:7]}"
 
 
 def preco_loja_site(p: dict, agora: datetime | None = None) -> str:
