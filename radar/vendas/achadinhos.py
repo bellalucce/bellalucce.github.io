@@ -6511,8 +6511,47 @@ def promo_valendo(p: dict, agora: datetime | None = None) -> dict | None:
     pausa = pr.get("pausa") or ["", ""]
     if (pr and pr.get("por") and pr.get("desde", "") <= agora_txt <= pr.get("ate", "")
             and not (pausa[0] and pausa[0] <= agora_txt <= pausa[1])):
-        return pr
+        return _com_preco_ao_vivo(p, pr, agora or datetime.now())
     return None
+
+
+PRECO_VIVO_VALE_H = 6
+_PRECOS_VIVOS: dict = {}   # {caminho: (mtime, quando, {id: preço})}: o arquivo só é relido quando muda
+
+
+def precos_ao_vivo(agora: datetime | None = None, arq: Path | None = None) -> dict[str, float]:
+    """{id do anúncio: preço} da ÚLTIMA leitura da nossa loja pela API da Shopee (loja_api, de hora em hora), se ela tem
+    menos de PRECO_VIVO_VALE_H horas. Sem leitura, quebrada ou velha: {} (vale o preço da configuração)."""
+    agora = agora or datetime.now()
+    arq = arq or (config.DADOS / "loja" / "anuncios_shopee_api.jsonl")
+    try:
+        mt = arq.stat().st_mtime
+        if (_PRECOS_VIVOS.get(str(arq)) or (None,))[0] != mt:
+            ult = json.loads([ln for ln in arq.read_text(encoding="utf-8").splitlines() if ln.strip()][-1])
+            _PRECOS_VIVOS[str(arq)] = (mt, datetime.fromisoformat(str(ult.get("quando"))),
+                                       {str(i.get("id")): float(i["preco"]) for i in ult.get("itens") or []
+                                        if not i.get("erro") and i.get("preco")})
+        _, quando, precos = _PRECOS_VIVOS[str(arq)]
+        return precos if timedelta(0) <= agora - quando <= timedelta(hours=PRECO_VIVO_VALE_H) else {}
+    except (OSError, ValueError, TypeError, IndexError, KeyError):
+        return {}
+
+
+def _com_preco_ao_vivo(p: dict, pr: dict, agora: datetime) -> dict:
+    """11/11 (Claude; 07/10 dona: "os preços da nossa lojinha no site tão desatualizados"): o "por" da configuração é
+    escrito à mão e a Shopee muda o preço sem avisar (11/11 00h40: blush R$ 13,90 → R$ 13,30 e gloss gold R$ 16,90 →
+    R$ 16,10). O preço dito no site e no post passa a ser o que a API leu na Shopee, quando a leitura é fresca, o canal é
+    a Shopee e o preço lido continua ABAIXO do "de" (se não, fica o da configuração: não inventa promoção nem a tira)."""
+    if pr.get("canal", "Shopee") != "Shopee":
+        return pr
+    m = _ITEM_SHOPEE.search(str((p.get("links") or {}).get("Shopee") or ""))
+    vivo = precos_ao_vivo(agora).get(m.group(1)) if m else None
+    if not vivo:
+        return pr
+    de, por = _as_valor(str(pr.get("de") or "")), _as_valor(str(pr.get("por") or ""))
+    if not (0 < vivo < de) or abs(vivo - por) < 0.005:
+        return pr
+    return {**pr, "por": f"R$ {vivo:.2f}".replace(".", ","), "por_config": pr["por"]}
 
 
 def preco_loja_site(p: dict, agora: datetime | None = None) -> str:
