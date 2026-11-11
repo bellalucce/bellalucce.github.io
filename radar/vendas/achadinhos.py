@@ -705,7 +705,10 @@ VOLUMOSOS = re.compile(r"geladeira|refrigerador|freezer|conservador|fog[ãa]o|co
                        r"gabinete .*(cuba|banheiro|pia)|arm[áa]rio (de |para )?(banheiro|cozinha|a[ée]reo)|\bcuba\b|"
                        # material de obra/ferramenta: nada a ver com o público do grupo
                        r"manta l[íi]quida|impermeabiliz|bomba (pressurizadora|d.?[áa]gua)|refletor|holofote|argamassa|"
-                       r"cimento|furadeira|parafusadeira|motosserra|compressor de ar", re.I)
+                       # 11/11 07h21 (Claude, visto ao vivo na Doce Beleza): "cimento" solto pegava "Crescimento" e
+                       # "Fortalecimento" (Shampoo Haskell Mandioca Força Crescimento, linha Cavalo Forte) e a oferta de
+                       # cabelo caía como material de obra. Agora só a palavra que COMEÇA em "cimento".
+                       r"\bcimento|furadeira|parafusadeira|motosserra|compressor de ar", re.I)
 # 01/10 (Rafa): "Maleta de Maquiagem… de Viagem" era barrada — viagem só é spam quando é PACOTE/destino, não produto
 SPAM = re.compile(r"cupo(m|ns)|pacote|pacote de viagem|viagens? (?:para|pra|nacional|internacional|com)|passage|hotel|"
                   r"\bvoo|assinatura|receb(a|er) |grupo d|whatsapp|telegram|"
