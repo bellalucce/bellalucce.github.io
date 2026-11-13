@@ -1030,6 +1030,15 @@ def aprovada(o: dict) -> bool:
         return False
     if s.get("ruim", 0) > s.get("otima", 0):
         return False
+    # 13/11 18h45 (dona: "Põem um pouco de roupas… coisas mais estilosas"): roupa estilosa (lisa, corte moderno; nunca
+    # estampada/brega) tinha só a régua do "resto" (Promobit 55% = "De" inflado) → 29 roupas boas no banco, 2 aprovadas.
+    # Régua dela: 30% OFF e marca que a pessoa reconhece (Hering, Zara, Mango, Nike…; na Shopee só loja oficial, que o
+    # marketplace é cheio de cópia) ou anúncio bem avaliado e vendido. Na Black o filtro das melhores continua por cima.
+    if roupa_estilosa(o) and o["fonte"] in ("promobit", "ml_afiliados", "shopee_afiliados", "amazon_ref"):
+        nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
+        marca = bool(s.get("oficial")) or (o["fonte"] != "shopee_afiliados" and (marca_conhecida(o) or _tem_marca(
+            o.get("titulo") or "", listas_marcas())))
+        return d >= 30 and (marca or (nota >= 4.6 and vend >= 300) or bool(s.get("top")) or s.get("otima", 0) >= 3)
     if o.get("grupo") in ("beleza", "cabelo", "perfume") and o["fonte"] == "promobit":  # foco: mais permissivo
         return s.get("top") or d >= 30 or s.get("otima", 0) >= 3 or s.get("curtidas", 0) >= 5
     # "só promoções muito boas": desconto alto + algum sinal de qualidade (loja oficial, nota, voto da comunidade)
@@ -3948,7 +3957,10 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
             # 13/11 (Rita 18/10 e 24/10: ~25 calçados num dia): chinelo/sapatilha/bota não tinham tipo → sem teto
             (r"chinelo|papete|sapat|scarpin|\bbotas?\b|\bslides?\b|crocs|tamanco", "calçado"),
             (r"\btoucas?\b|bonnet", "touca"),  # 13/11 (Beto 10/10: 5º kit de touca de cetim no dia)
-            (r"organizador", "organizador")]  # 13/11 (Beto 06/10: 6 organizadores acrílicos na mesma fila)
+            (r"organizador", "organizador"),  # 13/11 (Beto 06/10: 6 organizadores acrílicos na mesma fila)
+            # 13/11 18h45 (roupa estilosa no grupo): cada peça é um tipo, no máx. MAX_TIPO_DIA por dia
+            (r"vestidos?\b", "vestido"), (r"\bblusas?\b|cropped|regata|\bbody\b", "blusa"), (r"\bsaias?\b", "saia"),
+            (r"macac[ãa]o|macaquinho", "macacão"), (r"blazer|colete|cardig", "blazer"), (r"\bconjunto", "conjunto")]
 
 
 def tipo_repetivel(o: dict) -> str | None:
@@ -4031,7 +4043,33 @@ ROUPA_RX = re.compile(r"(?i)\bcal[çc]as?\b|\bsaias?\b|\bshorts?\b(?![- ]?doll)|
                       r"\bconjunto (?!de j[óo]ias|de (?:brincos?|colar))(?:feminino )?(?:linh|body|alfaiat|social)")
 PIJAMA_RX = re.compile(r"(?i)\bpijamas?\b|\bcamisolas?\b|short[- ]?doll|baby[- ]?doll|\brobes?\b|roupa de dormir|"
                        r"conjunto (?:de )?dormir")
-TIPOS_MODA = ("bolsa", "sapato", "acessorio", "pijama")
+TIPOS_MODA = ("bolsa", "sapato", "acessorio", "pijama", "roupa")
+# 13/11 18h45 (dona: "Põem um pouco de roupas, mas não coloca aqueles vestidos estranhos de tia estampas super
+# coloridas e bregas, põem coisas mais estilosas"): roupa feminina entra no grupo só se for estilosa — lisa, de corte
+# moderno (alfaiataria, wide leg, linho, cetim, tricô, canelado, couro, jeans, básica…) — e nunca estampada/colorida
+# nem de "tia" (babado, manguinha, soltinho, poá, floral, tie-dye, oncinha…). Esporte e roupa de treino ficam fora.
+ROUPA_BREGA = re.compile(
+    r"(?i)estampad|\bestampa|floral|florid|\bflores\b|\bflor\b|colorid|multicolor|\bcolor(?:ful)?\b|tie[- ]?dye|"
+    r"animal print|on[çc]inha|\bon[çc]a\b|zebra|\btigre|psicod|mandala|indian[ao]|hippie|\bboho\b|ciganinh|\bbata\b|"
+    r"kaftan|caftan|batik|tropical|folhagem|folhas|paet[êe]|lantejoul|evang[ée]lic|crist[ãa]|\bpo[áa]\b|bolinhas?|"
+    r"babad|manguinh|multiuso|senhora|terceira idade|soltinh|vichy|xadrez|listrad|\blistras?\b|neon|tiffany|"
+    r"\bpink\b|\bverde lim|\blaranja\b|\bamarel|estrelas?\b|cora[çc][õo]es|\bpatchwork|frutas|"
+    r"esportiv|\bdry ?fit|\buv ?50|t[ée]rmica|academia|treino|treinamento|ciclismo|\bfato\b|"
+    r"infantil|menin[ao]|\bkids?\b|beb[êe]|plus size soltinho|fantasia|\bkit \d+|\bkit com \d+|\d+ pe[çc]as")
+ROUPA_ESTILO = re.compile(
+    r"(?i)alfaiataria|wide ?leg|pantalona|\blinho\b|cetim|\bseda\b|tric[ôo]|tricot|canelad|couro|jeans|denim|\bslip\b|"
+    r"minimalist|b[áa]sic[ao]s?\b|oversized?|cropped|blazer|chemise|tubinho|\bsocial\b|cardig[ãa]|colete|sarja|"
+    r"off[- ]?white|all black|\bpret[ao]\b|\bnude\b|\bbege\b|\bcaramelo\b|\bmarrom\b|\bbranc[ao]\b|\bcinza\b|"
+    r"\bmarinho\b|\bvinho\b|\bliso\b|\blisa\b|costas nuas|frente [úu]nica|ombro a ombro|um ombro|tomara que caia|"
+    r"cintura alta|midi|longo justo|justo|fenda|modal|viscose|malha (?:fria|canelada)")
+
+
+def roupa_estilosa(o: dict) -> bool:
+    """13/11 18h45: roupa feminina estilosa (ver ROUPA_BREGA/ROUPA_ESTILO). Pijama tem regra própria (PIJAMA_RX)."""
+    t = o.get("titulo") or ""
+    return bool(o.get("grupo") == "moda" and ROUPA_RX.search(t) and not PIJAMA_RX.search(t)
+                and ROUPA_ESTILO.search(t) and not ROUPA_BREGA.search(t) and not MODA_FORA.search(t)
+                and not eh_masculino(o))
 
 
 def tipo_moda(titulo: str) -> str:
@@ -4045,6 +4083,8 @@ def tipo_moda(titulo: str) -> str:
     joia = JOIA_RX.search(t)  # "Corrente De Tênis" é joia; "Sandália com Pingente", sapato
     if sap and not (joia and joia.start() < sap.start()):
         return "sapato"
+    if ROUPA_RX.search(t) and not joia:  # 13/11 18h45: roupa (vestido, blusa, calça…) é tipo próprio
+        return "roupa"
     return "acessorio"
 # 07/10 (dona: "pode incluir coisas de casa bonito"): casa só o que ENFEITA — aroma, penteadeira, decoração, cama e banho,
 # mesa posta (nada de ferramenta, limpeza, eletro ou cozinha de trabalho)
@@ -4235,7 +4275,8 @@ def no_perfil_feminino(o: dict) -> bool:
         return False
     return (o.get("grupo") in LINHA_PRINCIPAL
             or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)) and not MODA_FORA.search(t)
-                and (tipo_moda(t) != "acessorio" or not ROUPA_RX.search(t)))
+                and (tipo_moda(t) not in ("acessorio", "roupa") or not ROUPA_RX.search(t)))
+            or roupa_estilosa(o)  # 13/11 18h45 (dona: "Põem um pouco de roupas… coisas mais estilosas")
             or (o.get("grupo") == "casa" and bool(CASA_BONITA.search(t))))
 
 
@@ -6079,6 +6120,8 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
                 return int(tp != "acessorio")
             if vez.endswith("s"):
                 return int(tp != "sapato")
+            if vez.endswith("r"):
+                return int(tp != "roupa")
             if vez.endswith("v"):
                 return moda_hoje.get(tp, 0) + sum(tipo_moda(y.get("titulo") or "") == tp for y in out
                                                   if y.get("grupo") == "moda")
@@ -6388,7 +6431,9 @@ OCEANE_VALIDADE_H = 14
 # "Bk" skincare, "Bp" perfume, "Bc" cabelo; 2 moda "Mb" bolsa, "Ma" acessório; 1 "C" casa bonita) e 3 masculinas
 # espalhadas: 2 "Mh" moda masculina (roupa, tênis, relógio, carteira, boné, mochila…) e 1 "Bh" beleza masculina
 # (perfume de marca, barba, skincare). Sem masculino na fila, a vaga "h" leva a melhor feminina do mesmo grupo.
-PADRAO_LINHA = ("Bm", "Mb", "Mh", "Bk", "C", "Bh", "Bp", "Ma", "Mh", "Bc")
+# 13/11 18h45 (dona: "Põem um pouco de roupas… coisas mais estilosas"): + 1 vaga "Mr" de roupa estilosa no fim (11
+# vagas: ~1 roupa a cada 11 posts, umas 4 por dia); sem roupa na fila, a vaga leva a melhor moda (bolsa, sapato…)
+PADRAO_LINHA = ("Bm", "Mb", "Mh", "Bk", "C", "Bh", "Bp", "Ma", "Mh", "Bc", "Mr")
 # vaga "h" sem masculino na fila → a vaga feminina de antes (6/3/1): "B" livre, "Bo" corpo/unha, "Mv" moda variada
 RESERVA_H = {2: "B", 5: "Bo", 8: "Mv"}
 
