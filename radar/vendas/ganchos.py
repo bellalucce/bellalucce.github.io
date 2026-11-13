@@ -99,7 +99,7 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"alonga", ["CÍLIOS LONGUÍSSIMOS 👀"]), (r"volume", ["VOLUME NOS CÍLIOS NUMA PASSADA 👀"])],
     "PELE LISINHA E COM VIÇO, AMIGA ✨": [
         (r"vitamina c", ["VITAMINA C PRA PELE COM BRILHO SAUDÁVEL ✨"]),
-        (r"retin[oa]l", ["RETINOL PRA PELE COM CARA DE DESCANSADA ✨"]),
+        (r"retin[oa]l(?!\s*-?\s*like)", ["RETINOL PRA PELE COM CARA DE DESCANSADA ✨"]),
         (r"niacinamida", ["NIACINAMIDA, A QUERIDINHA DO SKINCARE ✨"]),
         (r"hialur", ["HIDRATAÇÃO QUE A PELE SENTE ✨"]),
         (r"limpeza|sabonete|espuma|micelar", ["PELE LIMPINHA SEM REPUXAR ✨"]),

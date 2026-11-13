@@ -454,6 +454,14 @@ def limpar_titulo(t: str) -> str:
     if t.count("|") == 1 and len(t.split("|")[0].split()) >= 4:
         t = t.split("|")[0]
     t = re.sub(r"\s+(?:n[ºo°.]?\s*)?\d{2}\s+(?:ao?|at[ée])\s+\d{2}\s*$", "", t, flags=re.I)
+    # 13/11 (itens abertos da Rita de 09 a 11/10, conferidos de novo): código de modelo com hífen no fim ("Fivela
+    # 052-040"), numeração brasileira com cor no fim ("Casual Branco/preto 38 Br") e preposição solta que sobra depois
+    # de tirar a grade ("Rasteira … Confortavel do 34 ao 39" → "… Confortavel do")
+    t = re.sub(r"\s+\d{2,4}-\d{2,4}\s*$", "", t)
+    t = re.sub(r"\s+\d{2}\s*br\s*$", "", t, flags=re.I)
+    if len(t.split()) >= 4:
+        t = re.sub(rf"\s+{CORES}(?:\s*/\s*{CORES})+\s*$", "", t, flags=re.I)
+    t = re.sub(r"(?:\s+(?:do|da|de|dos|das|ao|e|com|para|p/|em|no|na|tam))+\s*$", "", t, flags=re.I)
     t = re.sub(r"\s{2,}", " ", t).strip(" -–|:/,")
     t = sem_lista_de_palavras(t)
     # marca repetida colada ("Crrju Crju"): tira a 2ª palavra quase igual à anterior — 06/10 (Rita): a IGUAL com
@@ -469,6 +477,13 @@ def limpar_titulo(t: str) -> str:
 
 def cortar(t: str, n: int) -> str:
     """01/10 (Marcos): "…Natu", "…Cravej" — corta no fim da palavra (e sem "de/com/para" sobrando no fim)."""
+    # 13/11 (Rita 13/10, item aberto): cauda depois do último hífen que só repete palavras do começo ("Base Liquida Hidra
+    # Glow 30ml - Niina Secrets - Base Liquida") sai, caiba ou não
+    if (pedacos := re.split(r"\s+[-–]\s+", t)) and len(pedacos) >= 2:
+        cauda, comeco = pedacos[-1].lower().split(), " - ".join(pedacos[:-1]).lower().split()
+        if cauda and len(cauda) <= 4 and all(p in comeco for p in cauda):
+            t = re.split(r"\s+[-–]\s+(?=[^-–]*$)", t)[0]
+    original = t
     if len(t) <= n:
         return t
     # 08/10 (Rita: Eucerin "… 200ml, Anti-Pigment, Clareador Joelho, Coxa…"): título longo com LISTA de atributos depois
@@ -511,7 +526,22 @@ def cortar(t: str, n: int) -> str:
         tams = [m for m in TAMANHO_TITULO.finditer(t) if m.end() >= n * 0.35]
         if tams and len(t[tams[-1].end():].split()) >= 2:
             t = t[:tams[-1].end()]
-    return _fim_limpo(t)
+    t = _fim_limpo(t)
+    # 13/11 (Rita 10/10, item aberto: "Kérastase Chronologiste R$ 386 virou 'Máscara Capilar Regeneradora… 200ml'"): a
+    # marca vinha no FIM, sem vírgula, e o corte a perdeu → volta só o nome da marca, se couber
+    fim3 = " ".join(original.split()[-3:])
+    m = _marca_em(fim3) if not _marca_em(t) else None
+    if m and _marca_em(fim3[m.end():]):  # 2+ marcas no fim = lista de compatíveis ("Electrolux Brastemp Consul")
+        m = None
+    antes = original[:len(original) - len(fim3) + m.start()].split()[-1:] if m else []
+    if m and not (antes and re.fullmatch(r"(?i)para|p/|com|compat[íi]vel|modo|tipo|estilo|linha", antes[0])):
+        # (13/11, medido em 6000 títulos: "compatível com Samsung", "Capa … Electrolux" não são a marca do produto)
+        base, marca = t, m.group(0)
+        while len(base) + 1 + len(marca) > n and " " in base:
+            base = base.rsplit(" ", 1)[0]
+        if len(base.split()) >= 3:  # sem nome de produto sobrando, fica como estava
+            t = f"{_fim_limpo(base)} {marca}"
+    return t
 
 
 TAMANHO_TITULO = re.compile(r"(?i)(?<![\w,.])\d+(?:[.,]\d+)?\s?(?:ml|g|kg|l|oz)(?!\w)")
@@ -3427,7 +3457,10 @@ def faixa_comissao(o: dict) -> int:
         return 1
     return 0
 KIT_VARIADO = re.compile(r"(?i)\b\d{1,3} ?/ ?\d{1,3}\b|\b\d{1,3} (?:ou|e) \d{1,3}\b|\bkit\b[^|]*\+|"
-                         r"\bkit ?\d{1,3} ?pe[çc]as\b")  # "Kit 4 peças Touca Faixa Modelador… com Xuxinhas" = peças diferentes
+                         r"\bkit ?\d{1,3} ?pe[çc]as\b|"  # "Kit 4 peças Touca Faixa Modelador… com Xuxinhas" = peças diferentes
+                         # 13/11 (Rita 18/10 e 22/10): pincéis/argolas/brincos/anéis de um kit são de modelos diferentes,
+                         # e "Kit 5 10 15" (meias) é variação de quantidade → "SÓ R$ X CADA" seria conta que não existe
+                         r"\bpinc[ée]is\b|\bargolas\b|\bbrincos\b|\ban[ée]is\b|\bkit \d{1,3}(?: \d{1,3}){1,}\b")
 PRIME_TESTE = "https://www.amazon.com.br/prime?tag=bellalucce-20"  # 10/10: teste grátis do Prime com a NOSSA etiqueta
 
 # 09/11 (estudo dos canais concorrentes, proposta do ritmo item 4 — ideia do Claude, NÃO ligada): o canal que mais rende
@@ -3857,7 +3890,9 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
             # 09/10 (mix 6/3/1 com pijama e acessório): não deixar a vaga de moda virar só pijama ou só brinco
             (r"pijama|camisola|short[- ]?doll|baby[- ]?doll", "pijama"), (r"brincos?\b", "brinco"),
             (r"\bcolar(?:es)?\b|gargantilha|choker|\bcorrentes?\b", "colar"), (r"\bmules?\b|tamanco", "mule"),
-            (r"presilha|piranha|scrunchie|xuxinha|tiara", "presilha"), (r"\bcintos?\b", "cinto")]
+            (r"presilha|piranha|scrunchie|xuxinha|tiara", "presilha"), (r"\bcintos?\b", "cinto"),
+            # 13/11 (Rita 18/10 e 24/10: ~25 calçados num dia): chinelo/sapatilha/bota não tinham tipo → sem teto
+            (r"chinelo|papete|sapat|scarpin|\bbotas?\b|\bslides?\b|crocs|tamanco", "calçado")]
 
 
 def tipo_repetivel(o: dict) -> str | None:
@@ -3882,7 +3917,10 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
 TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
 # 14/10 (dona: "3 vezes a mesma oferta… da mesma base"): saíram ~10 bases no dia porque o teto dobra quando a fila
 # está curta — base tem teto FIXO, que não dobra
-TETO_DURO = {"base": 3}
+TETO_DURO = {"base": 3,
+             # 13/11 (Rita 18/10: 9 sandálias com teto 6): o teto de sandália dobrava com a fila curta → fixo em 6;
+             # os outros calçados juntos, no máx. 4 por dia
+             "sandália": 6, "calçado": 4}
 
 # 04/10 (dona: "hoje só o melhor: beleza, cabelo, perfume, bolsa, bem feminino" — saíam barbear, coisa de criança,
 # suplemento, máquina de cortar cabelo, camiseta/regata, relógio masculino, caneta depiladora) → modo FEMININO
