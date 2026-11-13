@@ -4042,6 +4042,8 @@ FORA_NICHO_GRUPO = re.compile(
     # 13/11 (Rita 10/10): miçanga de ARTESANATO ("Blend Mix… artesanato Diy bijuterias") passava como moda; a pulseira
     # de miçanga pronta segue no nicho
     r"mi[çc]angas?\b[^|]{0,60}(?:artesanato|\bdiy\b|para fazer|para montar)|(?:artesanato|\bdiy\b)[^|]{0,60}mi[çc]anga|"
+    # 13/11 (Eva 11/10: óculos de LEITURA com grau e expositor de loja tirados da vitrine voltavam aprovados)
+    r"[óo]culos (?:de )?leitura|\bcom grau\b|\bexpositor(?:es)?\b|"
     r"pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
     # 09/10 noite (1ª rodada da busca por TIPO na Shopee trouxe, aprovados pelas regras de então): shampoo de piolho,
     # óleo de massagem "sensual tântrica", shampoo de pet shop na categoria perfume, broca/mandril de manicure (técnico,
@@ -4655,7 +4657,7 @@ def resolver_pedido(alvo: str, cli: httpx.Client) -> dict:
         ids = mlbs_no_html(html)
         if not ids:
             raise PedidoErro("a vitrine /social não mostrou nenhum anúncio")
-        return {"loja": "ml", "mlb": ids[0], "html": html, "outros": ids[1:6]}
+        return {"loja": "ml", "mlb": ids[0], "html": html, "outros": ids[1:6], "vitrine": True}
     m = re.search(r"/p/(MLB\d+)", url)  # anúncio de catálogo: a URL da página é a própria /p/
     if m and not MLB_ANUNCIO.search(url.split("/p/")[0]):
         return {"loja": "ml", "mlb": m.group(1), "url": url.split("?")[0].split("#")[0]}
@@ -4853,7 +4855,9 @@ def pendentes() -> list[dict]:
 def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
     mlb = r["mlb"]
     url = r.get("url") or f"https://produto.mercadolivre.com.br/MLB-{mlb[3:]}"
-    html = r.get("html")
+    # 13/11 (BUG 19/10: MLB7845271010 gravado a 48,93 com o ML mostrando 119,90): a vitrine /social de outra pessoa traz
+    # cartões com preço (de outra variação/dia) e o número do MLB — preço, título e foto só da página do anúncio
+    html = None if r.get("vitrine") else r.get("html")
     d = ler_anuncio_ml(html, mlb) if html else {}
     if not (d.get("titulo") and d.get("preco") and d.get("do_anuncio") and d.get("foto")):
         if r.get("so_html"):  # --html: a página do Chrome é a ÚNICA fonte — nunca abre o ML daqui
