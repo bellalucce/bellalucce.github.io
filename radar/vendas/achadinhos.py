@@ -3672,7 +3672,9 @@ SITE_URL = "https://bellalucce.github.io"
 # 10/11 16h40 (dona: "estuda aí por que que não tá vendendo. E resolve"; estudo 30-Planos/2026-11-10-por-que-nao-vende):
 # 11 dos 15 itens comprados pelo grupo saíram entre 18h e 21h, e a meta conta venda da NOSSA loja. Decisão do Claude:
 # continuam 4 por dia, 1 no almoço e 3 de noite.
-HORAS_LOJA = (12, 18, 20, 21)
+# 13/11 18h12 (dona: "No grupo tá MT repetitivo só coisas da nossa loja precisamos de variedade tá bem ruim"): 3 por
+# dia (almoço, começo e fim da noite, quando o grupo compra), nunca de hora em hora.
+HORAS_LOJA = (12, 18, 20)
 
 
 def horas_da_loja() -> tuple[int, ...]:
@@ -3689,7 +3691,7 @@ def horas_da_loja() -> tuple[int, ...]:
 
 # 13/11 15h56 (dona: "quando for [aprovado o CNPJ], você vai ter que dar um boom na Shopee"): por 7 dias depois da
 # aprovação (dados/loja/boom_shopee.json, escrito por vendas.shopee_cnpj) o post da nossa loja no grupo sai o dobro.
-HORAS_BOOM = (10, 12, 14, 16, 18, 19, 20, 21)
+HORAS_BOOM = (10, 13, 16, 18, 20, 21)  # 13/11 18h12: era 8 por dia; com o pedido de variedade, 6 (decisão do Claude)
 BOOM_DIAS = 7
 
 
@@ -3794,7 +3796,9 @@ def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | N
     # 22/10 (dona: "já posta… mescla coisa que tá parada"): 'por_hora' = 1 post em CADA hora da lista, girando os itens
     por_hora = bool(foco.get("por_hora"))
     if rh := _horas_do_ritmo():  # 04/11 22h (revisão): ritmo ligado → o foco sai nos horários do grupo
-        horas = list(rh) if por_hora else [horas[0] if horas[0] in rh else min((h for h in rh if h >= horas[0]),
+        # 13/11 18h12 (dona: "só coisas da nossa loja"): com o ritmo de hora em hora, 'por_hora' virava 14 posts da loja
+        # por dia (o conserto de 10/11 só valia fora do foco). Agora o foco também sai só nas horas da loja.
+        horas = list(horas_da_loja()) if por_hora else [horas[0] if horas[0] in rh else min((h for h in rh if h >= horas[0]),
                                                                                 default=rh[-1])]
     if agora.minute >= 15 or agora.hour not in (horas if por_hora else horas[:1]):  # sem 'por_hora': 1×/dia
         return None
@@ -3926,7 +3930,12 @@ def shopee_sem_curto(o: dict) -> bool:
     return not re.match(r"https://s\.shopee\.com\.br/", link_afiliado(o["link_loja"], canal="whatsapp") or "")
 
 
-MAX_TIPO_DIA = 3
+# 13/11 18h12 (dona: "No grupo tá MT repetitivo… precisamos de variedade"): 3 → 2 do mesmo tipo por dia, no máx. 3
+# com a fila curta (TETO_FILA_CURTA), e o mesmo tipo não volta antes de TIPO_ESPACO_H horas (em 13/11 saíram 2
+# protetores solares com 1 h entre eles e 2 primers, só porque eram de marcas diferentes).
+MAX_TIPO_DIA = 2
+TETO_FILA_CURTA = 3
+TIPO_ESPACO_H = 4
 TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b", "whey"), (r"mochila", "mochila"),
             (r"t[êe]nis\b", "tênis"), (r"smart ?watch|smart ?band|mi ?band", "smartwatch"), (r"\bfones?\b|headset|earbuds?", "fone"),
             (r"camiseta|camisa\b", "camiseta"), (r"\bcal[çc]a\b", "calça"), (r"panela", "panela"),
@@ -3956,19 +3965,35 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"l[áa]pis", "lápis"), (r"batom", "batom"), (r"gloss|lip ?oil|lip ?tint|tinta labial", "boca"),
                (r"corretivo", "corretivo"), (r"\bbase\b", "base"), (r"\bp[óo]\b", "pó"), (r"blush", "blush"),
                (r"paleta", "paleta"), (r"s[ée]rum", "sérum"), (r"protetor solar|fps ?\d", "protetor"),
+               (r"primer", "primer"),  # 13/11 18h12: primer e limpeza facial não tinham tipo (2 primers no dia)
+               (r"(?:gel|espuma|[óo]leo|loç[ãa]o) de limpeza|limpeza facial|cleanser|demaquilante|[áa]gua micelar",
+                "limpeza facial"),
                (r"hidratante", "hidratante"), (r"sabonete", "sabonete"), (r"m[áa]scara (?:facial|de argila)|sheet mask", "máscara facial"),
                (r"shampoo|condicionador", "shampoo"), (r"m[áa]scara (?:capilar|de hidrata)", "máscara capilar"),
                (r"[óo]leo|finalizador|leave", "finalizador"),
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
                (r"body splash", "body splash"), (r"\btoucas?\b|bonnet", "touca"),  # 13/11: touca de cetim (Beto 10/10)
                (r"organizador", "organizador")]  # 13/11: organizador acrílico (Beto 06/10)
-TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
+TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6}  # 09/10: +sandália/pijama
+# 13/11 18h12: a linha de beleza tinha teto 4 por tipo (8 com a fila curta) → vale MAX_TIPO_DIA (2; 3 com a fila curta)
 # 14/10 (dona: "3 vezes a mesma oferta… da mesma base"): saíram ~10 bases no dia porque o teto dobra quando a fila
 # está curta — base tem teto FIXO, que não dobra
 TETO_DURO = {"base": 3,
              # 13/11 (Rita 18/10: 9 sandálias com teto 6): o teto de sandália dobrava com a fila curta → fixo em 6;
              # os outros calçados juntos, no máx. 4 por dia
              "sandália": 6, "calçado": 4}
+
+def teto_do_tipo(tipo: str | None, fator: int = 1) -> int:
+    """Quantos do mesmo tipo podem sair hoje. `fator` 2 = fila curta (o teto sobe, mas o comum não passa de
+    TETO_FILA_CURTA; base, sandália e calçado têm teto fixo em TETO_DURO)."""
+    if not tipo:
+        return 10 ** 6
+    if tipo in TETO_DURO:
+        return min(TETO_DURO[tipo], fator * TETO_TIPO.get(tipo, TETO_DURO[tipo]))
+    if tipo in TETO_TIPO:
+        return fator * TETO_TIPO[tipo]
+    return MAX_TIPO_DIA if fator <= 1 else TETO_FILA_CURTA
+
 
 # 04/10 (dona: "hoje só o melhor: beleza, cabelo, perfume, bolsa, bem feminino" — saíam barbear, coisa de criança,
 # suplemento, máquina de cortar cabelo, camiseta/regata, relógio masculino, caneta depiladora) → modo FEMININO
@@ -5315,10 +5340,13 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 01/10 (Nina): 6 relógios masculinos e 3 creatinas no mesmo dia → no máx. MAX_TIPO_DIA do mesmo tipo por dia
     # (04/10: a linha de beleza também — TETO_TIPO, "cílios 900 vezes")
     tipos_hoje: dict = {}
-    for r in db.consultar("SELECT titulo, grupo FROM ofertas WHERE publicado_em >= date('now','localtime')"):
+    tipo_ultimo: dict = {}  # 13/11 18h12: hora do último post de cada tipo (TIPO_ESPACO_H)
+    for r in db.consultar("SELECT titulo, grupo, publicado_em FROM ofertas WHERE publicado_em >= date('now','localtime')"):
         t = tipo_repetivel(dict(r))
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
+            tipo_ultimo[t] = max(tipo_ultimo.get(t, ""), str(r["publicado_em"] or "").replace("T", " "))
+    espaco = (agora - timedelta(hours=TIPO_ESPACO_H)).isoformat(sep=" ", timespec="seconds")
     from vendas import datas as _datas
     tema = _datas.tema_do_dia()  # 07/10 (dona: "hoje é dia do perfume… precisa ter muitos perfumes"): o tema não tem teto
 
@@ -5326,8 +5354,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         def _teto(fator: int) -> list:
             return [o for o in lista
                     if (tema and _datas.casa(o, tema))
-                    or tipos_hoje.get(tipo_repetivel(o) or "", 0) < (TETO_DURO.get(tipo_repetivel(o) or "")
-                                                                     or fator * TETO_TIPO.get(tipo_repetivel(o), MAX_TIPO_DIA))]
+                    or (tipos_hoje.get(tipo_repetivel(o) or "", 0) < teto_do_tipo(tipo_repetivel(o), fator)
+                        and (fator > 1 or tipo_ultimo.get(tipo_repetivel(o) or "", "") < espaco))]
         out = _teto(1)
         # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por
         # rodada): se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx.
