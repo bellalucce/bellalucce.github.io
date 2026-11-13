@@ -357,6 +357,11 @@ CAMA_BANHO = re.compile(r"travesseiro|almofada|len[çc]ol|edredom|toalha|coberto
 
 def _grupo_final(g: str, titulo: str) -> str:
     """Refina a categoria pelo título: perfume vira aba própria; categoria genérica tenta pelas palavras."""
+    # 13/11 (Rita 09/10: "perfume de roupa (Comfort) na categoria perfume"): cheiro de roupa/casa é CASA (o aroma de casa
+    # bonita que a dona liberou em 07/10), não perfume de gente — senão sai com gancho e teto de perfume
+    if re.search(r"(?i)perfumes? (?:para|de|p/) (?:roupas?|tecidos?|ambientes?|carros?)|home spray|aromatizador|"
+                 r"[áa]gua de passar", titulo or ""):
+        return "casa"
     if PERFUME.search(titulo or "") and not re.search(r"expositor|organizador|porta[- ]|sem (?:perfume|fragr[âa]ncia)|"
                                                        r"lan[çc]a[- ]perfume",  # 01/10: Lança Perfume = marca de roupa
                                                        titulo or "", re.I):  # 01/10 (Marcos): "Loção… Sem Perfume"
@@ -862,7 +867,8 @@ INGLES =re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproo
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
                            r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
                            r"cosm[ée]ticos \d+ cores|para deslocamento|\bde arte de\b|"  # (Nina/Rita 01/10)
-                           r"skin[- ]friendly|\bsponge\b")  # 13/11 (Beto 10/10): "Sponge Puff Skin-friendly"
+                           r"skin[- ]friendly|\bsponge\b|"  # 13/11 (Beto 10/10): "Sponge Puff Skin-friendly"
+                           r"\brel gios?\b")  # 13/11 (Rita 06/10): "Relógios" com o acento comido
 # 01/10 (Nina): peça vendida com o nome do aparelho na frente ("Cortador De Cabelo Kemei 2299 Pentes Guia" por R$ 29,99
 # = só os pentes) → o gancho e a foto vendem o aparelho. Aparelho nas 4 primeiras palavras + peça/refil depois = fora.
 APARELHO = re.compile(r"(?i)^(?:\S+\s+){0,3}?(?:cortador|m[áa]quina de (?:cortar|corte|barbear)|aparador|barbeador|"
@@ -3916,7 +3922,8 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
             (r"presilha|piranha|scrunchie|xuxinha|tiara", "presilha"), (r"\bcintos?\b", "cinto"),
             # 13/11 (Rita 18/10 e 24/10: ~25 calçados num dia): chinelo/sapatilha/bota não tinham tipo → sem teto
             (r"chinelo|papete|sapat|scarpin|\bbotas?\b|\bslides?\b|crocs|tamanco", "calçado"),
-            (r"\btoucas?\b|bonnet", "touca")]  # 13/11 (Beto 10/10: 5º kit de touca de cetim no dia)
+            (r"\btoucas?\b|bonnet", "touca"),  # 13/11 (Beto 10/10: 5º kit de touca de cetim no dia)
+            (r"organizador", "organizador")]  # 13/11 (Beto 06/10: 6 organizadores acrílicos na mesma fila)
 
 
 def tipo_repetivel(o: dict) -> str | None:
@@ -3937,7 +3944,8 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"shampoo|condicionador", "shampoo"), (r"m[áa]scara (?:capilar|de hidrata)", "máscara capilar"),
                (r"[óo]leo|finalizador|leave", "finalizador"),
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
-               (r"body splash", "body splash"), (r"\btoucas?\b|bonnet", "touca")]  # 13/11: touca de cetim (Beto 10/10)
+               (r"body splash", "body splash"), (r"\btoucas?\b|bonnet", "touca"),  # 13/11: touca de cetim (Beto 10/10)
+               (r"organizador", "organizador")]  # 13/11: organizador acrílico (Beto 06/10)
 TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
 # 14/10 (dona: "3 vezes a mesma oferta… da mesma base"): saíram ~10 bases no dia porque o teto dobra quando a fila
 # está curta — base tem teto FIXO, que não dobra
