@@ -1032,13 +1032,14 @@ def aprovada(o: dict) -> bool:
         return False
     # 13/11 18h45 (dona: "Põem um pouco de roupas… coisas mais estilosas"): roupa estilosa (lisa, corte moderno; nunca
     # estampada/brega) tinha só a régua do "resto" (Promobit 55% = "De" inflado) → 29 roupas boas no banco, 2 aprovadas.
-    # Régua dela: 30% OFF e marca que a pessoa reconhece (Hering, Zara, Mango, Nike…; na Shopee só loja oficial, que o
-    # marketplace é cheio de cópia) ou anúncio bem avaliado e vendido. Na Black o filtro das melhores continua por cima.
+    # Régua (do Claude): 30% OFF e marca que a pessoa reconhece (Hering, Zara, Mango, Nike…; na Shopee só loja oficial,
+    # que o marketplace é cheio de cópia) ou 20% OFF com nota ≥ 4,6 e 300 vendidos. Na Black o filtro das melhores continua por cima.
     if roupa_estilosa(o) and o["fonte"] in ("promobit", "ml_afiliados", "shopee_afiliados", "amazon_ref"):
         nota, vend = o.get("nota") or 0, s.get("vendidos_num", 0)
         marca = bool(s.get("oficial")) or (o["fonte"] != "shopee_afiliados" and (marca_conhecida(o) or _tem_marca(
             o.get("titulo") or "", listas_marcas())))
-        return d >= 30 and (marca or (nota >= 4.6 and vend >= 300) or bool(s.get("top")) or s.get("otima", 0) >= 3)
+        return ((d >= 30 and (marca or bool(s.get("top")) or s.get("otima", 0) >= 3))
+                or (d >= 20 and nota >= 4.6 and vend >= 300))  # bem avaliada e vendida: a régua da moda (moda_boa)
     if o.get("grupo") in ("beleza", "cabelo", "perfume") and o["fonte"] == "promobit":  # foco: mais permissivo
         return s.get("top") or d >= 30 or s.get("otima", 0) >= 3 or s.get("curtidas", 0) >= 5
     # "só promoções muito boas": desconto alto + algum sinal de qualidade (loja oficial, nota, voto da comunidade)
@@ -3835,11 +3836,26 @@ def _post_do_foco(cfg: dict, foco: dict, agora: datetime) -> tuple[str, str] | N
                   f"🗣️ *Por:* {pr['por']} _(na {pr.get('canal', 'Shopee')}, {ate_da_promo(pr)})_"]
     else:
         url = next(iter(p["links"].values()))
-        linhas = [f"*{p['chamada']}*" if p.get("chamada") else "*DA NOSSA LOJINHA 💖*", "", f"🛍️ {legenda}"]
+        linhas = [f"*{chamada_loja(p.get('chamada'), agora)}*", "", f"🛍️ {legenda}"]
         if p.get("preco"):
             linhas += ["", f"💰 {p['preco']}"]
     linhas += ["", f"🛒 *Compre aqui:* {url}", "", "_Produto da loja Bella Lucce, notificado na ANVISA._"]
     return "\n".join(linhas), str(config.RAIZ / p["foto"])
+
+
+# 13/11 18h58 (dona: "Na nossa lojinha diz q os produtos são novidades. Mas já n são mais então mude a legenda de
+# todos"): chamada da loja nunca diz que é novidade/que acabou de chegar/que baixou o preço (isso fica velho e vira
+# mentira). Sem chamada própria (ou com uma dessas), gira entre estas, uma diferente a cada post.
+CHAMADAS_LOJA = ["DA NOSSA LOJINHA 💖", "DIRETO DA NOSSA LOJINHA PRA VOCÊ 💕", "TEM NA NOSSA LOJINHA ✨",
+                 "MIMO DA NOSSA LOJINHA 🎀", "PRA FICAR LINDA GASTANDO POUCO 💄", "ACHADINHO DA NOSSA LOJINHA 🌸",
+                 "OLHA ESSE DA NOSSA LOJINHA 👀"]  # 7 (número primo): as horas 12, 18 e 20 nunca caem na mesma
+CHAMADA_VELHA = re.compile(r"(?i)novidade|acabou de chegar|chegou|lan[çc]amento|rec[ée]m|\bnov[oa]s?\b|baixou")
+
+
+def chamada_loja(propria: str | None, agora: datetime) -> str:
+    if propria and not CHAMADA_VELHA.search(propria):
+        return propria
+    return CHAMADAS_LOJA[(agora.toordinal() * 24 + agora.hour) % len(CHAMADAS_LOJA)]
 
 
 def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
@@ -3900,7 +3916,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         url = p["links"].get(pr.get("canal", "Shopee")) or next(iter(p["links"].values()))
         linhas += ["", f"🛒 *Compre aqui:* {url}"]
     else:
-        linhas = [f"*{p['chamada']}*" if p.get("chamada") else "*DA NOSSA LOJINHA 💖*", "", f"🛍️ {legenda}"]
+        linhas = [f"*{chamada_loja(p.get('chamada'), agora)}*", "", f"🛍️ {legenda}"]
         if p.get("preco"):
             linhas += ["", f"💰 {p['preco']}"]
         linhas += ["", f"🛒 *Compre aqui:* {next(iter(p['links'].values()))}"]
@@ -5387,7 +5403,9 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
             tipo_ultimo[t] = max(tipo_ultimo.get(t, ""), str(r["publicado_em"] or "").replace("T", " "))
-    espaco = (agora - timedelta(hours=TIPO_ESPACO_H)).isoformat(sep=" ", timespec="seconds")
+    # 13/11 19h15 (medido no servidor: sandália 18h16 e sandália 19h03): com a fila curta (fator 2, quase o dia todo)
+    # o espaço entre o mesmo tipo caía para zero; agora encolhe para a metade (2 h), nunca some
+    espacos = {f: (agora - timedelta(hours=TIPO_ESPACO_H / f)).isoformat(sep=" ", timespec="seconds") for f in (1, 2)}
     from vendas import datas as _datas
     tema = _datas.tema_do_dia()  # 07/10 (dona: "hoje é dia do perfume… precisa ter muitos perfumes"): o tema não tem teto
 
@@ -5396,7 +5414,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             return [o for o in lista
                     if (tema and _datas.casa(o, tema))
                     or (tipos_hoje.get(tipo_repetivel(o) or "", 0) < teto_do_tipo(tipo_repetivel(o), fator)
-                        and (fator > 1 or tipo_ultimo.get(tipo_repetivel(o) or "", "") < espaco))]
+                        and tipo_ultimo.get(tipo_repetivel(o) or "", "") < espacos[min(fator, 2)])]
         out = _teto(1)
         # 06/10 (dona: "por que esse espaço gigante entre os posts?" — à noite sobravam 5–7 ofertas e saía 1 por
         # rodada): se o teto deixa a fila do perfil com menos de 20, dobra o teto (ainda varia o tipo; cílios no máx.
