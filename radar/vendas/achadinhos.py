@@ -3680,10 +3680,26 @@ def horas_da_loja() -> tuple[int, ...]:
     grupo" viraram TODAS as 14 horas do dia e o post da loja saiu de hora em hora (8 vezes até as 16h, com 4 combinados).
     Com o ritmo ligado valem as HORAS_LOJA que são hora do grupo; se nenhuma for (ritmo de poucos horários), as horas do
     grupo, como desde 04/11."""
+    base = HORAS_BOOM if boom_shopee() else HORAS_LOJA
     do_ritmo = _horas_do_ritmo()
     if not do_ritmo:
-        return HORAS_LOJA
-    return tuple(h for h in HORAS_LOJA if h in do_ritmo) or do_ritmo
+        return base
+    return tuple(h for h in base if h in do_ritmo) or do_ritmo
+
+
+# 13/11 15h56 (dona: "quando for [aprovado o CNPJ], você vai ter que dar um boom na Shopee"): por 7 dias depois da
+# aprovação (dados/loja/boom_shopee.json, escrito por vendas.shopee_cnpj) o post da nossa loja no grupo sai o dobro.
+HORAS_BOOM = (10, 12, 14, 16, 18, 19, 20, 21)
+BOOM_DIAS = 7
+
+
+def boom_shopee(agora: datetime | None = None) -> bool:
+    try:
+        d = json.loads((config.DADOS / "loja" / "boom_shopee.json").read_text(encoding="utf-8"))
+        desde = datetime.fromisoformat(str(d["desde"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return desde <= (agora or datetime.now()) < desde + timedelta(days=BOOM_DIAS)
 
 
 def _horas_do_ritmo() -> tuple[int, ...] | None:
