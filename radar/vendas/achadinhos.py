@@ -861,7 +861,8 @@ INGLES =re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproo
                     r"colors|eyeliner|eyeshadow|tint|liquid|cream|types?|ea|\d+(?:types?|ea|colors?))\b")
 LIXO_TRADUCAO = re.compile(r"(?i)[，、【】]|[一-鿿]|\bdos homens\b|\bdas mulheres\b|portas rel[óo]gios|"
                            r"marca de luxo|\bnovo estilo\b|\bmoda nova\b|\w+waterproof|prova d\W?water|"
-                           r"cosm[ée]ticos \d+ cores|para deslocamento|\bde arte de\b")  # (Nina/Rita 01/10)
+                           r"cosm[ée]ticos \d+ cores|para deslocamento|\bde arte de\b|"  # (Nina/Rita 01/10)
+                           r"skin[- ]friendly|\bsponge\b")  # 13/11 (Beto 10/10): "Sponge Puff Skin-friendly"
 # 01/10 (Nina): peça vendida com o nome do aparelho na frente ("Cortador De Cabelo Kemei 2299 Pentes Guia" por R$ 29,99
 # = só os pentes) → o gancho e a foto vendem o aparelho. Aparelho nas 4 primeiras palavras + peça/refil depois = fora.
 APARELHO = re.compile(r"(?i)^(?:\S+\s+){0,3}?(?:cortador|m[áa]quina de (?:cortar|corte|barbear)|aparador|barbeador|"
@@ -3914,7 +3915,8 @@ TIPO_DIA = [(r"rel[óo]gio", "relógio"), (r"creatina", "creatina"), (r"\bwhey\b
             (r"\bcolar(?:es)?\b|gargantilha|choker|\bcorrentes?\b", "colar"), (r"\bmules?\b|tamanco", "mule"),
             (r"presilha|piranha|scrunchie|xuxinha|tiara", "presilha"), (r"\bcintos?\b", "cinto"),
             # 13/11 (Rita 18/10 e 24/10: ~25 calçados num dia): chinelo/sapatilha/bota não tinham tipo → sem teto
-            (r"chinelo|papete|sapat|scarpin|\bbotas?\b|\bslides?\b|crocs|tamanco", "calçado")]
+            (r"chinelo|papete|sapat|scarpin|\bbotas?\b|\bslides?\b|crocs|tamanco", "calçado"),
+            (r"\btoucas?\b|bonnet", "touca")]  # 13/11 (Beto 10/10: 5º kit de touca de cetim no dia)
 
 
 def tipo_repetivel(o: dict) -> str | None:
@@ -3935,7 +3937,7 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"shampoo|condicionador", "shampoo"), (r"m[áa]scara (?:capilar|de hidrata)", "máscara capilar"),
                (r"[óo]leo|finalizador|leave", "finalizador"),
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
-               (r"body splash", "body splash")]
+               (r"body splash", "body splash"), (r"\btoucas?\b|bonnet", "touca")]  # 13/11: touca de cetim (Beto 10/10)
 TETO_TIPO = {"bolsa": 10, "sandália": 6, "pijama": 6, **{nome: 4 for _, nome in TIPO_BELEZA}}  # 09/10: +sandália/pijama
 # 14/10 (dona: "3 vezes a mesma oferta… da mesma base"): saíram ~10 bases no dia porque o teto dobra quando a fila
 # está curta — base tem teto FIXO, que não dobra
@@ -4029,6 +4031,9 @@ FORA_NICHO_GRUPO = re.compile(
     # 09/10 (dona: "o que foi aquela cola de prótese capilar? não tem nada a ver com a nossa coisa"): prótese (capilar,
     # dentária) e cola/fita de fixação de peruca/mega hair/lace = produto técnico, fora do público "quem ama comprar"
     r"(?i)esmalte sint[ée]tico|enferrujad|\bferrugem\b|"  # 17/10 (nuvem): tinta de portão caía em "beleza make" por "esmalte"
+    # 13/11 (Rita 10/10): miçanga de ARTESANATO ("Blend Mix… artesanato Diy bijuterias") passava como moda; a pulseira
+    # de miçanga pronta segue no nicho
+    r"mi[çc]angas?\b[^|]{0,60}(?:artesanato|\bdiy\b|para fazer|para montar)|(?:artesanato|\bdiy\b)[^|]{0,60}mi[çc]anga|"
     r"pr[óo]tese|\bcola\b[^|]{0,40}(?:mega ?hair|peruca|lace|wig)|fita adesiva[^|]{0,30}(?:peruca|pr[óo]tese|lace)|"
     # 09/10 noite (1ª rodada da busca por TIPO na Shopee trouxe, aprovados pelas regras de então): shampoo de piolho,
     # óleo de massagem "sensual tântrica", shampoo de pet shop na categoria perfume, broca/mandril de manicure (técnico,
