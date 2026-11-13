@@ -1083,6 +1083,8 @@ def aprovada(o: dict) -> bool:
         # nota ≥ 4,7 e +1.000 vendidos (falsificado junta avaliação "não é original"; a loja oficial tem 4,8–4,9 e +10 mil)
         if FALSIFICAVEL.search(o.get("titulo") or "") and not (nota >= 4.7 and vend >= 1000) and not s.get("oficial"):
             return False  # loja OFICIAL (feed "Shopee Oficial BR") já garante o original
+        if achadinho_sem_promo(o):  # 13/11 19h40 (dona): barato, bonito e viral do nicho vale sem desconto
+            return True
         if o["fonte"] == "shopee_afiliados" and s.get("origem") == "vitrine_fiel":
             # 06/10 (Eva): semelhante do que a divulgação MOSTRA — barato e bonito pesa mais que % de desconto; exige
             # confiança (nota ≥ 4,6 e 100+ vendidos, ou loja oficial). O Beto/Rita ainda revisam a fila antes de postar.
@@ -3258,7 +3260,8 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
         probs.append("Vivara não pode sair com preço")
     if o.get("preco") and _brl(o["preco"]) not in "\n".join(linhas):
         probs.append("preço do texto diferente do preço da oferta")
-    if o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]:
+    if (o.get("preco_antigo") and o.get("preco") and o["preco_antigo"] <= o["preco"]
+            and any(ln.startswith("De: ~") for ln in linhas)):  # 13/11: sem a linha "De" no post, nada a comparar
         probs.append("'de' menor ou igual ao 'por'")
     # 10/11 (Claude, aplicando a regra da dona de 26/10: "promoções honestas… não ter promoção inflada"): às 09h20 um
     # colar saiu com "De" R$ 98,33 por R$ 23,60 (4,2×) — a fila aprova na coleta e o preço muda depois. Última trava,
@@ -3269,6 +3272,11 @@ def conferir_legenda(o: dict, texto: str, quando: str = "") -> list[str]:
     # 08/10 (Rita, 5ª rodada seguida): post de oferta sem a linha "De:" riscada não vai (regra da dona) — última trava
     if ("*Por:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas)
             and (not quando or quando >= REGRA_DE_NO_POST_DESDE)):
+        probs.append("sem preço 'De' no post")
+    # 13/11 19h40: o "Só:" (sem "De") vale só para o achadinho barato e viral do nicho ou para o pedido da dona
+    elif ("*Só:*" in (texto or "") and not any(ln.startswith("De: ~") for ln in linhas)
+          and not (achadinho_sem_promo(o) or sinais_de(o).get("pedido_dona") or o.get("pedido_dona"))
+          and (not quando or quando >= REGRA_DE_NO_POST_DESDE)):
         probs.append("sem preço 'De' no post")
     # 08/10 (revisão): post com 2 links (💌 indique / 🎟️ cupons do dia) — o link do PRODUTO é o do "Compre aqui"; o do
     # site/cupom não pode esconder um "Compre aqui" sem link (texto sem "Compre aqui" = regra antiga, qualquer https)
@@ -3583,6 +3591,13 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
         por += " pra quem é Prime"
     # 05/11 18h07 dona: "pare de colocar horário na frente do preço… tem cliente que está se confundindo, achando que a
     # promoção só vai até aquele horário… só não põe nada" — substitui a regra de 30/09 (hora da Amazon junto do preço)
+    # 13/11 19h40 (dona: "Só pq não está em promoção não quer dizer que NAO pode postar"): sem "De" na legenda o post
+    # não promete desconto — preço como "Só:" e chamada de achadinho, nunca frase de promoção
+    mostra_de = bool(o.get("preco_antigo") and de_confiavel(o) and float(o["preco_antigo"]) > float(o.get("preco") or 0))
+    if not mostra_de:
+        por = por.replace("🗣️ *Por:*", "💰 *Só:*", 1)
+        if GANCHO_DE_PROMO.search(gancho):
+            gancho = GANCHOS_SEM_PROMO[(n + len(o.get("id") or "")) % len(GANCHOS_SEM_PROMO)]
     linhas = [f"*{gancho}*", "", f"🛍️ {titulo_do_post(o)}", ""]
     try:  # 04/11 (dona: "sempre vai pôr referência a Black, sempre"): esquenta e Black — topo no alto da legenda
         from vendas import black_friday
@@ -3590,7 +3605,7 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
             linhas = [topo, ""] + linhas
     except Exception:  # noqa: BLE001 — a Black nunca derruba a legenda
         pass
-    if o.get("preco_antigo") and de_confiavel(o):
+    if mostra_de:
         linhas.append(f"De: ~{_brl_zap(o['preco_antigo'])}~")
     linhas.append(por)
     if selo := selo_preco(o):
@@ -4461,6 +4476,67 @@ def farmacia_shopee_comum(o: dict) -> bool:
 def tem_de_no_post(o: dict) -> bool:
     p, de = o.get("preco") or 0, o.get("preco_antigo") or 0
     return p > 0 and de > p and de_confiavel(o)
+
+
+# 13/11 19h40 (dona: "a gente n vai por só promoção tem q ter coisinhas q são baratas e bonitas tmb… Só pq não está em
+# promoção não quer dizer que NAO pode postar… Nosso foco é promoção mas pode ter uma coisa ou outra q não está em
+# promoção e seja do nosso nicho pq está viral e vendendo bem e MT desejado"). Régua (do Claude): marketplace, preço até
+# SEM_PROMO_PRECO_MAX, nota ≥ 4,7 e muitas vendas (viral), do nicho do grupo (perfil feminino/masculino do grupo ou o
+# tema da época, como o Natal). Promoção continua sendo o foco: no máx. 1 por rodada e SEM_PROMO_DIA_MAX por dia.
+SEM_PROMO_PRECO_MAX, SEM_PROMO_NOTA_MIN, SEM_PROMO_VENDAS_MIN = 80.0, 4.7, 2000
+SEM_PROMO_POR_RODADA, SEM_PROMO_DIA_MAX = 1, 4
+GANCHO_DE_PROMO = re.compile(r"(?i)descont|promo|\boff\b|baixou|caiu|econom|metade|pre[çc]o bom|abaixo|barateou|liquida")
+GANCHOS_SEM_PROMO = ("ACHADINHO QUE TÁ BOMBANDO 🔥", "BARATINHO E LINDO 💖", "TODO MUNDO QUERENDO ESSE ✨")
+
+
+def _tema_da_epoca(o: dict) -> bool:
+    """O produto casa com um tema da agenda que ainda vale hoje (Natal: decoração, mimo, mesa posta)."""
+    try:
+        from vendas import datas as _dt
+        hoje = date.today().isoformat()
+        return any(hoje <= str(t.get("ate", "")) and _dt.casa(o, t) for t in (_dt.agenda().get("noites") or []))
+    except Exception:  # noqa: BLE001 — sem a agenda, só o perfil do grupo
+        return False
+
+
+def achadinho_sem_promo(o: dict) -> bool:
+    """Coisinha barata, bonita e viral do nicho que pode sair sem desconto (dona, 13/11 19h40)."""
+    if tem_de_no_post(o) or o.get("fonte") not in ("shopee_afiliados", "ml_afiliados", "amazon_ref"):
+        return False
+    if o.get("grupo") == "eletronicos" or vencendo(o.get("titulo") or ""):
+        return False
+    s, t = sinais_de(o), o.get("titulo") or ""
+    try:
+        preco, nota = float(o.get("preco") or 0), float(o.get("nota") or 0)
+        vend = int(float(s.get("vendidos_num") or 0))
+    except (TypeError, ValueError):
+        return False
+    if not (0 < preco <= SEM_PROMO_PRECO_MAX and nota >= SEM_PROMO_NOTA_MIN and vend >= SEM_PROMO_VENDAS_MIN):
+        return False
+    if o.get("fonte") == "shopee_afiliados" and (FALSIFICAVEL.search(t) or LUXO.search(t)) and not s.get("oficial"):
+        return False  # cópia de marca no marketplace continua fora
+    return no_perfil_grupo(o) or _tema_da_epoca(o)
+
+
+def sem_promo_hoje() -> int:
+    """Quantas ofertas sem "De" maior que o "Por" já saíram hoje no grupo."""
+    try:
+        r = db.consultar("SELECT COUNT(*) AS n FROM ofertas WHERE publicado_em >= date('now','localtime') "
+                         "AND (preco_antigo IS NULL OR preco_antigo <= preco)")
+        return int(r[0]["n"]) if r else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def limitar_sem_promo(cand: list, ja_hoje: int | None = None) -> list:
+    """Promoção é o foco: das sem promoção fica só a mais vendida (1 por rodada) e nenhuma depois do teto do dia."""
+    sem = [o for o in cand if achadinho_sem_promo(o)]
+    if not sem:
+        return cand
+    ja_hoje = sem_promo_hoje() if ja_hoje is None else ja_hoje
+    vagas = max(0, min(SEM_PROMO_POR_RODADA, SEM_PROMO_DIA_MAX - ja_hoje))
+    fica = {o["id"] for o in sorted(sem, key=lambda o: -int(float(sinais_de(o).get("vendidos_num") or 0)))[:vagas]}
+    return [o for o in cand if o["id"] in fica or not achadinho_sem_promo(o)]
 
 
 def de_passa_na_conferencia(o: dict) -> bool:
@@ -5344,7 +5420,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     # 07/10 (Rita: COSRX/Medicube só com "Por"): o post do grupo é "De riscado → Por" (modelo Entre Mulheres) → sem
     # "De" maior que o "Por" não vai. 08/10: e o "De" tem de APARECER na legenda (tem_de_no_post) — antes só o número
     # era olhado e a legenda escondia o "De" não confiável, então o post saía só com "Por"
-    regras.append(("sem preço 'De'", lambda o: tem_de_no_post(o)))
+    # 13/11 19h40 (dona): coisinha barata, bonita e viral do nicho também passa (limitar_sem_promo: 1 por rodada)
+    regras.append(("sem preço 'De'", lambda o: tem_de_no_post(o) or achadinho_sem_promo(o)))
     # 03/10 (dona, depois do post do "pato" e de uma pessoa sair): "modo só o melhor" — só as categorias do público
     # (config/achadinhos.json → "grupos_permitidos"; sem a chave = todas)
     permitidos = permitidos_teste or canais().get("grupos_permitidos")
@@ -5364,10 +5441,15 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     try:  # 04/11 (dona: "só vai postar as melhores promoções"): esquenta e Black — filtro duro que solta se o grupo secar
         from vendas import black_friday
         if black_friday.ativo(agora):
-            cand = black_friday.filtrar(cand, agora, lojas=LOJAS_COTA, loja_de=loja_de)
+            # 13/11 19h40 (dona): a coisinha sem promoção não disputa com as promoções da Black — volta depois do filtro
+            sem = [o for o in cand if achadinho_sem_promo(o)]
+            cand = black_friday.filtrar([o for o in cand if not achadinho_sem_promo(o)], agora, lojas=LOJAS_COTA,
+                                        loja_de=loja_de) + sem
             marca(f"Black: só as melhores (nível {black_friday.ULTIMO_NIVEL['nivel']})", cand)
     except Exception as e:  # noqa: BLE001 — o filtro nunca para o grupo: com erro, segue sem ele
         print(f"black_friday (filtro): {type(e).__name__}: {str(e)[:120]}")
+    cand = limitar_sem_promo(cand)
+    marca(f"sem promoção: no máx. {SEM_PROMO_POR_RODADA} por rodada e {SEM_PROMO_DIA_MAX} por dia", cand)
     # 12/10 (Rita, 1ª leitura dos títulos consertados): o conserto encurta, e anúncios diferentes viram o MESMO título
     # no post ("Tênis Feminino Plataforma" 4×) → o mesmo título não sai 2× no dia; na fila fica o primeiro
     try:
@@ -5461,7 +5543,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         return melhor
     unicos, final, recentes, janela = variar(cand)
     if len(final) < POUCO_ESTOQUE and voltam:
-        de_volta = [o for o in voltam if all(passa(o) for _, passa in regras) and not familia_repetida(o)]
+        de_volta = [o for o in voltam if all(passa(o) for _, passa in regras) and not familia_repetida(o)
+                    and not achadinho_sem_promo(o)]  # 13/11: sem promoção só a vaga de limitar_sem_promo
         try:  # 04/11 (Black): quem volta depois de dias também tem de ser "das melhores"
             from vendas import black_friday
             de_volta = [o for o in de_volta if black_friday.passa_no_nivel_atual(o, agora)]
