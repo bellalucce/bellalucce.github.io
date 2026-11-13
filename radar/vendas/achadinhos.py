@@ -410,6 +410,7 @@ def limpar_titulo(t: str) -> str:
     # 30/09 segurança: título vem da comunidade (Promobit) → link/telefone no título viraria link clicável no grupo
     # (golpe). O único link do post é o da loja, conferido por pagina_de_produto().
     t = re.sub(r"\s{2,}", " ", LINK_OU_FONE.sub(" ", t)).strip(" -–|:")
+    t = re.sub(r"\b([LlDd])[`´‘’](?=[A-Za-zÀ-ÿ])", r"\1'", t)  # 13/11 (Rita 09/10): "L`oreal" → "L'oreal"
     # 01/10 (revisão do grupo): "[OFFICIAL] Epais…", "…Original Blogueira Promoção" — rótulo/palavra de anúncio no nome
     t = re.sub(r"^\s*[\[(【](?:official|oficial|original|hot|new|novo|promo\w*|sale)[\])】]\s*", "", t, flags=re.I)
     # 01/10 (Marcos): "…Original Blogueira Promoção Envio Da Coreia" — palavra de anúncio no MEIO também

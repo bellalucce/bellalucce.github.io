@@ -509,6 +509,8 @@ def candidatos(tipo: str, titulo: str, hoje: date | None = None, preco: float | 
         out = [f.replace("👟", "🥿") for f in out]  # 10/10 (Rita): sapatilha saía com emoji de tênis
     if re.search(r"sand[áa]lia|rasteir|chinelo|tamanco|papete|birken", titulo, re.I):
         out = [f.replace("👟", "👡") for f in out]  # 👟 é tênis
+    if re.search(r"\bbotas?\b|coturno|galocha", titulo, re.I):
+        out = [f.replace("👟", "👢") for f in out]  # 13/11 (Rita 15/10): bota/coturno saía com emoji de tênis
     if re.search(r"labial|l[áa]bios?\b|\blip\b|\blips\b|boca", titulo, re.I):
         out = [f for f in out if not re.search(r"\bPELE\b", f)] or out  # reparador LABIAL ≠ "sua pele vai agradecer"
     if so_corretivo(titulo):  # 08/10 noite (Rita): corretivo "matte" não é "SEM BRILHO NA TESTA"
