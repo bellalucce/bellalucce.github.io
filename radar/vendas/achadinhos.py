@@ -114,6 +114,8 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
 PALAVRAS["eletronicos"] += r"|motorola|samsung|iphone|xiaomi|redmi|galaxy|kindle|echo dot|alexa|smartwatch|playstation|xbox"
 # 08/11 03h (inspetor da escola LoRA): "Lapis Olhos Esfumador" e "Inoar… Super Ampola" ficavam em "outros" e o curador pulava
 PALAVRAS["beleza"] += r"|l[áa]pis (?:de )?olhos?|esfumador|\bampolas?\b"
+# 13/11 (Claude 09/10, Caixa): "Wella … Shamp 250ml + Cond 200ml" ficava em "outros" pela abreviação
+PALAVRAS["beleza"] += r"|\bshamp\b|\bcond\b(?=\s*\d)"
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
 # marca popular. Peso somado ao score — segue uma linha em vez de "aleatório".
 PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6, "infantil": 6, "moda": 5, "pet": 3,
@@ -830,7 +832,26 @@ def de_inflado(o: dict) -> bool:
         return False
     s = sinais_de(o)
     de, por = o.get("preco_antigo") or 0, o.get("preco") or 0
-    return de > (DE_CONFERIDO_MAX if s.get("de_conferido") else DE_MAX) * por > 0 and not s.get("oficial")
+    if de > (DE_CONFERIDO_MAX if s.get("de_conferido") else DE_MAX) * por > 0 and not s.get("oficial"):
+        return True
+    # 13/11 (Beto 09–13/10, 6×; dona 26/10 "promoções honestas"): na Shopee e no ML, "De" EXATAMENTE 2× com menos de
+    # 3 dias de histórico é o padrão do De inflado (~1% das ofertas de 48 h)
+    return bool(por > 0 and abs(de / por - 2) < 0.011 and not s.get("oficial") and not s.get("de_conferido")
+                and str(o.get("id") or "").startswith(("shpaf:", "mlaf:")) and dias_de_historico(o.get("id")) < 3)
+
+
+_HIST: dict = {}
+
+
+def dias_de_historico(id_oferta: str | None) -> int:
+    """Em quantos dias (últimos 30) o preço da oferta foi visto (ofertas_precos). Lido 1 vez por processo."""
+    if "dias" not in _HIST:
+        try:
+            _HIST["dias"] = {r["id"]: r["n"] for r in db.consultar(
+                "SELECT id, COUNT(*) n FROM ofertas_precos WHERE dia >= date('now','-30 days') GROUP BY id")}
+        except Exception:  # noqa: BLE001 — sem banco: não barra por isso
+            return 99
+    return _HIST["dias"].get(id_oferta or "", 0)
 
 
 INGLES =re.compile(r"(?i)\b(?:for|with|and|women|woman|men|lady|girls?|waterproof|long[- ]lasting|makeup|lipstick|"
