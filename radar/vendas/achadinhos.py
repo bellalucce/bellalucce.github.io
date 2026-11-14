@@ -4520,12 +4520,42 @@ def achadinho_sem_promo(o: dict) -> bool:
 
 def sem_promo_hoje() -> int:
     """Quantas ofertas sem "De" maior que o "Por" já saíram hoje no grupo."""
-    try:
-        r = db.consultar("SELECT COUNT(*) AS n FROM ofertas WHERE publicado_em >= date('now','localtime') "
+    try:  # 13/11 21h30: pedido da dona sem "De" não gasta a cota dos achadinhos sem promoção
+        ped = set(pedidos_dona(48) or {})
+        r = db.consultar("SELECT id FROM ofertas WHERE publicado_em >= date('now','localtime') "
                          "AND (preco_antigo IS NULL OR preco_antigo <= preco)")
-        return int(r[0]["n"]) if r else 0
+        return sum(1 for x in r if x["id"] not in ped)
     except Exception:  # noqa: BLE001
         return 0
+
+
+SEM_PROMO_POSICAO, SEM_PROMO_ESPACO_H = 1, 3
+
+
+def horas_desde_sem_promo() -> float | None:
+    """Horas desde a última oferta sem "De" maior que o "Por" que saiu no grupo (None = nenhuma hoje)."""
+    # 13/11 21h30 (medido no servidor: os pedidos da dona sem "De", trenzinho 20h08, tiravam a vaga) — pedido dela não conta
+    try:
+        ped = set(pedidos_dona(48) or {})
+        r = db.consultar("SELECT id, publicado_em FROM ofertas WHERE publicado_em >= date('now','localtime') "
+                         "AND (preco_antigo IS NULL OR preco_antigo <= preco)")
+        q = max((str(x["publicado_em"]) for x in r if x["id"] not in ped), default=None)
+        return None if not q else (datetime.now() - datetime.fromisoformat(str(q).replace("T", " ")[:19])).total_seconds() / 3600
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def lugar_sem_promo(cand: list, horas: float | None = None) -> list:
+    """13/11 21h20 (Claude, medido no funil do servidor: 1 achadinho sem promoção chegava ao fim da fila e nunca saía,
+    porque a fila vem ordenada pelo desconto e ele não tem). Pedido da dona (19h40): "pode ter uma coisa ou outra q não
+    está em promoção". Ele ganha o 2º lugar da rodada, no máx. 1 a cada SEM_PROMO_ESPACO_H; fora disso sai da rodada."""
+    sem = [o for o in cand if achadinho_sem_promo(o)]
+    if not sem:
+        return cand
+    resto = [o for o in cand if not achadinho_sem_promo(o)]
+    if horas is not None and horas < SEM_PROMO_ESPACO_H:
+        return resto
+    return resto[:SEM_PROMO_POSICAO] + sem[:1] + resto[SEM_PROMO_POSICAO:]
 
 
 def limitar_sem_promo(cand: list, ja_hoje: int | None = None) -> list:
@@ -5567,6 +5597,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         cand.sort(key=lambda o: o["id"] not in dest)
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
+    cand = lugar_sem_promo(cand, horas_desde_sem_promo())
+    marca(f"sem promoção: 2º lugar, 1 a cada {SEM_PROMO_ESPACO_H} h", cand)
     ped = _pedidos_da_dona(amazon_ok)  # 07/10: pedido da dona na frente de tudo (ver PEDIDOS_DONA)
     # 08/10 (revisão): o pedido também espera o link curto da Shopee (ia com o shope.ee/an_redir comprido)
     ped = [o for o in ped if not (so_com_link_curto and shopee_sem_curto(o)) and not familia_repetida(o)]

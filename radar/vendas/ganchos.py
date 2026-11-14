@@ -268,7 +268,10 @@ ATRIBUTOS: dict[str, list[tuple[str, list[str]]]] = {
         (r"sa[íi]da de praia", ["SAÍDA DE PRAIA CHIQUE 👙"])],
     "PROTEÇÃO COM ESTILO 😎": [
         (r"uv ?400|\buv\b", ["PROTEÇÃO UV400 PROS OLHOS 😎"]),
-        (r"leitura|grau|perto", ["LEITURA SEM FORÇAR A VISTA 👓"]),
+        # 13/11 (Claude): "óculos de grau" é ARMAÇÃO para pôr a lente; "leitura sem forçar a vista" prometia o que
+        # ela não faz (Saint Germain Siena, 20h11)
+        (r"arma[çc][ãa]o|de grau|receitu[áa]rio", ["ARMAÇÃO LINDA PRO SEU GRAU 👓"]),
+        (r"leitura|perto", ["LEITURA SEM FORÇAR A VISTA 👓"]),
         (r"ciclismo|corrida|esport", ["PRO ESPORTE AO AR LIVRE 😎"])],
     "O PET AGRADECE E O BOLSO TAMBÉM 🐾": [
         (r"areia", ["AREIA DO GATINHO NO PRECINHO 🐱"]), (r"gato", ["PROS GATINHOS 🐱"]),
