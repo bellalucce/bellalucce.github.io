@@ -5515,6 +5515,10 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         if t:
             tipos_hoje[t] = tipos_hoje.get(t, 0) + 1
             tipo_ultimo[t] = max(tipo_ultimo.get(t, ""), str(r["publicado_em"] or "").replace("T", " "))
+    # 14/11 14h15 (conferidor do grupo: "batom 13:02 e 13:05"): o batom do ML estava no banco e o da Shopee não (cada
+    # um entrou por um caminho), então o espaço entre tipos não viu o 1º. Conta também o que SAIU de fato no grupo.
+    for t, h in tipos_postados_hoje(agora):
+        tipo_ultimo[t] = max(tipo_ultimo.get(t, ""), h)
     # 13/11 19h15 (medido no servidor: sandália 18h16 e sandália 19h03): com a fila curta (fator 2, quase o dia todo)
     # o espaço entre o mesmo tipo caía para zero; agora encolhe para a metade (2 h), nunca some
     espacos = {f: (agora - timedelta(hours=TIPO_ESPACO_H / f)).isoformat(sep=" ", timespec="seconds") for f in (1, 2)}
@@ -6735,6 +6739,45 @@ def marcar_postado(id_oferta: str) -> None:
 
 
 LEGENDAS_POSTADAS_MAX = 2 * 1024 * 1024
+
+
+ARQS_TIPOS_POSTADOS: tuple | None = None   # None = os arquivos de verdade (o teste troca por ())
+
+
+def tipos_postados_hoje(agora: datetime | None = None, arqs: tuple | None = None) -> list[tuple[str, str]]:
+    """14/11 14h15: [(tipo, "AAAA-MM-DD HH:MM:SS")] do que saiu hoje no grupo, lido das legendas enviadas (deste
+    aparelho e a cópia do servidor). Título = linha do 🛍️. Nunca derruba a escolha das ofertas."""
+    agora = agora or datetime.now()
+    hoje = agora.date().isoformat()
+    if arqs is None:
+        arqs = ARQS_TIPOS_POSTADOS if ARQS_TIPOS_POSTADOS is not None else (
+            config.DADOS / "achadinhos" / "legendas_postadas.jsonl",
+            config.DADOS / "nuvem" / "legendas_postadas_servidor.jsonl")
+    out = []
+    for arq in arqs:
+        try:
+            linhas = Path(arq).read_text(encoding="utf-8").splitlines() if Path(arq).is_file() else []
+        except OSError:
+            continue
+        for ln in linhas:
+            try:
+                d = json.loads(ln)
+            except ValueError:
+                continue
+            h = str(d.get("hora") or "")
+            if d.get("canal") != "grupo" or not h.startswith(hoje):
+                continue
+            m = re.search(r"🛍️\s*(.+)", d.get("legenda") or "")
+            if not m:
+                continue
+            tit = m.group(1).strip()
+            try:
+                t = tipo_repetivel({"titulo": tit, "grupo": _grupo_final(_grupo(tit), tit)})
+            except Exception:  # noqa: BLE001
+                t = None
+            if t:
+                out.append((t, h[:19].replace("T", " ")))
+    return out
 
 
 def registrar_legenda_postada(o: dict, legenda: str, canal: str = "grupo") -> None:
