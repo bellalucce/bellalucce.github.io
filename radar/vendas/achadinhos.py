@@ -5478,8 +5478,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             marca(f"Black: só as melhores (nível {black_friday.ULTIMO_NIVEL['nivel']})", cand)
     except Exception as e:  # noqa: BLE001 — o filtro nunca para o grupo: com erro, segue sem ele
         print(f"black_friday (filtro): {type(e).__name__}: {str(e)[:120]}")
-    cand = limitar_sem_promo(cand)
-    marca(f"sem promoção: no máx. {SEM_PROMO_POR_RODADA} por rodada e {SEM_PROMO_DIA_MAX} por dia", cand)
+    # 13/11 21h35: a escolha da sem promoção (1 por rodada) desceu para DEPOIS das regras de variedade: escolhida aqui,
+    # ela perdia o "1 por tipo" para uma promoção do mesmo tipo e a rodada ficava sem nenhuma (medido no servidor).
     # 12/10 (Rita, 1ª leitura dos títulos consertados): o conserto encurta, e anúncios diferentes viram o MESMO título
     # no post ("Tênis Feminino Plataforma" 4×) → o mesmo título não sai 2× no dia; na fila fica o primeiro
     try:
@@ -5597,6 +5597,8 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         cand.sort(key=lambda o: o["id"] not in dest)
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
+    cand = limitar_sem_promo(cand)
+    marca(f"sem promoção: no máx. {SEM_PROMO_POR_RODADA} por rodada e {SEM_PROMO_DIA_MAX} por dia", cand)
     cand = lugar_sem_promo(cand, horas_desde_sem_promo())
     marca(f"sem promoção: 2º lugar, 1 a cada {SEM_PROMO_ESPACO_H} h", cand)
     ped = _pedidos_da_dona(amazon_ok)  # 07/10: pedido da dona na frente de tudo (ver PEDIDOS_DONA)
