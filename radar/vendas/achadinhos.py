@@ -2763,7 +2763,9 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
                          for x in com_pagina if x != k)
         if (SITE / "amigo-secreto" / "index.html").exists():  # 15/11 (Claude): época de amigo secreto, link interno
             outras += '<a class="oce" href="../amigo-secreto/">Amigo secreto: presentes até R$ 30, 50 e 80</a>'
-        entrar =(f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
+        # 15/11 06h40 (Claude): pela /grupo/ com a origem (b-<página>), como a /amigo-secreto/ (?de=as): a /grupo/ conta
+        # a visita e o toque no convite por origem, então dá para ver qual página da busca traz gente para o grupo
+        entrar = (f'<a class="entrar" href="../grupo/?de={e(("b-" + slug)[:24], quote=True)}">'
                   f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
         cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
         nossa = _faixa_nossa_loja(e, slug) if slug in PAGINAS_COM_NOSSA_LOJA else ""
