@@ -2409,6 +2409,29 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
     return str(SITE / "index.html")
 
 
+def _faixa_nossa_loja(e) -> str:
+    """15/11 04h05 (Claude): os produtos da nossa loja (config/loja.json, só os com estoque; hoje todos de maquiagem)
+    na página de maquiagem e na da Shopee, mesmo cartão da faixa da inicial. Sem o arquivo ou com erro, não sai nada."""
+    try:
+        loja = json.loads((config.CONFIG / "loja.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    itens = []
+    for p in loja if isinstance(loja, list) else []:
+        link = next(iter((p.get("links") or {}).values()), "")
+        if not (link and p.get("nome") and p.get("foto")):
+            continue
+        foto = p["foto"] if str(p["foto"]).startswith("http") else f"../{p['foto']}"
+        itens.append(f'<a class="card" href="{e(link, quote=True)}" target="_blank" rel="noopener">'
+                     f'<div class="img"><img loading="lazy" src="{e(foto, quote=True)}" alt="{e(p["nome"], quote=True)}"></div>'
+                     f'<div class="loja">Bella Lucce · nossa loja</div><div class="tit">{e(p["nome"])}</div>'
+                     f'<div class="preco"><b>{e(p.get("preco") or "")}</b></div><div class="btn">Ver na nossa loja</div></a>')
+    if not itens:
+        return ""
+    return ('<section class="nossa"><h2 class="sec">Da nossa loja <i>Bella Lucce</i></h2>'
+            f'<div class="trilho">{"".join(itens)}</div></section>\n')
+
+
 def _links_paginas(pagina: str, ofs_amigo: bool) -> str:
     """Troca o <!--PAGINAS--> da inicial por links fixos (HTML, sem JavaScript) para as páginas feitas NESTA rodada."""
     e = _html.escape
@@ -2454,6 +2477,7 @@ PAGINAS_LOJA = {
                "perfume, maquiagem e cuidados com desconto na Magalu"),
 }
 BELEZA_LOJA = {"perfume", "make", "skincare", "dermo", "cabelo", "ele"}
+PAGINAS_COM_NOSSA_LOJA = {"promocao-maquiagem", "promocao-shopee-beleza"}  # nossos produtos são de maquiagem e da Shopee
 PAGINAS_FEITAS: list[tuple[str, str]] = []  # (slug, título) escritas na última rodada → links fixos na inicial
 PAGINA_CAT_MIN = 4
 PAGINA_CAT_MAX = 60
@@ -2606,6 +2630,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         entrar =(f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
                   f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
         cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
+        nossa = _faixa_nossa_loja(e) if slug in PAGINAS_COM_NOSSA_LOJA else ""
         url = f"{SITE_URL}/{slug}/"
         # 15/11 (Claude): o mesmo "Mandar no WhatsApp" da /amigo-secreto/ (boca a boca de quem chega pela busca)
         from urllib.parse import quote
@@ -2631,9 +2656,10 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
 {SITE_CSS}
 .outras{{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;margin:0 auto 26px;padding:0 16px}}.outras .oce{{width:auto;font-size:11px;padding:10px 12px 8px}}
 .migalha{{font-size:11px;letter-spacing:.12em;text-transform:uppercase;text-align:center;margin:14px 0 0}}.migalha a{{color:var(--car2)}}
+.nossa{{max-width:1240px;margin:0 auto}}.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,175px);gap:14px;overflow-x:auto;padding:0 16px 14px}}.nossa .btn{{background:var(--car2)}}
 </style></head><body>
 <header class="hero"><a href="../"><img class="logo" src="../logo.png" alt="Bella Lucce"></a><p class="sobre">Bella Lucce · curadoria de beleza e moda</p><h1>{e(titulo)}</h1><div class="orn">✦</div><p class="lead">{len(ofs)} ofertas de {e(assunto)}, das lojas que você já conhece, com o preço conferido e desconto de verdade. Atualizado em {hoje} às {hora}.</p><div class="acoes">{entrar}<a class="oce" href="../">Ver todas as ofertas de hoje</a></div></header>
-<h2 class="sec">{e(titulo.replace(" hoje", ""))} <i>{hoje[:5]}</i></h2>
+{nossa}<h2 class="sec">{e(titulo.replace(" hoje", ""))} <i>{hoje[:5]}</i></h2>
 <main>{cartoes}</main>
 <nav class="outras" aria-label="Outras categorias">{outras}</nav>
 <p class="migalha"><a href="../">Início</a> · {e(titulo.replace(" hoje", ""))}</p>
