@@ -2340,7 +2340,7 @@ def vitrine(horas: int = 36) -> str:
 <link rel="icon" href="favicon.png"><meta property="og:image" content="https://bellalucce.github.io/logo.png">
 <meta name="lomadee" content="2324685">
 <meta name="google-site-verification" content="_jXfCl5-PGQIyG-U4Y0IMq7SxGHMbmxN6cjvbJZOsJ4">
-<link rel="canonical" href="https://bellalucce.github.io/">
+<link rel="canonical" href="https://bellalucce.github.io/">{_LD_INICIAL}
 <meta property="og:title" content="PROMOS DE BELEZA VIP ✨ | Bella Lucce"><meta property="og:type" content="website">
 <meta property="og:description" content="Promoções de maquiagem, skincare, dermo, perfume, cabelo e moda, para elas e para eles, com desconto de verdade.">
 <meta name="description" content="Achadinhos e promoções de beleza de hoje: maquiagem, skincare, dermocosméticos, perfume, cabelo e moda (feminina e masculina) da Shopee, Amazon, Mercado Livre e mais. Entre no grupo de achadinhos grátis no WhatsApp.">
@@ -2536,6 +2536,16 @@ def paginas_nossa_loja(agora: datetime | None = None) -> list[str]:
         '<p class="sobre">Bella Lucce</p><h1>Nossa loja</h1><div class="orn">✦</div></header>'
         f'<main>{cartoes}</main>' + rodape, encoding="utf-8")
     return feitos
+
+
+# 15/11 08h35 (Claude): ficha da marca na inicial (WebSite + Organization com logo e Instagram), que o Google usa para
+# o nome do site e o logo no resultado; antes a inicial não tinha dado estruturado nenhum
+_LD_INICIAL = '<script type="application/ld+json">' + json.dumps({"@context": "https://schema.org", "@graph": [
+    {"@type": "WebSite", "@id": "https://bellalucce.github.io/#site", "url": "https://bellalucce.github.io/", "name": "Bella Lucce", "inLanguage": "pt-BR",
+     "alternateName": "Bella Lucce Achadinhos", "publisher": {"@id": "https://bellalucce.github.io/#marca"}},
+    {"@type": "Organization", "@id": "https://bellalucce.github.io/#marca", "name": "Bella Lucce", "url": "https://bellalucce.github.io/",
+     "logo": "https://bellalucce.github.io/logo.png", "sameAs": ["https://www.instagram.com/abella.lucce/"]}]},
+    ensure_ascii=False) + '</script>'
 
 
 def _links_paginas(pagina: str, ofs_amigo: bool) -> str:
