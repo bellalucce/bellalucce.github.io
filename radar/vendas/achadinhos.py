@@ -2675,8 +2675,10 @@ def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> st
         link = f"{SITE_URL}/{slug}/#{_ancora(o)}"
         de = f" (de {o['a']})" if o.get("a") else ""
         selo = f" · {int(o['d'])}% OFF" if o.get("d") else ""
+        # 15/11 05h40 (Claude): de 1/11 a 24/12 o Pinterest é busca de presente; a palavra entra na descrição do pin
+        natal = " Ideia de presente de Natal." if (agora.month == 11 or (agora.month == 12 and agora.day <= 24)) else ""
         desc = (f"{o['t']}: por {o.get('p', '')}{de}{selo} na {o.get('l') or 'loja'}. "
-                f"{titulo.replace(' hoje', '')} da Bella Lucce, com o preço conferido. #publi")
+                f"{titulo.replace(' hoje', '')} da Bella Lucce, com o preço conferido.{natal} #publi")
         itens.append(f"<item><title>{e(cortar(o['t'], 100))}</title><link>{e(link)}</link>"
                      f'<guid isPermaLink="false">{_ancora(o)}</guid><pubDate>{format_datetime(agora)}</pubDate>'
                      f"<description>{e(desc[:480])}</description>"
