@@ -6335,6 +6335,22 @@ def por_rodada(quantos: int, estoque_atual: int, agora: datetime, h_fim: int, in
     return min(quantos, base, estoque_atual)
 
 
+def tipos_recentes(agora: datetime | None = None, horas: float | None = None) -> set[str]:
+    """15/11 09h55 (Claude): tipos que saíram no grupo há menos de `horas` (padrão TIPO_ESPACO_H/2), pelo banco e pelas
+    legendas enviadas (deste PC e do servidor). Nunca derruba a rodada."""
+    agora = agora or datetime.now()
+    corte = (agora - timedelta(hours=TIPO_ESPACO_H / 2 if horas is None else horas)).isoformat(sep=" ", timespec="seconds")
+    out: set[str] = set()
+    try:
+        for r in db.consultar("SELECT titulo, grupo FROM ofertas WHERE publicado_em >= ?", (corte,)) or []:
+            if t := tipo_repetivel(dict(r)):
+                out.add(t)
+        out |= {t for t, h in tipos_postados_hoje(agora) if h >= corte}
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     """04/10 (dona: "cílios 900 vezes"): 2 do mesmo tipo (cílios, batom, sérum…) na mesma rodada, não."""
     t = tipo_repetivel(o)
@@ -6491,19 +6507,33 @@ def _fila_posts_base(n: int = 5, horas: int = 30, so_com_link_curto: bool = True
     out = [o for o in normal if o["id"] in ped]
     ids = {o["id"] for o in out}
     foto_ok = foto_boa if conferir_foto else (lambda o: True)
+    # 15/11 09h55 (Claude; conferidor do grupo: "shampoo 09:04 e 09:06", dois kits Wella na mesma rodada do servidor):
+    # no modo cópia nem a cópia nem o resto da fila normal olhavam o tipo; agora não repetem tipo na rodada nem um
+    # tipo que saiu há menos de TIPO_ESPACO_H/2 h (o espaço da fila curta). Pedido da dona passa sempre.
+    recentes = tipos_recentes()
+
+    def tipo_cabe(o: dict) -> bool:
+        return not tipo_na_rodada(o, out) and (tipo_repetivel(o) or "") not in recentes
     for o in copias:
         if len(out) >= n:
             break
-        if o["id"] not in ids and dentro_do_teto_dia([o]) and foto_ok(o):
+        if o["id"] not in ids and tipo_cabe(o) and dentro_do_teto_dia([o]) and foto_ok(o):
             out.append(o)
             ids.add(o["id"])
-    out += [o for o in normal if o["id"] not in ids][:max(0, n - len(out))]
+    for o in normal:
+        if len(out) >= n:
+            break
+        if o["id"] not in ids and tipo_cabe(o):
+            out.append(o)
+            ids.add(o["id"])
     try:  # a cópia é a MAIORIA, não tudo: loja com oferta boa na fila normal ainda entra (cota_lojas)
         from vendas import cota_lojas
         ids = {o["id"] for o in out}
         restos = [o for o in normal if o["id"] not in ids]
         out = cota_lojas.trava_na_fila(out, restos, n, cota_lojas.posts_24h(),
-                                       lambda o, atual: bool(dentro_do_teto_dia([o])) and bool(foto_ok(o)),
+                                       lambda o, atual: (bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
+                                                         and not tipo_na_rodada(o, [x for x in atual if x is not o])
+                                                         and (tipo_repetivel(o) or "") not in recentes),
                                        atrasadas=cota_lojas.atrasadas(canal))
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas (modo cópia): {type(e).__name__}: {str(e)[:120]}")
