@@ -2441,6 +2441,42 @@ def _cartao_estatico(o: dict, i: int) -> str:
             f'<div class="btn">Pegar oferta</div></a></div>')
 
 
+def _preco_num(txt: str) -> float | None:
+    """'R$ 1.212,66' → 1212.66; sem número → None."""
+    m = re.search(r"(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?", str(txt or ""))
+    if not m:
+        return None
+    return float(m.group(1).replace(".", "") + "." + (m.group(2) or "0"))
+
+
+def _dados_estruturados(url: str, titulo: str, desc: str, ofs: list[dict], agora: datetime) -> str:
+    """15/11 02h45 (Claude): JSON-LD da página de categoria, o formato que o Google e o Bing leem para entender a
+    página (trilha Início › categoria e a lista de ofertas com preço em reais). Não muda nada do que aparece na tela."""
+    itens = []
+    for i, o in enumerate(ofs, 1):
+        prod: dict = {"@type": "Product", "name": o["t"]}
+        if o.get("f"):
+            prod["image"] = o["f"]
+        preco = _preco_num(o.get("p"))
+        if preco:
+            prod["offers"] = {"@type": "Offer", "price": f"{preco:.2f}", "priceCurrency": "BRL", "url": o["u"],
+                              "availability": "https://schema.org/InStock",
+                              **({"seller": {"@type": "Organization", "name": o["l"]}} if o.get("l") else {})}
+        itens.append({"@type": "ListItem", "position": i, "item": prod})
+    nome = titulo.replace(" hoje", "")
+    grafo = {"@context": "https://schema.org", "@graph": [
+        {"@type": "CollectionPage", "@id": url, "url": url, "name": titulo, "description": desc, "inLanguage": "pt-BR",
+         "dateModified": agora.isoformat(timespec="minutes"),
+         "isPartOf": {"@type": "WebSite", "name": "Bella Lucce", "url": f"{SITE_URL}/"},
+         "mainEntity": {"@type": "ItemList", "numberOfItems": len(itens), "itemListElement": itens}},
+        {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Início", "item": f"{SITE_URL}/"},
+            {"@type": "ListItem", "position": 2, "name": nome, "item": url}]}]}
+    txt = json.dumps(grafo, ensure_ascii=False, separators=(",", ":"))
+    txt = txt.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    return f'<script type="application/ld+json">{txt}</script>'
+
+
 def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     """Grava SITE/<slug>/index.html para cada categoria com ofertas suficientes. Devolve {aba: n_ofertas}.
     Categoria sem o mínimo não ganha página. Nada é apagado: a nuvem monta o site do zero a cada rodada, então
@@ -2473,6 +2509,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
 <meta property="og:title" content="{e(titulo, quote=True)} | Bella Lucce"><meta property="og:type" content="website">
 <meta property="og:url" content="{url}"><meta property="og:image" content="{SITE_URL}/logo.png">
 <meta name="description" content="{e(desc, quote=True)}"><meta property="og:description" content="{e(desc, quote=True)}">
+{_dados_estruturados(url, titulo, desc, ofs, agora)}
 <style>
 {SITE_CSS}
 .outras{{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;margin:0 auto 26px;padding:0 16px}}.outras .oce{{width:auto;font-size:11px;padding:10px 12px 8px}}
