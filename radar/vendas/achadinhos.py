@@ -2584,6 +2584,7 @@ PAGINAS_LOJA = {
 }
 BELEZA_LOJA = {"perfume", "make", "skincare", "dermo", "cabelo", "ele"}
 _MASCULINO = re.compile(r"(?i)masculin|\bmen\b|homme|for him|\bhomem\b|barba")
+_CARA_DE_PRESENTE = re.compile(r"(?i)\bkit\b|estojo|coffret|\bperfume|eau de|\bedp\b|\bedt\b|presente|necessaire|paleta")
 
 
 def _preco_oferta(o: dict) -> float:
@@ -2751,7 +2752,11 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     com_pagina = [k for k, v in por_aba.items() if len(v) >= PAGINA_CAT_MIN]
     for k, (slug, titulo, assunto) in paginas.items():
         pasta = SITE / slug
-        ofs = sorted(por_aba[k], key=lambda o: (-(o.get("d") or 0), -(o.get("b") or 0)))[:PAGINA_CAT_MAX]
+        # 15/11 07h05 (Claude): nas de presente, o que se dá de presente (kit, estojo, perfume) vem antes do desconto
+        cara_de_presente = (lambda o: bool(_CARA_DE_PRESENTE.search(str(o.get("t") or "")))) if k.startswith("esp:") \
+            else (lambda o: False)
+        ofs = sorted(por_aba[k], key=lambda o: (not cara_de_presente(o), -(o.get("d") or 0),
+                                                -(o.get("b") or 0)))[:PAGINA_CAT_MAX]
         if k not in com_pagina:
             continue
         lojas = sorted({o["l"] for o in ofs if o.get("l")})
