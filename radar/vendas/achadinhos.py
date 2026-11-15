@@ -124,6 +124,19 @@ PALAVRAS["casa"] += (r"|jogo americano|sousplat|\bcestas?\b|lixeira|mesa de cabe
                      r"prateleira|lumin[áa]ria|abajur|\bvasos? (?:decorativ|de planta|para planta)|porta[- ]retrato|"
                      r"pisca[- ]pisca|enfeites? de natal|[áa]rvore de natal|decora[çc][ãa]o|jogo de toalhas|"
                      r"jogo de (?:pratos|copos|ta[çc]as|talheres)|\bta[çc]as\b|organizadora?s?\b")
+# 15/11 01h15 (Claude; mesma regra das cópias): de 14 a 15/11 ainda caíam em "outros" (e fora da cópia) beleza de marca
+# (L'Oréal Elseve, Hada Labo, Mari Maria, Wella Oil Reflections, OBgE) e casa (taça, vela, vaso de parede, manta,
+# presépio/enfeite de natal, bowls, sanduicheira) e boné/viseira
+PALAVRAS["beleza"] += (r"|[óo]leos? de limpeza|\boil control\b|\bfinisher\b|iluminador(?:es)? bast[ãa]o|efeito teia|"
+                       r"\bcapilar(?:es)?\b|\belseve\b|l'?or[ée]al paris|k[ée]rastase|\bkeune\b|\bwella\b|\bredken\b|"
+                       r"\bjoico\b|\btruss\b|\bhaskell\b|salon line|hada labo|mari ?maria|\bvult\b|ruby rose|\bobge\b|"
+                       r"oil reflections")
+PALAVRAS["moda"] += r"|\bbon[ée]s?\b|\bviseira\b(?!.*(?:solda|\bepi\b|prote[çc][ãa]o facial|acr[íi]lic))|chap[ée]u"
+PALAVRAS["casa"] += (r"|\bta[çc]as?\b|\bvelas? (?:decorativ|arom[áa]tic|perfumad)|cachep[ôo]|vasos? de parede|"
+                     r"natalin[oa]s?\b|pres[ée]pio|papai noel|quadros? (?:decorativ|com moldura|a[34]\b)|peseira|"
+                     r"\bmantas?\b(?! (?:t[ée]rmica|asf[áa]ltica|l[íi]quida|acr[íi]lica para))|edredom|cobertor|"
+                     r"almofadas?(?! (?:de carimbo|para carimbo))|\bbowls?\b|tigelas?|assadeira|forma de bolo|"
+                     r"cortador(?:es)? de biscoito|sanduicheira|torradeira|batedeira|chaleira el[ée]trica")
 # 13/11 (Claude 09/10, Caixa): "Wella … Shamp 250ml + Cond 200ml" ficava em "outros" pela abreviação
 PALAVRAS["beleza"] += r"|\bshamp\b|\bcond\b(?=\s*\d)"
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
