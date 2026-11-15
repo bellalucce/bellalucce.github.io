@@ -2409,9 +2409,10 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
     return str(SITE / "index.html")
 
 
-def _faixa_nossa_loja(e) -> str:
+def _faixa_nossa_loja(e, slug: str = "") -> str:
     """15/11 04h05 (Claude): os produtos da nossa loja (config/loja.json, só os com estoque; hoje todos de maquiagem)
-    na página de maquiagem e na da Shopee, mesmo cartão da faixa da inicial. Sem o arquivo ou com erro, não sai nada."""
+    na página de maquiagem e na da Shopee, mesmo cartão da faixa da inicial. Sem o arquivo ou com erro, não sai nada.
+    04h30: cada cartão ganha id e entra uma vez no feed (FEED_NOSSA), com link para o cartão na 1ª página que o mostra."""
     try:
         loja = json.loads((config.CONFIG / "loja.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -2422,7 +2423,13 @@ def _faixa_nossa_loja(e) -> str:
         if not (link and p.get("nome") and p.get("foto")):
             continue
         foto = p["foto"] if str(p["foto"]).startswith("http") else f"../{p['foto']}"
-        itens.append(f'<a class="card" href="{e(link, quote=True)}" target="_blank" rel="noopener">'
+        anc = _ancora({"u": link})
+        if slug and all(x["guid"] != anc for x in FEED_NOSSA):
+            FEED_NOSSA.append({"guid": anc, "link": f"{SITE_URL}/{slug}/#{anc}",
+                               "foto": foto if foto.startswith("http") else f"{SITE_URL}/{p['foto']}",
+                               "titulo": f"{p['nome']} · Bella Lucce",
+                               "desc": f"{p['nome']}: {p.get('preco') or ''}. Da nossa loja Bella Lucce na Shopee."})
+        itens.append(f'<a class="card" id="{anc}" href="{e(link, quote=True)}" target="_blank" rel="noopener">'
                      f'<div class="img"><img loading="lazy" src="{e(foto, quote=True)}" alt="{e(p["nome"], quote=True)}"></div>'
                      f'<div class="loja">Bella Lucce · nossa loja</div><div class="tit">{e(p["nome"])}</div>'
                      f'<div class="preco"><b>{e(p.get("preco") or "")}</b></div><div class="btn">Ver na nossa loja</div></a>')
@@ -2507,6 +2514,7 @@ def _ancora(o: dict) -> str:
 
 FEED_MAX = 40
 FEED_AMIGO: list[dict] = []  # preenchida por pagina_amigo_secreto() na mesma rodada da vitrine (vem antes das categorias)
+FEED_NOSSA: list[dict] = []  # 15/11 04h30: produtos da nossa loja (faixa das páginas de maquiagem/Shopee), na frente
 
 
 def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> str:
@@ -2517,7 +2525,7 @@ def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> st
     e = _html.escape
     filas = [(slug, titulo, list(ofs)) for slug, (titulo, ofs) in por_slug.items()]
     itens, i = [], 0
-    presentes = list(FEED_AMIGO)
+    presentes = list(FEED_NOSSA) + list(FEED_AMIGO)  # nossa loja primeiro: é venda nossa, não comissão
     vistos: set[str] = set()
 
     def item_presente(p: dict) -> str:
@@ -2604,6 +2612,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     feitas: dict[str, int] = {}
     para_feed: dict[str, tuple[str, list[dict]]] = {}
     PAGINAS_FEITAS.clear()
+    FEED_NOSSA.clear()
     agora = datetime.now(timezone(timedelta(hours=-3)))
     hoje, hora = agora.strftime("%d/%m/%Y"), agora.strftime("%H:%M")
     por_aba = {k: [o for o in dados if o.get("k") == k and o.get("u")] for k in PAGINAS_CATEGORIA}
@@ -2630,7 +2639,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         entrar =(f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
                   f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
         cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
-        nossa = _faixa_nossa_loja(e) if slug in PAGINAS_COM_NOSSA_LOJA else ""
+        nossa = _faixa_nossa_loja(e, slug) if slug in PAGINAS_COM_NOSSA_LOJA else ""
         url = f"{SITE_URL}/{slug}/"
         # 15/11 (Claude): o mesmo "Mandar no WhatsApp" da /amigo-secreto/ (boca a boca de quem chega pela busca)
         from urllib.parse import quote
