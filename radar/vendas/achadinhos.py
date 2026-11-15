@@ -2695,7 +2695,7 @@ def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> st
         # 15/11 05h40 (Claude): de 1/11 a 24/12 o Pinterest é busca de presente; a palavra entra na descrição do pin
         natal = " Ideia de presente de Natal." if (agora.month == 11 or (agora.month == 12 and agora.day <= 24)) else ""
         desc = (f"{o['t']}: por {o.get('p', '')}{de}{selo} na {o.get('l') or 'loja'}. "
-                f"{titulo.replace(' hoje', '')} da Bella Lucce, com o preço conferido.{natal} #publi")
+                f"{titulo.replace(' hoje', '')} da Bella Lucce, com o preço conferido.{natal}")
         itens.append(f"<item><title>{e(cortar(o['t'], 100))}</title><link>{e(link)}</link>"
                      f'<guid isPermaLink="false">{_ancora(o)}</guid><pubDate>{format_datetime(agora)}</pubDate>'
                      f"<description>{e(desc[:480])}</description>"
@@ -3147,7 +3147,7 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
             FEED_AMIGO.append({"guid": anc, "link": f"{SITE_URL}/amigo-secreto/#{anc}", "foto": foto,
                                "titulo": f"Presente de amigo secreto {faixa.lower()}: {nome}",
                                "desc": f"{nome}: {preco}. Ideia de presente de amigo secreto {faixa.lower()}, "
-                                       "de marca conhecida, na lista da Bella Lucce. #publi"})
+                                       "de marca conhecida, na lista da Bella Lucce."})
         return anc
 
     def preco_nosso(txt: str) -> str:
