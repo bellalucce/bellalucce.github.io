@@ -5,10 +5,12 @@
 O que saiu de promoção não é revisto e some sozinho em até 36 h.
 """
 import json
+import re
 import shutil
 import sys
 import time
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
@@ -17,6 +19,27 @@ from vendas import achadinhos as a, config, db  # noqa: E402
 REPO = AQUI.parent
 SAIDA = REPO / "_site"
 CACHE = config.DADOS / "cache_links.json"  # promobit id → link da loja (poupa o site da Promobit)
+
+
+_OG_IMAGE = re.compile(r'<meta property="og:image" content="(https://[^"]+)"')
+
+
+def mapa_do_site(base: str, paginas: list, hoje: str, saida: Path = SAIDA) -> str:
+    """sitemap.xml. 15/11 08h25 (Claude): cada página leva a foto da prévia (og:image) como <image:image>, para a foto
+    do produto aparecer no Google Imagens (nossa loja e a melhor oferta de cada página) e trazer clique de lá."""
+    linhas = []
+    for p in paginas:
+        arq = saida / p.strip("/") / "index.html" if p.strip("/") else saida / "index.html"
+        foto = ""
+        try:
+            m = _OG_IMAGE.search(arq.read_text(encoding="utf-8")[:20000]) if arq.exists() else None
+            if m and "/logo.png" not in m.group(1):
+                foto = f"<image:image><image:loc>{escape(m.group(1))}</image:loc></image:image>"
+        except OSError:
+            pass
+        linhas.append(f"  <url><loc>{base}{p}</loc><lastmod>{hoje}</lastmod>{foto}</url>\n")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+            'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n' + "".join(linhas) + "</urlset>\n")
 
 
 def main() -> None:
@@ -105,10 +128,7 @@ def main() -> None:
         ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + nossa_loja + [
         f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
-    (SAIDA / "sitemap.xml").write_text(
-        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        + "".join(f"  <url><loc>{base}{p}</loc><lastmod>{hoje}</lastmod></url>\n" for p in paginas) + "</urlset>\n",
-        encoding="utf-8")
+    (SAIDA / "sitemap.xml").write_text(mapa_do_site(base, paginas, hoje), encoding="utf-8")
     # 15/11 06h10 (Claude): llms.txt (resumo do site para as buscas com IA: ChatGPT, Perplexity), páginas que existem
     try:
         titulos = {v[0]: v[1].replace(" hoje", "") for v in todas}
