@@ -2365,6 +2365,7 @@ nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;lette
 <div class="busca"><input id="q" type="search" placeholder="Buscar oferta (ex.: sérum, perfume, chapinha)"><span id="n"></span></div>
 <main id="lista"><p>Carregando ofertas…</p></main>
 <button id="mais">Carregar mais ofertas</button>
+<!--PAGINAS-->
 <a class="ig" href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener">siga @abella.lucce no Instagram</a>
 <footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
 <script>
@@ -2400,7 +2401,25 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
         paginas_categoria(dados, grupo)
     except Exception as ex:  # noqa: BLE001
         print("páginas por categoria falharam:", ex)
+    try:  # 15/11 03h40 (Claude): a inicial não levava a nenhuma dessas páginas (o Google só as achava pelo sitemap)
+        (SITE / "index.html").write_text(_links_paginas(pagina, ofs_amigo=(SITE / "amigo-secreto" / "index.html").exists()),
+                                         encoding="utf-8")
+    except Exception as ex:  # noqa: BLE001
+        print("links das páginas na inicial falharam:", ex)
     return str(SITE / "index.html")
+
+
+def _links_paginas(pagina: str, ofs_amigo: bool) -> str:
+    """Troca o <!--PAGINAS--> da inicial por links fixos (HTML, sem JavaScript) para as páginas feitas NESTA rodada."""
+    e = _html.escape
+    links = ([("amigo-secreto", "Amigo secreto: presentes até R$ 30, 50 e 80")] if ofs_amigo else []) + PAGINAS_FEITAS
+    if not links:
+        return pagina.replace("<!--PAGINAS-->", "")
+    bloco = ('<style>.paginas{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;'
+             'margin:0 auto 26px;padding:0 16px}.paginas .oce{width:auto;font-size:11px;padding:10px 12px 8px}</style>'
+             '<nav class="paginas" aria-label="Promoções por assunto e por loja">'
+             + "".join(f'<a class="oce" href="{s}/">{e(t.replace(" hoje", ""))}</a>' for s, t in links) + "</nav>")
+    return pagina.replace("<!--PAGINAS-->", bloco)
 
 
 # ---------------- páginas por categoria (/promocao-<categoria>/) ----------------
@@ -2435,6 +2454,7 @@ PAGINAS_LOJA = {
                "perfume, maquiagem e cuidados com desconto na Magalu"),
 }
 BELEZA_LOJA = {"perfume", "make", "skincare", "dermo", "cabelo", "ele"}
+PAGINAS_FEITAS: list[tuple[str, str]] = []  # (slug, título) escritas na última rodada → links fixos na inicial
 PAGINA_CAT_MIN = 4
 PAGINA_CAT_MAX = 60
 
@@ -2559,6 +2579,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     e = _html.escape
     feitas: dict[str, int] = {}
     para_feed: dict[str, tuple[str, list[dict]]] = {}
+    PAGINAS_FEITAS.clear()
     agora = datetime.now(timezone(timedelta(hours=-3)))
     hoje, hora = agora.strftime("%d/%m/%Y"), agora.strftime("%H:%M")
     por_aba = {k: [o for o in dados if o.get("k") == k and o.get("u")] for k in PAGINAS_CATEGORIA}
@@ -2621,6 +2642,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
 </body></html>"""
         pasta.mkdir(parents=True, exist_ok=True)
         (pasta / "index.html").write_text(pagina, encoding="utf-8")
+        PAGINAS_FEITAS.append((slug, titulo))
         if k.startswith("loja:"):  # a página da loja repete ofertas das categorias: fora do feed e da contagem
             continue
         feitas[k] = len(ofs)
