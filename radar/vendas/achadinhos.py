@@ -2368,7 +2368,7 @@ nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;lette
 <button id="mais">Carregar mais ofertas</button>
 <!--PAGINAS-->
 <a class="ig" href="https://www.instagram.com/abella.lucce/" target="_blank" rel="noopener">siga @abella.lucce no Instagram</a>
-<footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
+<footer>Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta).</footer>
 <script>
 let T=[],F=[],N=0,G='',Q='';const P=60,E=s=>String(s).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
 const semAf=u=>u;  // 07/10: a dona aceitou o risco do link de afiliado do ML no WhatsApp (ML_AFILIADO_NO_WHATSAPP)
@@ -2823,7 +2823,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
 <main>{cartoes}</main>
 <nav class="outras" aria-label="Outras categorias">{outras}</nav>
 <p class="migalha"><a href="../">Início</a> · {e(titulo.replace(" hoje", ""))}</p>
-<footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
+<footer>Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta).</footer>
 {CONTADOR_SITE}
 </body></html>"""
         pasta.mkdir(parents=True, exist_ok=True)
@@ -2936,7 +2936,7 @@ def pagina_oceane(agora: datetime | None = None) -> str:
 <header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce</p><h1>Área <em>Océane</em></h1><div class="orn">✦</div><p class="lead">Maquiagem, skincare e cabelo da loja oficial da Océane · atualizado {agora:%d/%m %H:%M}{conferido}</p></header>
 <section class="cupom"><b>Cupom {OCEANE_CUPOM_SITE}: 10% OFF no site da Océane</b><small>Copie e cole o cupom no carrinho do site da Océane.</small><button type="button" data-copiar="{OCEANE_CUPOM_SITE}">Copiar cupom</button><a href="{e(loja)}" target="_blank" rel="nofollow sponsored noopener">Ir para a Océane →</a></section>
 {blocos}
-<footer>#publi · Links de afiliada da Bella Lucce: a Océane pode nos pagar uma comissão, sem custo a mais para você. Preços da loja oficial; podem mudar a qualquer momento — confira no site antes de comprar.</footer>
+<footer>Preços da loja oficial; podem mudar a qualquer momento — confira no site antes de comprar.</footer>
 {OCEANE_JS}
 {CONTADOR_SITE}
 </body></html>"""
@@ -3222,7 +3222,7 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
 <header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · lista de presentes</p><h1>Amigo <em>secreto</em></h1><div class="orn">✦</div><p class="lead">Presentes de beleza de marcas que todo mundo conhece, separados por valor. Manda esta lista no grupo do amigo secreto da família ou da firma.</p><ul class="selos">{atalhos}<li>Atualizado {agora:%d/%m %H:%M}</li></ul><div class="acoes"><a class="entrar" href="{e(zap)}" target="_blank" rel="noopener" data-c="compartilhar">Mandar a lista no WhatsApp</a><a class="entrar" href="../sorteio-amigo-secreto/" data-c="sorteio">Fazer o sorteio grátis pelo WhatsApp</a></div></header>
 {blocos}
 <section class="fim"><p>Quer receber promoção de beleza assim todo dia? O grupo é grátis e você sai quando quiser.</p><a class="entrar" href="/grupo/?de=as" data-c="grupo">Entrar no grupo VIP do WhatsApp</a></section>
-<footer>#publi · Os itens da Shopee têm link de afiliada da Bella Lucce: a loja pode nos pagar uma comissão, sem custo a mais para você. Os itens "Bella Lucce · nossa loja" são da nossa loja na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
+<footer>Os itens "Bella Lucce · nossa loja" são da nossa loja na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
 {AS_JS}
 {CONTADOR_SITE}
 </body></html>"""
@@ -3302,7 +3302,7 @@ def pagina_curadoria(numero: str | None = None) -> str:
 <header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza</p><h1>Curadoria <em>grátis</em></h1><div class="orn">✦</div><p class="lead">Escolha o que você precisa, toque no botão e mande a mensagem pronta para o WhatsApp da loja. É só completar os campos.</p></header>
 <div class="servs">{cards}</div>
 <p class="nota">Não cobramos nada. Somos uma loja online e respondemos pelo WhatsApp assim que der. Seu número só é usado para responder o seu pedido.</p>
-<footer>#publi · Quando indicamos um produto, o link pode ser de afiliada: a loja pode nos pagar uma comissão, sem custo a mais para você. Preços mudam a qualquer momento; confira na loja antes de comprar.</footer>
+<footer>Preços mudam a qualquer momento; confira na loja antes de comprar.</footer>
 {CONTADOR_SITE}
 </body></html>"""
     pasta = SITE / "curadoria"
