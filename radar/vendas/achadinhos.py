@@ -2396,7 +2396,100 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
         pagina_curadoria()
     except Exception as ex:  # noqa: BLE001
         print("curadoria falhou:", ex)
+    try:  # 15/11: páginas por categoria (/promocao-perfume/ …) com as ofertas escritas na página, para a busca
+        paginas_categoria(dados, grupo)
+    except Exception as ex:  # noqa: BLE001
+        print("páginas por categoria falharam:", ex)
     return str(SITE / "index.html")
+
+
+# ---------------- páginas por categoria (/promocao-<categoria>/) ----------------
+# 15/11 02h05 (Claude, noite; ordem da dona 14/11 01h39 "achar lugar bom de divulgação"): a página inicial desenha as
+# ofertas por JavaScript e é uma página só. Quem procura "promoção de perfume" no Google, no Bing ou na busca do ChatGPT
+# cai em página que já traz as ofertas escritas e fala daquele assunto. Mesmo visual da vitrine (SITE_CSS, cartões
+# iguais); a página inicial não muda. Só sai página com PAGINA_CAT_MIN ofertas ou mais; o sitemap (radar/rodar.py) lista
+# só as que existem. Links de afiliado com rel="nofollow sponsored" (regra dos buscadores para link pago).
+PAGINAS_CATEGORIA = {
+    "perfume": ("promocao-perfume", "Promoções de perfume hoje",
+                "perfumes importados, árabes e nacionais, femininos e masculinos"),
+    "make": ("promocao-maquiagem", "Promoções de maquiagem hoje", "base, batom, gloss, máscara de cílios, paletas e pó"),
+    "skincare": ("promocao-skincare", "Promoções de skincare hoje", "sérum, hidratante, protetor solar e limpeza de pele"),
+    "dermo": ("promocao-dermocosmeticos", "Promoções de dermocosméticos hoje",
+              "protetor solar, hidratante e tratamento de farmácia"),
+    "cabelo": ("promocao-cabelo", "Promoções de cabelo hoje", "máscara capilar, shampoo, óleo, finalizador e chapinha"),
+    "ele": ("promocao-masculino", "Promoções para homem hoje", "perfume masculino, barba, cuidados e moda para ele"),
+    "sapatos": ("promocao-sapatos", "Promoções de sapatos hoje", "tênis, sandália, rasteirinha e salto"),
+    "bolsas": ("promocao-bolsas", "Promoções de bolsas e acessórios hoje", "bolsas, carteiras, óculos e acessórios"),
+}
+PAGINA_CAT_MIN = 4
+PAGINA_CAT_MAX = 60
+
+
+def _cartao_estatico(o: dict, i: int) -> str:
+    """O mesmo cartão que o JavaScript da vitrine desenha, já escrito no HTML (o buscador lê sem rodar script)."""
+    e = _html.escape
+    foto = (f'<img loading="{"eager" if i < 8 else "lazy"}" decoding="async" width="300" height="300" '
+            f'src="{e(o["f"], quote=True)}" alt="{e(o["t"], quote=True)}" onerror="this.style.visibility=\'hidden\'">'
+            if o.get("f") else "")
+    selo = f'<span class="selo">-{int(o["d"])}%</span>' if o.get("d") else ""
+    de = f'<s>{e(o["a"])}</s>' if o.get("a") else ""
+    hist = f'<div class="hist">📉 menor preço em {int(o["h"])} dias</div>' if o.get("h") else ""
+    cupom = f'<div class="cupom">Cupom: <b>{e(o["c"])}</b></div>' if o.get("c") else ""
+    return (f'<div class="card"><a class="lnk" href="{e(o["u"], quote=True)}" target="_blank" '
+            f'rel="nofollow sponsored noopener"><div class="img">{foto}{selo}</div><div class="loja">{e(o["l"])}</div>'
+            f'<div class="tit">{e(o["t"])}</div><div class="preco">{de}<b>{e(o["p"])}</b></div>{hist}{cupom}'
+            f'<div class="btn">Pegar oferta</div></a></div>')
+
+
+def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
+    """Grava SITE/<slug>/index.html para cada categoria com ofertas suficientes. Devolve {aba: n_ofertas}.
+    Categoria sem o mínimo não ganha página. Nada é apagado: a nuvem monta o site do zero a cada rodada, então
+    categoria que caiu abaixo do mínimo simplesmente não vai para o _site nem para o sitemap."""
+    e = _html.escape
+    feitas: dict[str, int] = {}
+    agora = datetime.now(timezone(timedelta(hours=-3)))
+    hoje, hora = agora.strftime("%d/%m/%Y"), agora.strftime("%H:%M")
+    por_aba = {k: [o for o in dados if o.get("k") == k and o.get("u")] for k in PAGINAS_CATEGORIA}
+    com_pagina = [k for k, v in por_aba.items() if len(v) >= PAGINA_CAT_MIN]
+    for k, (slug, titulo, assunto) in PAGINAS_CATEGORIA.items():
+        pasta = SITE / slug
+        ofs = sorted(por_aba[k], key=lambda o: (-(o.get("d") or 0), -(o.get("b") or 0)))[:PAGINA_CAT_MAX]
+        if k not in com_pagina:
+            continue
+        lojas = sorted({o["l"] for o in ofs if o.get("l")})
+        maior = max((int(o.get("d") or 0) for o in ofs), default=0)
+        desc = (f"{len(ofs)} {titulo[0].lower() + titulo[1:]}: {assunto}. Até {maior}% OFF"
+                + (f" em {', '.join(lojas[:4])}" if lojas else "") + f". Preço conferido em {hoje}.")
+        outras = "".join(f'<a class="oce" href="../{PAGINAS_CATEGORIA[x][0]}/">{e(PAGINAS_CATEGORIA[x][1].replace(" hoje", ""))}</a>'
+                         for x in com_pagina if x != k)
+        entrar = (f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
+                  f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
+        cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
+        url = f"{SITE_URL}/{slug}/"
+        pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(titulo)} ({hoje[:5]}) | Bella Lucce</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.png"><link rel="canonical" href="{url}">
+<meta property="og:title" content="{e(titulo, quote=True)} | Bella Lucce"><meta property="og:type" content="website">
+<meta property="og:url" content="{url}"><meta property="og:image" content="{SITE_URL}/logo.png">
+<meta name="description" content="{e(desc, quote=True)}"><meta property="og:description" content="{e(desc, quote=True)}">
+<style>
+{SITE_CSS}
+.outras{{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;margin:0 auto 26px;padding:0 16px}}.outras .oce{{width:auto;font-size:11px;padding:10px 12px 8px}}
+.migalha{{font-size:11px;letter-spacing:.12em;text-transform:uppercase;text-align:center;margin:14px 0 0}}.migalha a{{color:var(--car2)}}
+</style></head><body>
+<header class="hero"><a href="../"><img class="logo" src="../logo.png" alt="Bella Lucce"></a><p class="sobre">Bella Lucce · curadoria de beleza e moda</p><h1>{e(titulo)}</h1><div class="orn">✦</div><p class="lead">{len(ofs)} ofertas de {e(assunto)}, das lojas que você já conhece, com o preço conferido e desconto de verdade. Atualizado em {hoje} às {hora}.</p><div class="acoes">{entrar}<a class="oce" href="../">Ver todas as ofertas de hoje</a></div></header>
+<h2 class="sec">{e(titulo.replace(" hoje", ""))} <i>{hoje[:5]}</i></h2>
+<main>{cartoes}</main>
+<nav class="outras" aria-label="Outras categorias">{outras}</nav>
+<p class="migalha"><a href="../">Início</a> · {e(titulo.replace(" hoje", ""))}</p>
+<footer>#publi · Preços e cupons podem mudar a qualquer momento (conferidos na data da oferta). Links de afiliado: a loja pode nos pagar uma comissão, sem custo para você. Como Associado da Amazon, a Bella Lucce recebe por compras qualificadas.</footer>
+{CONTADOR_SITE}
+</body></html>"""
+        pasta.mkdir(parents=True, exist_ok=True)
+        (pasta / "index.html").write_text(pagina, encoding="utf-8")
+        feitas[k] = len(ofs)
+    return feitas
 
 
 # ---------------- área Océane do site (/oceane/) ----------------

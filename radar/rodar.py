@@ -50,6 +50,10 @@ def main() -> None:
         shutil.copytree(a.SITE / "amigo-secreto", SAIDA / "amigo-secreto", dirs_exist_ok=True)
     if (a.SITE / "curadoria").exists():  # 26/10: Rastreia/Confere/Acha — só existe com o número do WhatsApp da loja
         shutil.copytree(a.SITE / "curadoria", SAIDA / "curadoria", dirs_exist_ok=True)
+    # 15/11: páginas por categoria (/promocao-perfume/ …) com as ofertas escritas na página (busca do Google/Bing/ChatGPT)
+    categorias = [v[0] for v in getattr(a, "PAGINAS_CATEGORIA", {}).values() if (a.SITE / v[0] / "index.html").exists()]
+    for slug in categorias:
+        shutil.copytree(a.SITE / slug, SAIDA / slug, dirs_exist_ok=True)
     for arq in ("logo.png", "favicon.png", "README.md"):
         if (REPO / arq).exists():
             shutil.copyfile(REPO / arq, SAIDA / arq)
@@ -86,7 +90,8 @@ def main() -> None:
     paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
         ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + (
         ["/curadoria/"] if (SAIDA / "curadoria").exists() else []) + (
-        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
+        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + [
+        f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
