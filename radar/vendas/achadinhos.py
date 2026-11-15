@@ -2435,10 +2435,52 @@ def _cartao_estatico(o: dict, i: int) -> str:
     de = f'<s>{e(o["a"])}</s>' if o.get("a") else ""
     hist = f'<div class="hist">📉 menor preço em {int(o["h"])} dias</div>' if o.get("h") else ""
     cupom = f'<div class="cupom">Cupom: <b>{e(o["c"])}</b></div>' if o.get("c") else ""
-    return (f'<div class="card"><a class="lnk" href="{e(o["u"], quote=True)}" target="_blank" '
+    return (f'<div class="card" id="{_ancora(o)}"><a class="lnk" href="{e(o["u"], quote=True)}" target="_blank" '
             f'rel="nofollow sponsored noopener"><div class="img">{foto}{selo}</div><div class="loja">{e(o["l"])}</div>'
             f'<div class="tit">{e(o["t"])}</div><div class="preco">{de}<b>{e(o["p"])}</b></div>{hist}{cupom}'
             f'<div class="btn">Pegar oferta</div></a></div>')
+
+
+def _ancora(o: dict) -> str:
+    """Id estável do cartão (o mesmo link de oferta dá sempre o mesmo id): o feed aponta para /<slug>/#<id>."""
+    import hashlib
+    return "o" + hashlib.sha1(str(o.get("u") or o.get("t") or "").encode("utf-8")).hexdigest()[:10]
+
+
+FEED_MAX = 40
+
+
+def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> str:
+    """15/11 03h (Claude): RSS 2.0 das ofertas das páginas de categoria, para o "publicar automaticamente de um feed RSS"
+    do Pinterest (até 200 pins/dia; o link de cada item tem que ser do domínio reivindicado, por isso aponta para o
+    cartão na NOSSA página, e não para a loja). Rodízio pelas categorias, maior desconto primeiro; guid estável."""
+    from email.utils import format_datetime
+    e = _html.escape
+    filas = [(slug, titulo, list(ofs)) for slug, (titulo, ofs) in por_slug.items()]
+    itens, i = [], 0
+    while len(itens) < FEED_MAX and any(f[2] for f in filas):
+        slug, titulo, ofs = filas[i % len(filas)]
+        i += 1
+        if not ofs:
+            continue
+        o = ofs.pop(0)
+        if not o.get("f"):
+            continue
+        link = f"{SITE_URL}/{slug}/#{_ancora(o)}"
+        de = f" (de {o['a']})" if o.get("a") else ""
+        selo = f" · {int(o['d'])}% OFF" if o.get("d") else ""
+        desc = (f"{o['t']}: por {o.get('p', '')}{de}{selo} na {o.get('l') or 'loja'}. "
+                f"{titulo.replace(' hoje', '')} da Bella Lucce, com o preço conferido. #publi")
+        itens.append(f"<item><title>{e(cortar(o['t'], 100))}</title><link>{e(link)}</link>"
+                     f'<guid isPermaLink="false">{_ancora(o)}</guid><pubDate>{format_datetime(agora)}</pubDate>'
+                     f"<description>{e(desc[:480])}</description>"
+                     f'<enclosure url="{e(o["f"], quote=True)}" type="image/jpeg" length="0"/>'
+                     f'<media:content url="{e(o["f"], quote=True)}" medium="image"/></item>')
+    return ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">'
+            f"<channel><title>Bella Lucce: promoções de beleza hoje</title><link>{SITE_URL}/</link>"
+            "<description>Achadinhos de perfume, maquiagem, skincare e cabelo com o preço conferido.</description>"
+            f"<language>pt-BR</language><lastBuildDate>{format_datetime(agora)}</lastBuildDate>{''.join(itens)}"
+            "</channel></rss>")
 
 
 def _preco_num(txt: str) -> float | None:
@@ -2483,6 +2525,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     categoria que caiu abaixo do mínimo simplesmente não vai para o _site nem para o sitemap."""
     e = _html.escape
     feitas: dict[str, int] = {}
+    para_feed: dict[str, tuple[str, list[dict]]] = {}
     agora = datetime.now(timezone(timedelta(hours=-3)))
     hoje, hora = agora.strftime("%d/%m/%Y"), agora.strftime("%H:%M")
     por_aba = {k: [o for o in dados if o.get("k") == k and o.get("u")] for k in PAGINAS_CATEGORIA}
@@ -2504,10 +2547,16 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
                   f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
         cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
         url = f"{SITE_URL}/{slug}/"
+        # 15/11 (Claude): o mesmo "Mandar no WhatsApp" da /amigo-secreto/ (boca a boca de quem chega pela busca)
+        from urllib.parse import quote
+        zap = "https://wa.me/?text=" + quote(f"{titulo} 💄 {url}?de=zap-{slug}", safe="")
+        entrar += (f'<a class="oce" href="{e(zap, quote=True)}" target="_blank" rel="noopener">'
+                   f'Mandar esta lista no WhatsApp</a>')
         pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(titulo)} ({hoje[:5]}) | Bella Lucce</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.png"><link rel="canonical" href="{url}">
+<link rel="alternate" type="application/rss+xml" title="Bella Lucce: promoções de beleza hoje" href="{SITE_URL}/feed.xml">
 <meta property="og:title" content="{e(titulo, quote=True)} | Bella Lucce"><meta property="og:type" content="website">
 <meta property="og:url" content="{url}"><meta property="og:image" content="{SITE_URL}/logo.png">
 <meta name="description" content="{e(desc, quote=True)}"><meta property="og:description" content="{e(desc, quote=True)}">
@@ -2528,6 +2577,9 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         pasta.mkdir(parents=True, exist_ok=True)
         (pasta / "index.html").write_text(pagina, encoding="utf-8")
         feitas[k] = len(ofs)
+        para_feed[slug] = (titulo, ofs)
+    if para_feed:
+        (SITE / "feed.xml").write_text(feed_rss(para_feed, agora), encoding="utf-8")
     return feitas
 
 

@@ -54,6 +54,8 @@ def main() -> None:
     categorias = [v[0] for v in getattr(a, "PAGINAS_CATEGORIA", {}).values() if (a.SITE / v[0] / "index.html").exists()]
     for slug in categorias:
         shutil.copytree(a.SITE / slug, SAIDA / slug, dirs_exist_ok=True)
+    if (a.SITE / "feed.xml").exists():  # 15/11: feed RSS das ofertas (Pinterest publica sozinho a partir dele)
+        shutil.copyfile(a.SITE / "feed.xml", SAIDA / "feed.xml")
     for arq in ("logo.png", "favicon.png", "README.md"):
         if (REPO / arq).exists():
             shutil.copyfile(REPO / arq, SAIDA / arq)
@@ -81,6 +83,8 @@ def main() -> None:
         shutil.copytree(REPO / "iris", SAIDA / "iris", dirs_exist_ok=True)
     # 03/10 (dona: "estar onde as pessoas procuram"): Google — robots, mapa do site e arquivo de verificação do Search Console
     for arq in REPO.glob("google*.html"):
+        shutil.copyfile(arq, SAIDA / arq.name)
+    for arq in REPO.glob("pinterest-*.html"):  # 15/11: arquivo de "reivindicar site" do Pinterest (feed.xml → pins sozinhos)
         shutil.copyfile(arq, SAIDA / arq.name)
     # 15/11: IndexNow (Bing, DuckDuckGo, Yahoo, busca do ChatGPT) — a chave pública <32 hex>.txt na raiz prova que o site é nosso
     for arq in REPO.glob("*.txt"):
