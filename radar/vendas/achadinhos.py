@@ -2498,7 +2498,9 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
                 + (f" em {', '.join(lojas[:4])}" if lojas else "") + f". Preço conferido em {hoje}.")
         outras = "".join(f'<a class="oce" href="../{PAGINAS_CATEGORIA[x][0]}/">{e(PAGINAS_CATEGORIA[x][1].replace(" hoje", ""))}</a>'
                          for x in com_pagina if x != k)
-        entrar = (f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
+        if (SITE / "amigo-secreto" / "index.html").exists():  # 15/11 (Claude): época de amigo secreto, link interno
+            outras += '<a class="oce" href="../amigo-secreto/">Amigo secreto: presentes até R$ 30, 50 e 80</a>'
+        entrar =(f'<a class="entrar" href="{e(grupo, quote=True)}" target="_blank" rel="noopener">'
                   f'Receber no WhatsApp · grupo grátis</a>' if grupo else "")
         cartoes = "".join(_cartao_estatico(o, i) for i, o in enumerate(ofs))
         url = f"{SITE_URL}/{slug}/"
