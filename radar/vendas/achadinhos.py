@@ -2401,6 +2401,11 @@ fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}})
         paginas_categoria(dados, grupo)
     except Exception as ex:  # noqa: BLE001
         print("páginas por categoria falharam:", ex)
+    try:  # 15/11 04h55 (Claude): página de cada produto da nossa loja (/nossa-loja/<produto>/)
+        if paginas_nossa_loja():
+            PAGINAS_FEITAS.insert(0, ("nossa-loja", "Nossa loja Bella Lucce"))
+    except Exception as ex:  # noqa: BLE001
+        print("páginas da nossa loja falharam:", ex)
     try:  # 15/11 03h40 (Claude): a inicial não levava a nenhuma dessas páginas (o Google só as achava pelo sitemap)
         (SITE / "index.html").write_text(_links_paginas(pagina, ofs_amigo=(SITE / "amigo-secreto" / "index.html").exists()),
                                          encoding="utf-8")
@@ -2437,6 +2442,100 @@ def _faixa_nossa_loja(e, slug: str = "") -> str:
         return ""
     return ('<section class="nossa"><h2 class="sec">Da nossa loja <i>Bella Lucce</i></h2>'
             f'<div class="trilho">{"".join(itens)}</div></section>\n')
+
+
+def _slug_produto(nome: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFD", nome).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:60].strip("-")
+
+
+def paginas_nossa_loja(agora: datetime | None = None) -> list[str]:
+    """15/11 04h55 (Claude, noite): uma página por produto da NOSSA loja (/nossa-loja/<produto>/) mais a lista
+    (/nossa-loja/), com dados estruturados de Produto (preço em reais, em estoque, vendido pela Bella Lucce). Quem
+    procura o nome do produto (ex.: "batom mágico lua e neve") cai numa página nossa, com o botão para a nossa loja
+    na Shopee. Fonte: config/loja.json (só produtos com estoque, o PC manda). Devolve os slugs feitos."""
+    e = _html.escape
+    agora = agora or datetime.now(timezone(timedelta(hours=-3)))
+    try:
+        loja = json.loads((config.CONFIG / "loja.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    prods = []
+    for p in loja if isinstance(loja, list) else []:
+        link = next(iter((p.get("links") or {}).values()), "")
+        if link and p.get("nome") and p.get("foto") and _slug_produto(p["nome"]):
+            prods.append({**p, "link": link, "slug": _slug_produto(p["nome"])})
+    if not prods:
+        return []
+    base = SITE / "nossa-loja"
+
+    def foto_abs(p: dict) -> str:
+        return p["foto"] if str(p["foto"]).startswith("http") else f"{SITE_URL}/{p['foto']}"
+
+    def cabeca(titulo: str, desc: str, url: str, foto: str, ld: dict) -> str:
+        ld_txt = json.dumps(ld, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        return (f'<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+                f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(titulo)}</title>'
+                f'<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">'
+                f'<link rel="canonical" href="{url}"><meta name="description" content="{e(desc, quote=True)}">'
+                f'<meta property="og:title" content="{e(titulo, quote=True)}"><meta property="og:type" content="product">'
+                f'<meta property="og:url" content="{url}"><meta property="og:image" content="{e(foto, quote=True)}">'
+                f'<meta property="og:description" content="{e(desc, quote=True)}"><meta property="og:locale" content="pt_BR">'
+                f'<meta name="twitter:card" content="summary_large_image">'
+                f'<script type="application/ld+json">{ld_txt}</script>'
+                f'<style>{SITE_CSS}\n.prod{{max-width:760px;margin:0 auto 30px;padding:0 16px;display:grid;gap:22px;'
+                f'grid-template-columns:repeat(auto-fit,minmax(260px,1fr));align-items:center}}.prod img{{width:100%;'
+                f'border-radius:4px}}.prod .preco b{{font-size:22px}}.prod p{{line-height:1.6;color:var(--cacau)}}'
+                f'.outras{{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;margin:0 auto 26px;'
+                f'padding:0 16px}}.outras .oce{{width:auto;font-size:11px;padding:10px 12px 8px}}</style></head><body>')
+
+    def produto_ld(p: dict, url: str) -> dict:
+        ld = {"@context": "https://schema.org", "@type": "Product", "name": p["nome"], "image": foto_abs(p),
+              "url": url}  # sem "brand": a marca é Max Love/Vivai/Febella; a Bella Lucce é quem vende (seller)
+        preco = _preco_num(p.get("preco"))
+        if preco:
+            ld["offers"] = {"@type": "Offer", "price": f"{preco:.2f}", "priceCurrency": "BRL", "url": p["link"],
+                            "availability": "https://schema.org/InStock",
+                            "seller": {"@type": "Organization", "name": "Bella Lucce"}}
+        return ld
+
+    rodape = ("<footer>Produtos da nossa loja Bella Lucce na Shopee: a compra, o pagamento e a entrega são feitos pela "
+              "Shopee. Preço visto em " + agora.strftime("%d/%m/%Y") + "; pode mudar, confira na loja.</footer>"
+              + CONTADOR_SITE + "</body></html>")
+    feitos = []
+    for p in prods:
+        url = f"{SITE_URL}/nossa-loja/{p['slug']}/"
+        desc = f"{p['nome']}: {p.get('preco') or ''}. Na nossa loja Bella Lucce na Shopee."
+        outros = "".join(f'<a class="oce" href="../{x["slug"]}/">{e(x["nome"])}</a>' for x in prods if x is not p)
+        html_p = (cabeca(f"{p['nome']} · Bella Lucce", desc, url, foto_abs(p), produto_ld(p, url))
+                  + f'<header class="hero"><a href="../../"><img class="logo" src="../../logo.png" alt="Bella Lucce"></a>'
+                  f'<p class="sobre">Bella Lucce · nossa loja</p><h1>{e(p["nome"])}</h1><div class="orn">✦</div></header>'
+                  f'<section class="prod"><img src="{e(foto_abs(p), quote=True)}" alt="{e(p["nome"], quote=True)}">'
+                  f'<div><div class="preco"><b>{e(p.get("preco") or "")}</b></div>'
+                  f'<p>Da nossa loja Bella Lucce na Shopee. Você compra pela Shopee, com o pagamento e a entrega dela.</p>'
+                  f'<a class="entrar" href="{e(p["link"], quote=True)}" target="_blank" rel="noopener">Comprar na nossa loja</a>'
+                  f'</div></section><h2 class="sec">Mais da nossa loja</h2><nav class="outras">{outros}'
+                  f'<a class="oce" href="../../promocao-maquiagem/">Promoções de maquiagem</a></nav>' + rodape)
+        (base / p["slug"]).mkdir(parents=True, exist_ok=True)
+        (base / p["slug"] / "index.html").write_text(html_p, encoding="utf-8")
+        feitos.append(p["slug"])
+    url = f"{SITE_URL}/nossa-loja/"
+    lista_ld = {"@context": "https://schema.org", "@type": "ItemList", "name": "Nossa loja Bella Lucce",
+                "itemListElement": [{"@type": "ListItem", "position": i + 1, "url": f"{url}{p['slug']}/"}
+                                    for i, p in enumerate(prods)]}
+    cartoes = "".join(
+        f'<a class="card" href="{p["slug"]}/"><div class="img"><img loading="lazy" src="{e(foto_abs(p), quote=True)}" '
+        f'alt="{e(p["nome"], quote=True)}"></div><div class="loja">Bella Lucce · nossa loja</div>'
+        f'<div class="tit">{e(p["nome"])}</div><div class="preco"><b>{e(p.get("preco") or "")}</b></div>'
+        f'<div class="btn">Ver produto</div></a>' for p in prods)
+    (base / "index.html").write_text(
+        cabeca("Nossa loja Bella Lucce: maquiagem com preço bom", "Batom, gloss, blush, pó e lip balm da nossa loja "
+               "Bella Lucce na Shopee.", url, foto_abs(prods[0]), lista_ld)
+        + '<header class="hero"><a href="../"><img class="logo" src="../logo.png" alt="Bella Lucce"></a>'
+        '<p class="sobre">Bella Lucce</p><h1>Nossa loja</h1><div class="orn">✦</div></header>'
+        f'<main>{cartoes}</main>' + rodape, encoding="utf-8")
+    return feitos
 
 
 def _links_paginas(pagina: str, ofs_amigo: bool) -> str:

@@ -56,6 +56,11 @@ def main() -> None:
     categorias = [v[0] for v in todas if (a.SITE / v[0] / "index.html").exists()]
     for slug in categorias:
         shutil.copytree(a.SITE / slug, SAIDA / slug, dirs_exist_ok=True)
+    nossa_loja = []  # 15/11 04h55: página de cada produto da nossa loja (/nossa-loja/<produto>/)
+    if (a.SITE / "nossa-loja" / "index.html").exists():
+        shutil.copytree(a.SITE / "nossa-loja", SAIDA / "nossa-loja", dirs_exist_ok=True)
+        nossa_loja = ["/nossa-loja/"] + [f"/nossa-loja/{d.name}/" for d in sorted((SAIDA / "nossa-loja").iterdir())
+                                         if d.is_dir() and (d / "index.html").exists()]
     if (a.SITE / "feed.xml").exists():  # 15/11: feed RSS das ofertas (Pinterest publica sozinho a partir dele)
         shutil.copyfile(a.SITE / "feed.xml", SAIDA / "feed.xml")
     for arq in ("logo.png", "favicon.png", "README.md"):
@@ -96,7 +101,7 @@ def main() -> None:
     paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
         ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + (
         ["/curadoria/"] if (SAIDA / "curadoria").exists() else []) + (
-        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + [
+        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + nossa_loja + [
         f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(
