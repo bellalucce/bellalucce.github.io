@@ -2605,6 +2605,10 @@ PAGINAS_PRESENTE = {
     "natal-50": ("presente-de-natal-ate-50-reais", "Presentes de Natal até R$ 50 hoje",
                  "lembrancinhas de beleza de marca conhecida para amigo secreto, família e trabalho",
                  lambda o: o.get("k") in BELEZA_LOJA and 0 < _preco_oferta(o) <= 50),
+    # 15/11 07h35 (Claude): faixa de cima (R$ 50,01 a 100), sem repetir as da página de R$ 50
+    "natal-100": ("presente-de-natal-ate-100-reais", "Presentes de Natal até R$ 100 hoje",
+                  "kits, perfumes e maquiagem de marca entre R$ 50 e R$ 100 para mãe, namorada e família",
+                  lambda o: o.get("k") in BELEZA_LOJA and 50 < _preco_oferta(o) <= 100),
 }
 PAGINAS_COM_NOSSA_LOJA = {"promocao-maquiagem", "promocao-shopee-beleza"}  # nossos produtos são de maquiagem e da Shopee
 PAGINAS_FEITAS: list[tuple[str, str]] = []  # (slug, título) escritas na última rodada → links fixos na inicial
