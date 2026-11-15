@@ -453,7 +453,8 @@ def limpar_titulo(t: str) -> str:
     # 06/10 noite (Rita): código da loja/SKU no começo ("ANA1108 Kit…", "ANA1108-12 Kits…", "42741 Creme…"), medida
     # americana colada ("30g/1.0FL.OZ| Clareamento…", "150mL/5.07 Fl.Oz") e palavra cortada pela fonte ("Aço Ino")
     # 12/10: ano abrindo o título ("2023 Óculos de sol feminino…") também é etiqueta do anúncio
-    t = re.sub(r"^(?:[A-Z]{2,5}\d{3,}(?:\s*-\s*\d{1,3})?|\d{5,}|20[12]\d)\s+(?=[A-Za-zÀ-ÿ])", "", t)
+    # 15/11 (Claude): marca com número no nome ("SKIN1004 Madagascar Cica…") não é código da loja — saía o nome da marca
+    t = re.sub(r"^(?!SKIN1004\b)(?:[A-Z]{2,5}\d{3,}(?:\s*-\s*\d{1,3})?|\d{5,}|20[12]\d)\s+(?=[A-Za-zÀ-ÿ])", "", t)
     t = re.sub(r"\s*[/,]?\s*\d+(?:[.,]\d+)?\s*fl\.?\s*oz\b\.?\s*\|?", " ", t, flags=re.I)
     t = re.sub(r"\s+([,)])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" -–|:,")
     t = re.sub(r"(?i)\b(a[çc]o) ino\b", r"\1 Inox", t)
