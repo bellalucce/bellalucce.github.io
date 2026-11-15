@@ -109,6 +109,23 @@ def main() -> None:
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"  <url><loc>{base}{p}</loc><lastmod>{hoje}</lastmod></url>\n" for p in paginas) + "</urlset>\n",
         encoding="utf-8")
+    # 15/11 06h10 (Claude): llms.txt (resumo do site para as buscas com IA: ChatGPT, Perplexity), páginas que existem
+    try:
+        titulos = {v[0]: v[1].replace(" hoje", "") for v in todas}
+        linhas = ["# Bella Lucce", "",
+                  "> Curadoria de promoções de beleza (perfume, maquiagem, skincare, cabelo) das lojas grandes do Brasil, "
+                  "com o preço conferido e sem desconto inflado. Atualizado a cada 20 minutos. Links de afiliado (#publi).",
+                  "", "## Promoções de hoje"]
+        linhas += [f"- [{titulos[s]}]({base}/{s}/)" for s in categorias]
+        if (SAIDA / "amigo-secreto").exists():
+            linhas.append(f"- [Amigo secreto: presentes até R$ 30, 50 e 80]({base}/amigo-secreto/)")
+        if nossa_loja:
+            linhas += ["", "## Nossa loja", f"- [Produtos da nossa loja Bella Lucce na Shopee]({base}/nossa-loja/)"]
+        linhas += ["", "## Outros", f"- [Todas as ofertas]({base}/)", f"- [Grupo de ofertas no WhatsApp]({base}/grupo/)",
+                   f"- [Feed RSS das ofertas]({base}/feed.xml)"]
+        (SAIDA / "llms.txt").write_text("\n".join(linhas) + "\n", encoding="utf-8")
+    except Exception as e:  # extra: sem ele o site sai igual
+        print("llms.txt falhou:", e)
     (SAIDA / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n", encoding="utf-8")
     novo ={r["id"]: r["link_loja"] for r in db.consultar(
         "SELECT id, link_loja FROM ofertas WHERE fonte = 'promobit' AND link_loja IS NOT NULL "
