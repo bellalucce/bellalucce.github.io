@@ -114,6 +114,16 @@ PALAVRAS = {  # para o ML, que não diz a categoria na página de ofertas
 PALAVRAS["eletronicos"] += r"|motorola|samsung|iphone|xiaomi|redmi|galaxy|kindle|echo dot|alexa|smartwatch|playstation|xbox"
 # 08/11 03h (inspetor da escola LoRA): "Lapis Olhos Esfumador" e "Inoar… Super Ampola" ficavam em "outros" e o curador pulava
 PALAVRAS["beleza"] += r"|l[áa]pis (?:de )?olhos?|esfumador|\bampolas?\b"
+# 15/11 00h20 (Claude; regra da dona 05/11 "homem, mulher, casa" para as cópias): na conferência de 14/11, 210 ofertas
+# das referências caíram em "fora do que vendemos" e várias eram do nicho: moda íntima (sutiã/cueca Lupo, lingerie,
+# body feminino, meias), chinelo, mala, e casa (jogo americano, cesta, lixeira, mesa de cabeceira, papel de parede, rack)
+PALAVRAS["moda"] += (r"|lingerie|calcinhas?|suti[ãa]s?|cuecas?|\bmeias?\b(?! cal[çc]a)|\bbody\b(?! (?:splash|spray|"
+                     r"oil|lotion|hidrat|cream|creme|wash|scrub))|chinelos?|\bmalas?\b|pochete|carteira (?:feminina|masculina)")
+PALAVRAS["casa"] += (r"|jogo americano|sousplat|\bcestas?\b|lixeira|mesa de cabeceira|criado[- ]mudo|papel de parede|"
+                     r"aparador|\brack\b|espregui[çc]adeira|\bbandejas?\b|t[áa]bua de (?:corte|frios)|banquetas?|"
+                     r"prateleira|lumin[áa]ria|abajur|\bvasos? (?:decorativ|de planta|para planta)|porta[- ]retrato|"
+                     r"pisca[- ]pisca|enfeites? de natal|[áa]rvore de natal|decora[çc][ãa]o|jogo de toalhas|"
+                     r"jogo de (?:pratos|copos|ta[çc]as|talheres)|\bta[çc]as\b|organizadora?s?\b")
 # 13/11 (Claude 09/10, Caixa): "Wella … Shamp 250ml + Cond 200ml" ficava em "outros" pela abreviação
 PALAVRAS["beleza"] += r"|\bshamp\b|\bcond\b(?=\s*\d)"
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
