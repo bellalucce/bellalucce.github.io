@@ -78,6 +78,10 @@ def main() -> None:
     # 03/10 (dona: "estar onde as pessoas procuram"): Google — robots, mapa do site e arquivo de verificação do Search Console
     for arq in REPO.glob("google*.html"):
         shutil.copyfile(arq, SAIDA / arq.name)
+    # 15/11: IndexNow (Bing, DuckDuckGo, Yahoo, busca do ChatGPT) — a chave pública <32 hex>.txt na raiz prova que o site é nosso
+    for arq in REPO.glob("*.txt"):
+        if len(arq.stem) == 32 and all(ch in "0123456789abcdef" for ch in arq.stem):
+            shutil.copyfile(arq, SAIDA / arq.name)
     base = "https://bellalucce.github.io"
     paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
         ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + (
