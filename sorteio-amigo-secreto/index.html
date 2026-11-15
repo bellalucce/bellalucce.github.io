@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- 15/11 08h55 (Claude): sorteio de amigo secreto grátis, feito no celular de quem organiza (nada vai para servidor).
+     Cada participante recebe pelo WhatsApp um link só dele; ao abrir vê quem tirou, as ideias de presente até R$ 30/50/80
+     e o convite do grupo. Quem busca "sorteio amigo secreto" em novembro e dezembro chega aqui. -->
+<title>Sorteio de amigo secreto online grátis pelo WhatsApp | Bella Lucce</title>
+<meta name="description" content="Faça o sorteio do amigo secreto grátis em 1 minuto: digite os nomes e mande para cada um, pelo WhatsApp, um link que só ele abre. Sem cadastro, sem app, e com ideias de presente até R$ 30, 50 e 80.">
+<link rel="canonical" href="https://bellalucce.github.io/sorteio-amigo-secreto/">
+<meta property="og:title" content="Sorteio de amigo secreto grátis pelo WhatsApp 🎁">
+<meta property="og:description" content="Digite os nomes, sorteie e mande para cada um o link que só ele abre. Sem cadastro e sem app.">
+<meta property="og:image" content="https://bellalucce.github.io/logo.png">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Bella Lucce"><meta property="og:locale" content="pt_BR">
+<link rel="icon" href="../favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Josefin+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Sorteio de amigo secreto pelo WhatsApp","url":"https://bellalucce.github.io/sorteio-amigo-secreto/","applicationCategory":"UtilitiesApplication","operatingSystem":"Qualquer navegador","inLanguage":"pt-BR","offers":{"@type":"Offer","price":"0","priceCurrency":"BRL"},"publisher":{"@type":"Organization","name":"Bella Lucce","url":"https://bellalucce.github.io/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Início","item":"https://bellalucce.github.io/"},{"@type":"ListItem","position":2,"name":"Sorteio de amigo secreto","item":"https://bellalucce.github.io/sorteio-amigo-secreto/"}]}]}</script>
+<style>
+  :root { --car: #B9683C; --car2: #8E4A26; --creme: #F4E8D2; --papel: #FBF4E6; --texto: #4A2C1A; --linha: rgba(185,104,60,.45); }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; min-height: 100vh; background: var(--creme); color: var(--texto); font-family: "Josefin Sans", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: 28px 16px 40px; }
+  .moldura { border: 1px solid var(--linha); border-radius: 22px; padding: 24px 18px; background: var(--papel); box-shadow: 0 10px 28px rgba(142,74,38,.12); }
+  .marca { margin: 0; text-align: center; font-size: .74rem; letter-spacing: .32em; font-weight: 600; color: var(--car); }
+  h1 { margin: 8px 0 8px; text-align: center; font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: 2rem; line-height: 1.08; color: var(--car2); text-wrap: balance; }
+  h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--car2); font-size: 1.45rem; margin: 26px 0 8px; }
+  p { line-height: 1.5; }
+  .sub { text-align: center; margin: 0 0 18px; font-size: .95rem; color: #6b4a33; }
+  label { display: block; font-weight: 600; font-size: .9rem; margin: 14px 0 6px; }
+  textarea, input { width: 100%; font: inherit; font-size: 1rem; color: var(--texto); background: #fff; border: 1px solid var(--linha); border-radius: 12px; padding: 12px; }
+  textarea { min-height: 170px; resize: vertical; }
+  .btn { display: block; width: 100%; margin-top: 16px; border: 0; border-radius: 999px; padding: 15px 18px 13px; font: inherit; font-weight: 600; font-size: 1rem; letter-spacing: .04em; color: #fff; background: var(--car); cursor: pointer; text-align: center; text-decoration: none; }
+  .btn.claro { background: transparent; color: var(--car2); border: 1px solid var(--car); }
+  .erro { color: #9b2c1f; font-weight: 600; min-height: 1.2em; margin: 10px 0 0; }
+  ul.lista { list-style: none; padding: 0; margin: 14px 0 0; }
+  ul.lista li { border: 1px solid var(--linha); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: #fff; }
+  ul.lista .nome { font-weight: 600; margin-bottom: 8px; }
+  ul.lista .acoes { display: flex; gap: 8px; }
+  ul.lista .acoes a, ul.lista .acoes button { flex: 1; margin: 0; padding: 11px 10px 9px; font-size: .9rem; }
+  .revela { text-align: center; }
+  .revela .tirou { font-family: "Cormorant Garamond", Georgia, serif; font-size: 2.6rem; font-weight: 700; color: var(--car2); margin: 6px 0; overflow-wrap: anywhere; }
+  .valor { display: inline-block; margin-top: 4px; padding: 6px 12px 4px; border-radius: 999px; background: var(--creme); font-weight: 600; }
+  .dica { font-size: .85rem; color: #6b4a33; }
+  .oculto { display: none; }
+  footer { text-align: center; font-size: .8rem; color: #6b4a33; margin-top: 22px; }
+</style>
+</head>
+<body>
+<main>
+  <section id="revelar" class="moldura revela oculto" aria-live="polite">
+    <p class="marca">BELLA LUCCE</p>
+    <h1 id="r-ola">Seu amigo secreto</h1>
+    <p class="sub">Guarde segredo! Você tirou:</p>
+    <p class="tirou" id="r-tirou"></p>
+    <p id="r-valor" class="oculto"><span class="valor"></span></p>
+    <p id="r-nome" class="dica oculto"></p>
+    <h2>Ideias de presente</h2>
+    <p>Separamos presentes de beleza de marca conhecida, com preço conferido, em listas até R$ 30, R$ 50 e R$ 80.</p>
+    <a class="btn" id="r-ideias" href="../amigo-secreto/">Ver presentes até R$ 30, 50 e 80</a>
+    <a class="btn claro" href="../grupo/?de=sorteio-revela">Receber as promoções no WhatsApp</a>
+    <a class="btn claro" href="./">Fazer outro sorteio</a>
+  </section>
+
+  <section id="montar" class="moldura">
+    <p class="marca">BELLA LUCCE</p>
+    <h1>Sorteio de amigo secreto grátis pelo WhatsApp</h1>
+    <p class="sub">Sem cadastro e sem app. O sorteio acontece aqui no seu celular e cada pessoa recebe um link que só ela abre.</p>
+    <label for="nomes">Nomes dos participantes (um por linha)</label>
+    <textarea id="nomes" placeholder="Ana&#10;Bruno&#10;Carla&#10;Diego"></textarea>
+    <label for="grupo">Nome da turma (opcional)</label>
+    <input id="grupo" maxlength="40" placeholder="Ex.: Família Souza, Trabalho">
+    <label for="valor">Valor do presente (opcional)</label>
+    <input id="valor" maxlength="20" inputmode="decimal" placeholder="Ex.: 50">
+    <p class="erro" id="erro" role="alert"></p>
+    <button class="btn" id="sortear" type="button">Sortear</button>
+
+    <div id="resultado" class="oculto">
+      <h2>Pronto! Agora mande para cada um</h2>
+      <p class="dica">Toque em "Mandar no WhatsApp" e escolha a pessoa. Não abra os links dos outros, ou você vai ver quem tirou quem.</p>
+      <ul class="lista" id="lista"></ul>
+    </div>
+  </section>
+
+  <section class="moldura" style="margin-top:18px">
+    <h2 style="margin-top:0">Como funciona</h2>
+    <p>1. Digite os nomes de quem vai participar, um por linha (mínimo de 3 pessoas).</p>
+    <p>2. Toque em Sortear. Ninguém tira o próprio nome.</p>
+    <p>3. Mande a cada pessoa o link dela pelo WhatsApp. Ao abrir, ela vê quem tirou e ideias de presente dentro do valor.</p>
+    <p class="dica">Nada é enviado para a internet: os nomes ficam só no link de cada pessoa.</p>
+    <a class="btn claro" href="../amigo-secreto/">Ideias de presente para amigo secreto</a>
+  </section>
+  <footer><a href="../">Bella Lucce</a> · promoções de beleza com o preço conferido</footer>
+</main>
+<script>
+(function () {
+  "use strict";
+  var BASE = "https://bellalucce.github.io/sorteio-amigo-secreto/";
+  function codificar(obj) {
+    var b = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    return b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function decodificar(txt) {
+    var b = txt.replace(/-/g, "+").replace(/_/g, "/");
+    while (b.length % 4) b += "=";
+    return JSON.parse(decodeURIComponent(escape(atob(b))));
+  }
+  function nomesDe(texto) {
+    var vistos = {}, out = [];
+    texto.split(/\r?\n|,|;/).forEach(function (n) {
+      n = n.trim().replace(/\s+/g, " ").slice(0, 40);
+      var k = n.toLowerCase();
+      if (n && !vistos[k]) { vistos[k] = 1; out.push(n); }
+    });
+    return out;
+  }
+  // embaralha e fecha um círculo: cada um dá presente ao próximo, então ninguém tira a si mesmo
+  function sortear(nomes, aleatorio) {
+    var a = nomes.slice(), r = aleatorio || Math.random;
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a.map(function (n, i) { return [n, a[(i + 1) % a.length]]; });
+  }
+  window.__sorteio = { codificar: codificar, decodificar: decodificar, nomesDe: nomesDe, sortear: sortear };
+  if (typeof document === "undefined" || !document.getElementById) return;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var hash = location.hash.replace(/^#/, "");
+  if (hash.indexOf("v=") === 0) {
+    try {
+      var d = decodificar(hash.slice(2));
+      $("montar").classList.add("oculto");
+      $("revelar").classList.remove("oculto");
+      $("r-ola").textContent = (d.n ? d.n + ", seu" : "Seu") + " amigo secreto" + (d.g ? " (" + d.g + ")" : "");
+      $("r-tirou").textContent = d.t;
+      if (d.v) {
+        $("r-valor").classList.remove("oculto");
+        $("r-valor").querySelector(".valor").textContent = "Valor combinado: R$ " + d.v;
+        var v = parseFloat(String(d.v).replace(",", "."));
+        if (v > 0) $("r-ideias").textContent = "Ver presentes até R$ " + (v <= 30 ? 30 : v <= 50 ? 50 : 80);
+      }
+      if (d.n) { $("r-nome").classList.remove("oculto"); $("r-nome").textContent = "Este link é só seu, " + d.n + ". Não mostre para ninguém."; }
+      document.title = "Seu amigo secreto 🎁 | Bella Lucce";
+    } catch (e) { location.hash = ""; }
+  }
+
+  $("sortear").addEventListener("click", function () {
+    var nomes = nomesDe($("nomes").value), grupo = $("grupo").value.trim().slice(0, 40), valor = $("valor").value.trim().replace(/^R\$\s*/i, "").slice(0, 12);
+    $("erro").textContent = "";
+    if (nomes.length < 3) { $("erro").textContent = "Coloque pelo menos 3 nomes diferentes, um por linha."; return; }
+    if (nomes.length > 60) { $("erro").textContent = "No máximo 60 pessoas por sorteio."; return; }
+    var lista = $("lista");
+    lista.textContent = "";
+    sortear(nomes).forEach(function (par) {
+      var link = BASE + "#v=" + codificar({ n: par[0], t: par[1], g: grupo, v: valor });
+      var msg = "Oi, " + par[0] + "! O amigo secreto" + (grupo ? " da " + grupo : "") + " já foi sorteado 🎁\n"
+        + "Abra este link só você para ver quem você tirou:\n" + link;
+      var li = document.createElement("li");
+      var nome = document.createElement("div"); nome.className = "nome"; nome.textContent = par[0];
+      var acoes = document.createElement("div"); acoes.className = "acoes";
+      var wa = document.createElement("a"); wa.className = "btn"; wa.textContent = "Mandar no WhatsApp";
+      wa.href = "https://wa.me/?text=" + encodeURIComponent(msg); wa.target = "_blank"; wa.rel = "noopener";
+      var cp = document.createElement("button"); cp.type = "button"; cp.className = "btn claro"; cp.textContent = "Copiar link";
+      cp.addEventListener("click", function () {
+        (navigator.clipboard ? navigator.clipboard.writeText(msg) : Promise.reject()).then(
+          function () { cp.textContent = "Copiado!"; }, function () { window.prompt("Copie a mensagem:", msg); });
+      });
+      acoes.appendChild(wa); acoes.appendChild(cp); li.appendChild(nome); li.appendChild(acoes); lista.appendChild(li);
+    });
+    $("resultado").classList.remove("oculto");
+    $("resultado").scrollIntoView({ behavior: "smooth" });
+  });
+})();
+</script>
+<script data-goatcounter="https://bellalucce.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>

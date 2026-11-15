@@ -102,6 +102,8 @@ def main() -> None:
             print(f"faixa da /grupo: {n_faixa} ofertas")
         except Exception as e:  # a faixa é um extra: sem ela a página sai como está no repositório
             print("faixa da /grupo falhou:", e)
+    if (REPO / "sorteio-amigo-secreto").exists():  # 15/11 08h55 (Claude): sorteio grátis pelo WhatsApp (página fixa)
+        shutil.copytree(REPO / "sorteio-amigo-secreto", SAIDA / "sorteio-amigo-secreto", dirs_exist_ok=True)
     if (REPO / "black-friday-beleza").exists():  # 14/10 (dona aprovou a ideia 2 da Vitória): lista de desejos da BF
         shutil.copytree(REPO / "black-friday-beleza", SAIDA / "black-friday-beleza", dirs_exist_ok=True)
     if (REPO / "p").exists():  # 02/10: página nossa de cada produto do Pinterest (scripts/pinterest/pagina_produto.py)
@@ -125,7 +127,8 @@ def main() -> None:
     paginas = ["/", "/oceane/", "/grupo/", "/links/"] + (
         ["/black-friday-beleza/"] if (SAIDA / "black-friday-beleza").exists() else []) + (
         ["/curadoria/"] if (SAIDA / "curadoria").exists() else []) + (
-        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + nossa_loja + [
+        ["/amigo-secreto/"] if (SAIDA / "amigo-secreto").exists() else []) + (
+        ["/sorteio-amigo-secreto/"] if (SAIDA / "sorteio-amigo-secreto").exists() else []) + [f"/{s}/" for s in categorias] + nossa_loja + [
         f"/p/{d.name}/" for d in sorted((SAIDA / "p").glob("*")) if d.is_dir()]
     hoje = time.strftime("%Y-%m-%d")
     (SAIDA / "sitemap.xml").write_text(mapa_do_site(base, paginas, hoje), encoding="utf-8")
@@ -139,6 +142,8 @@ def main() -> None:
         linhas += [f"- [{titulos[s]}]({base}/{s}/)" for s in categorias]
         if (SAIDA / "amigo-secreto").exists():
             linhas.append(f"- [Amigo secreto: presentes até R$ 30, 50 e 80]({base}/amigo-secreto/)")
+        if (SAIDA / "sorteio-amigo-secreto").exists():
+            linhas.append(f"- [Sorteio de amigo secreto grátis pelo WhatsApp]({base}/sorteio-amigo-secreto/)")
         if nossa_loja:
             linhas += ["", "## Nossa loja", f"- [Produtos da nossa loja Bella Lucce na Shopee]({base}/nossa-loja/)"]
         linhas += ["", "## Outros", f"- [Todas as ofertas]({base}/)", f"- [Grupo de ofertas no WhatsApp]({base}/grupo/)",

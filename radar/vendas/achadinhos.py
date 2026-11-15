@@ -2551,7 +2551,8 @@ _LD_INICIAL = '<script type="application/ld+json">' + json.dumps({"@context": "h
 def _links_paginas(pagina: str, ofs_amigo: bool) -> str:
     """Troca o <!--PAGINAS--> da inicial por links fixos (HTML, sem JavaScript) para as páginas feitas NESTA rodada."""
     e = _html.escape
-    links = ([("amigo-secreto", "Amigo secreto: presentes até R$ 30, 50 e 80")] if ofs_amigo else []) + PAGINAS_FEITAS
+    links = ([("amigo-secreto", "Amigo secreto: presentes até R$ 30, 50 e 80"),
+              ("sorteio-amigo-secreto", "Sorteio de amigo secreto grátis")] if ofs_amigo else []) + PAGINAS_FEITAS  # 15/11 08h55
     if not links:
         return pagina.replace("<!--PAGINAS-->", "")
     bloco = ('<style>.paginas{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;'
@@ -2782,6 +2783,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
                          for x in com_pagina if x != k)
         if (SITE / "amigo-secreto" / "index.html").exists():  # 15/11 (Claude): época de amigo secreto, link interno
             outras += '<a class="oce" href="../amigo-secreto/">Amigo secreto: presentes até R$ 30, 50 e 80</a>'
+            outras += '<a class="oce" href="../sorteio-amigo-secreto/">Sorteio de amigo secreto grátis</a>'  # 15/11 08h55
         # 15/11 06h40 (Claude): pela /grupo/ com a origem (b-<página>), como a /amigo-secreto/ (?de=as): a /grupo/ conta
         # a visita e o toque no convite por origem, então dá para ver qual página da busca traz gente para o grupo
         entrar = (f'<a class="entrar" href="../grupo/?de={e(("b-" + slug)[:24], quote=True)}">'
@@ -3216,7 +3218,7 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
 .vazio{{text-align:center;padding:20px 16px;font-size:15px;color:var(--cacau)}}
 </style></head><body>
 <a class="voltar" href="../">← Todas as ofertas</a>
-<header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · lista de presentes</p><h1>Amigo <em>secreto</em></h1><div class="orn">✦</div><p class="lead">Presentes de beleza de marcas que todo mundo conhece, separados por valor. Manda esta lista no grupo do amigo secreto da família ou da firma.</p><ul class="selos">{atalhos}<li>Atualizado {agora:%d/%m %H:%M}</li></ul><div class="acoes"><a class="entrar" href="{e(zap)}" target="_blank" rel="noopener" data-c="compartilhar">Mandar a lista no WhatsApp</a></div></header>
+<header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · lista de presentes</p><h1>Amigo <em>secreto</em></h1><div class="orn">✦</div><p class="lead">Presentes de beleza de marcas que todo mundo conhece, separados por valor. Manda esta lista no grupo do amigo secreto da família ou da firma.</p><ul class="selos">{atalhos}<li>Atualizado {agora:%d/%m %H:%M}</li></ul><div class="acoes"><a class="entrar" href="{e(zap)}" target="_blank" rel="noopener" data-c="compartilhar">Mandar a lista no WhatsApp</a><a class="entrar" href="../sorteio-amigo-secreto/" data-c="sorteio">Fazer o sorteio grátis pelo WhatsApp</a></div></header>
 {blocos}
 <section class="fim"><p>Quer receber promoção de beleza assim todo dia? O grupo é grátis e você sai quando quiser.</p><a class="entrar" href="/grupo/?de=as" data-c="grupo">Entrar no grupo VIP do WhatsApp</a></section>
 <footer>#publi · Os itens da Shopee têm link de afiliada da Bella Lucce: a loja pode nos pagar uma comissão, sem custo a mais para você. Os itens "Bella Lucce · nossa loja" são da nossa loja na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
