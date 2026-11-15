@@ -2583,6 +2583,28 @@ PAGINAS_LOJA = {
                "perfume, maquiagem e cuidados com desconto na Magalu"),
 }
 BELEZA_LOJA = {"perfume", "make", "skincare", "dermo", "cabelo", "ele"}
+_MASCULINO = re.compile(r"(?i)masculin|\bmen\b|homme|for him|\bhomem\b|barba")
+
+
+def _preco_oferta(o: dict) -> float:
+    return _preco_num(o.get("p")) or 0.0
+
+
+# 15/11 05h15 (Claude): Natal chegando, busca "presente de natal para mãe/namorada/homem" sobe a partir de meados de
+# novembro. Mesmo molde das categorias; filtro pelo que já vem na oferta (aba, preço, título).
+PAGINAS_PRESENTE = {
+    "natal-ela": ("presente-de-natal-para-ela", "Presentes de Natal para ela hoje",
+                  "perfume, maquiagem, skincare e cabelo para mãe, namorada, irmã e amiga",
+                  lambda o: o.get("k") in {"perfume", "make", "skincare", "cabelo", "dermo"}
+                  and not _MASCULINO.search(str(o.get("t") or "")) and 0 < _preco_oferta(o) <= 300),
+    "natal-ele": ("presente-de-natal-para-ele", "Presentes de Natal para ele hoje",
+                  "perfume masculino, barba e cuidados para pai, namorado, marido e irmão",
+                  lambda o: (o.get("k") == "ele" or (o.get("k") == "perfume" and _MASCULINO.search(str(o.get("t") or ""))))
+                  and 0 < _preco_oferta(o) <= 400),
+    "natal-50": ("presente-de-natal-ate-50-reais", "Presentes de Natal até R$ 50 hoje",
+                 "lembrancinhas de beleza de marca conhecida para amigo secreto, família e trabalho",
+                 lambda o: o.get("k") in BELEZA_LOJA and 0 < _preco_oferta(o) <= 50),
+}
 PAGINAS_COM_NOSSA_LOJA = {"promocao-maquiagem", "promocao-shopee-beleza"}  # nossos produtos são de maquiagem e da Shopee
 PAGINAS_FEITAS: list[tuple[str, str]] = []  # (slug, título) escritas na última rodada → links fixos na inicial
 PAGINA_CAT_MIN = 4
@@ -2719,7 +2741,11 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     # só beleza (o título diz "beleza": tênis e bolsa da mesma loja ficam nas páginas deles)
     por_aba.update({"loja:" + l: [o for o in dados if o.get("l") == l and o.get("u") and o.get("k") in BELEZA_LOJA]
                     for l in PAGINAS_LOJA})
-    paginas = {**PAGINAS_CATEGORIA, **{"loja:" + l: v for l, v in PAGINAS_LOJA.items()}}
+    # 15/11 05h15 (Claude): presentes de Natal (para ela / para ele / até R$ 50), mesma página, filtro próprio
+    por_aba.update({"esp:" + k: [o for o in dados if o.get("u") and filtro(o)]
+                    for k, (_, _, _, filtro) in PAGINAS_PRESENTE.items()})
+    paginas = {**PAGINAS_CATEGORIA, **{"loja:" + l: v for l, v in PAGINAS_LOJA.items()},
+               **{"esp:" + k: v[:3] for k, v in PAGINAS_PRESENTE.items()}}
     com_pagina = [k for k, v in por_aba.items() if len(v) >= PAGINA_CAT_MIN]
     for k, (slug, titulo, assunto) in paginas.items():
         pasta = SITE / slug
@@ -2729,7 +2755,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         lojas = sorted({o["l"] for o in ofs if o.get("l")})
         maior = max((int(o.get("d") or 0) for o in ofs), default=0)
         desc = (f"{len(ofs)} {titulo[0].lower() + titulo[1:]}: {assunto}. Até {maior}% OFF"
-                + (f" em {', '.join(lojas[:4])}" if lojas and not k.startswith("loja:") else "")
+                + (f" em {', '.join(lojas[:4])}" if lojas and not k.startswith(("loja:", "esp:")) else "")
                 + f". Preço conferido em {hoje}.")
         outras = "".join(f'<a class="oce" href="../{paginas[x][0]}/">{e(paginas[x][1].replace(" hoje", ""))}</a>'
                          for x in com_pagina if x != k)
@@ -2777,7 +2803,7 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         pasta.mkdir(parents=True, exist_ok=True)
         (pasta / "index.html").write_text(pagina, encoding="utf-8")
         PAGINAS_FEITAS.append((slug, titulo))
-        if k.startswith("loja:"):  # a página da loja repete ofertas das categorias: fora do feed e da contagem
+        if k.startswith(("loja:", "esp:")):  # loja e presente repetem ofertas das categorias: fora do feed e da contagem
             continue
         feitas[k] = len(ofs)
         para_feed[slug] = (titulo, ofs)

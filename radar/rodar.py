@@ -52,7 +52,8 @@ def main() -> None:
         shutil.copytree(a.SITE / "curadoria", SAIDA / "curadoria", dirs_exist_ok=True)
     # 15/11: páginas por categoria (/promocao-perfume/ …) com as ofertas escritas na página (busca do Google/Bing/ChatGPT)
     # 15/11 03h35: + páginas por loja (/promocao-shopee-beleza/ …), mesmo molde
-    todas = list(getattr(a, "PAGINAS_CATEGORIA", {}).values()) + list(getattr(a, "PAGINAS_LOJA", {}).values())
+    todas = list(getattr(a, "PAGINAS_CATEGORIA", {}).values()) + list(getattr(a, "PAGINAS_LOJA", {}).values()) \
+        + list(getattr(a, "PAGINAS_PRESENTE", {}).values())  # 15/11 05h15: presentes de Natal
     categorias = [v[0] for v in todas if (a.SITE / v[0] / "index.html").exists()]
     for slug in categorias:
         shutil.copytree(a.SITE / slug, SAIDA / slug, dirs_exist_ok=True)
