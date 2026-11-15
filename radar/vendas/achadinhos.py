@@ -136,7 +136,7 @@ PALAVRAS["casa"] += (r"|\bta[çc]as?\b|\bvelas? (?:decorativ|arom[áa]tic|perfum
                      r"natalin[oa]s?\b|pres[ée]pio|papai noel|quadros? (?:decorativ|com moldura|a[34]\b)|peseira|"
                      r"\bmantas?\b(?! (?:t[ée]rmica|asf[áa]ltica|l[íi]quida|acr[íi]lica para))|edredom|cobertor|"
                      r"almofadas?(?! (?:de carimbo|para carimbo))|\bbowls?\b|tigelas?|assadeira|forma de bolo|"
-                     r"cortador(?:es)? de biscoito|sanduicheira|torradeira|batedeira|chaleira el[ée]trica")
+                     r"cortador(?:es)? de biscoito|sanduicheira|torradeira|batedeira|chaleira el[ée]trica|\btalheres\b")
 # 13/11 (Claude 09/10, Caixa): "Wella … Shamp 250ml + Cond 200ml" ficava em "outros" pela abreviação
 PALAVRAS["beleza"] += r"|\bshamp\b|\bcond\b(?=\s*\d)"
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
@@ -790,6 +790,7 @@ PAGINA_PRODUTO = [  # loja → padrão de URL de página de UM produto (loja for
     r"vivara\.com\.br/[a-z0-9-]+/p", r"pandora\.(?:com\.br|net)/.+\.html",  # joias (sem comissão até o cadastro na Awin)
     r"farfetch\.com/br/shopping/[a-z]+/[a-z0-9-]+-item-\d+\.aspx",  # luxo (30/09)
     r"docebeleza\.com\.br/products/[a-z0-9-]+/?$",  # 05/10: Doce Beleza (Awin, aprovada) — link_afiliado põe o link Awin
+    r"evas\.com\.br/[a-z0-9]+(?:-[a-z0-9]+){2,}/?$",  # 15/11: Evas (Awin, aprovada; integracoes/evas.py)
     # 08/10: Océane (#SQUAD/Flip) — VTEX "/<slug>/p"; linha Mariana Saad NUNCA (robots.txt /*saad* e fora do programa)
     r"oceane\.com\.br/(?![a-z0-9-]*saad)[a-z0-9-]+/p(?:[?#]|$)",
     # 09/10: Shein pela Lomadee (fonte lomadee_shein) — só aprovada com o NOSSO lmdee.link em sinais (aprovada())
@@ -1070,6 +1071,8 @@ def aprovada(o: dict) -> bool:
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
     if o["fonte"] == "awin_docebeleza":  # 05/10: conferida à mão (loja de dermo, "de" = tabela das marcas): ≥ 25% off
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
+    if o["fonte"] == "awin_evas":  # 15/11 (Claude): promoção OFICIAL da loja na Awin; "De" = o % OFF que a loja declarou
+        return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] == "magalu_epoca":  # 06/10 (dona): Época no Magalu, "de" conferido no site da própria Época
         # 31/10 (dona: "pode liberar o Magalu"): sem conferência também vale — o "De" inflado já foi barrado acima
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
@@ -1265,6 +1268,7 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
 
 
 AWIN_DOCEBELEZA = "https://www.awin1.com/cread.php?awinmid=76888&awinaffid=3111704"  # + &ued=<produto codificado>
+AWIN_EVAS = "https://www.awin1.com/cread.php?awinmid=125582&awinaffid=3111704"  # 15/11: Evas (integracoes/evas.py)
 NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", re.I)
 # 07/10 (DONA, por escrito no chat, depois de avisada do risco: "Pode por, já deveria por em tudo… Aceito o risco"):
 # o ML Afiliados proíbe WhatsApp/Telegram, mas os grupos de referência usam o link de afiliado do ML e ela decidiu fazer
@@ -1325,6 +1329,9 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
         from urllib.parse import quote
         return _curto_oficial(url) or f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"  # 13/10: tidd.ly quando houver
+    if re.match(r"https://(?:www\.)?evas\.com\.br/[a-z0-9-]+/?$", url):  # 15/11: Evas pela Awin (mid 125582)
+        from urllib.parse import quote
+        return _curto_oficial(url) or f"{AWIN_EVAS}&ued={quote(url, safe='')}"
     if m := OCEANE_PRODUTO.match(url):  # 08/10: já vem com o nosso utmi_pc → sai igual (outro código → vira o nosso)
         # 15/10 (dona: "pode encurtar a Océane"): no grupo/Telegram, o NOSSO curto bellalucce.github.io/o/<codigo>/ —
         # só se a página já foi vista no ar (integracoes/oceane_curto.py); senão o comprido de sempre. Site: comprido.
