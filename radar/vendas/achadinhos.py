@@ -2421,6 +2421,20 @@ PAGINAS_CATEGORIA = {
     "sapatos": ("promocao-sapatos", "Promoções de sapatos hoje", "tênis, sandália, rasteirinha e salto"),
     "bolsas": ("promocao-bolsas", "Promoções de bolsas e acessórios hoje", "bolsas, carteiras, óculos e acessórios"),
 }
+# 15/11 03h35 (Claude): mesma página, filtrada pela loja ("l" da oferta, nome exato como sai no ofertas.json)
+PAGINAS_LOJA = {
+    "Shopee": ("promocao-shopee-beleza", "Promoções de beleza na Shopee hoje",
+               "maquiagem, skincare, perfume e cabelo com desconto na Shopee"),
+    "Mercado Livre": ("promocao-mercado-livre-beleza", "Promoções de beleza no Mercado Livre hoje",
+                      "perfume, maquiagem, skincare e cabelo com desconto no Mercado Livre"),
+    "Amazon": ("promocao-amazon-beleza", "Promoções de beleza na Amazon hoje",
+               "perfume, skincare, maquiagem e cabelo com desconto na Amazon"),
+    "Doce Beleza": ("promocao-doce-beleza", "Promoções da Doce Beleza hoje",
+                    "dermocosméticos, skincare e cabelo com desconto na Doce Beleza"),
+    "Magalu": ("promocao-magalu-beleza", "Promoções de beleza na Magalu hoje",
+               "perfume, maquiagem e cuidados com desconto na Magalu"),
+}
+BELEZA_LOJA = {"perfume", "make", "skincare", "dermo", "cabelo", "ele"}
 PAGINA_CAT_MIN = 4
 PAGINA_CAT_MAX = 60
 
@@ -2448,6 +2462,7 @@ def _ancora(o: dict) -> str:
 
 
 FEED_MAX = 40
+FEED_AMIGO: list[dict] = []  # preenchida por pagina_amigo_secreto() na mesma rodada da vitrine (vem antes das categorias)
 
 
 def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> str:
@@ -2458,14 +2473,32 @@ def feed_rss(por_slug: dict[str, tuple[str, list[dict]]], agora: datetime) -> st
     e = _html.escape
     filas = [(slug, titulo, list(ofs)) for slug, (titulo, ofs) in por_slug.items()]
     itens, i = [], 0
-    while len(itens) < FEED_MAX and any(f[2] for f in filas):
+    presentes = list(FEED_AMIGO)
+    vistos: set[str] = set()
+
+    def item_presente(p: dict) -> str:
+        return (f"<item><title>{e(cortar(p['titulo'], 100))}</title><link>{e(p['link'])}</link>"
+                f'<guid isPermaLink="false">{p["guid"]}</guid><pubDate>{format_datetime(agora)}</pubDate>'
+                f"<description>{e(p['desc'][:480])}</description>"
+                f'<enclosure url="{e(p["foto"], quote=True)}" type="image/jpeg" length="0"/>'
+                f'<media:content url="{e(p["foto"], quote=True)}" medium="image"/></item>')
+    while len(itens) < FEED_MAX and (any(f[2] for f in filas) or presentes):
+        if presentes and (len(itens) % 3 == 2 or not any(f[2] for f in filas)):  # 1 presente a cada 3 itens
+            p = presentes.pop(0)
+            if p["guid"] not in vistos:
+                vistos.add(p["guid"])
+                itens.append(item_presente(p))
+            continue
+        if not filas:
+            break
         slug, titulo, ofs = filas[i % len(filas)]
         i += 1
         if not ofs:
             continue
         o = ofs.pop(0)
-        if not o.get("f"):
+        if not o.get("f") or _ancora(o) in vistos:
             continue
+        vistos.add(_ancora(o))
         link = f"{SITE_URL}/{slug}/#{_ancora(o)}"
         de = f" (de {o['a']})" if o.get("a") else ""
         selo = f" · {int(o['d'])}% OFF" if o.get("d") else ""
@@ -2529,8 +2562,13 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
     agora = datetime.now(timezone(timedelta(hours=-3)))
     hoje, hora = agora.strftime("%d/%m/%Y"), agora.strftime("%H:%M")
     por_aba = {k: [o for o in dados if o.get("k") == k and o.get("u")] for k in PAGINAS_CATEGORIA}
+    # 15/11 03h35 (Claude): também por loja (/promocao-shopee-beleza/ …): "promoção Shopee hoje" é busca grande
+    # só beleza (o título diz "beleza": tênis e bolsa da mesma loja ficam nas páginas deles)
+    por_aba.update({"loja:" + l: [o for o in dados if o.get("l") == l and o.get("u") and o.get("k") in BELEZA_LOJA]
+                    for l in PAGINAS_LOJA})
+    paginas = {**PAGINAS_CATEGORIA, **{"loja:" + l: v for l, v in PAGINAS_LOJA.items()}}
     com_pagina = [k for k, v in por_aba.items() if len(v) >= PAGINA_CAT_MIN]
-    for k, (slug, titulo, assunto) in PAGINAS_CATEGORIA.items():
+    for k, (slug, titulo, assunto) in paginas.items():
         pasta = SITE / slug
         ofs = sorted(por_aba[k], key=lambda o: (-(o.get("d") or 0), -(o.get("b") or 0)))[:PAGINA_CAT_MAX]
         if k not in com_pagina:
@@ -2538,8 +2576,9 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         lojas = sorted({o["l"] for o in ofs if o.get("l")})
         maior = max((int(o.get("d") or 0) for o in ofs), default=0)
         desc = (f"{len(ofs)} {titulo[0].lower() + titulo[1:]}: {assunto}. Até {maior}% OFF"
-                + (f" em {', '.join(lojas[:4])}" if lojas else "") + f". Preço conferido em {hoje}.")
-        outras = "".join(f'<a class="oce" href="../{PAGINAS_CATEGORIA[x][0]}/">{e(PAGINAS_CATEGORIA[x][1].replace(" hoje", ""))}</a>'
+                + (f" em {', '.join(lojas[:4])}" if lojas and not k.startswith("loja:") else "")
+                + f". Preço conferido em {hoje}.")
+        outras = "".join(f'<a class="oce" href="../{paginas[x][0]}/">{e(paginas[x][1].replace(" hoje", ""))}</a>'
                          for x in com_pagina if x != k)
         if (SITE / "amigo-secreto" / "index.html").exists():  # 15/11 (Claude): época de amigo secreto, link interno
             outras += '<a class="oce" href="../amigo-secreto/">Amigo secreto: presentes até R$ 30, 50 e 80</a>'
@@ -2552,13 +2591,19 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
         zap = "https://wa.me/?text=" + quote(f"{titulo} 💄 {url}?de=zap-{slug}", safe="")
         entrar += (f'<a class="oce" href="{e(zap, quote=True)}" target="_blank" rel="noopener">'
                    f'Mandar esta lista no WhatsApp</a>')
+        # 15/11 03h25 (Claude): prévia do link (WhatsApp, Facebook, Pinterest) com a foto da melhor oferta, não o logo
+        capa = next((o for o in ofs if str(o.get("f") or "").startswith("https://")), None)
+        foto_previa = capa["f"] if capa else f"{SITE_URL}/logo.png"
+        alt_previa = capa["t"][:100] if capa else "Bella Lucce"
         pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://bellalucce.goatcounter.com; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(titulo)} ({hoje[:5]}) | Bella Lucce</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.png"><link rel="canonical" href="{url}">
 <link rel="alternate" type="application/rss+xml" title="Bella Lucce: promoções de beleza hoje" href="{SITE_URL}/feed.xml">
 <meta property="og:title" content="{e(titulo, quote=True)} | Bella Lucce"><meta property="og:type" content="website">
-<meta property="og:url" content="{url}"><meta property="og:image" content="{SITE_URL}/logo.png">
+<meta property="og:url" content="{url}"><meta property="og:image" content="{e(foto_previa, quote=True)}">
+<meta property="og:image:alt" content="{e(alt_previa, quote=True)}"><meta property="og:site_name" content="Bella Lucce"><meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{e(foto_previa, quote=True)}">
 <meta name="description" content="{e(desc, quote=True)}"><meta property="og:description" content="{e(desc, quote=True)}">
 {_dados_estruturados(url, titulo, desc, ofs, agora)}
 <style>
@@ -2576,6 +2621,8 @@ def paginas_categoria(dados: list[dict], grupo: str | None = None) -> dict:
 </body></html>"""
         pasta.mkdir(parents=True, exist_ok=True)
         (pasta / "index.html").write_text(pagina, encoding="utf-8")
+        if k.startswith("loja:"):  # a página da loja repete ofertas das categorias: fora do feed e da contagem
+            continue
         feitas[k] = len(ofs)
         para_feed[slug] = (titulo, ofs)
     if para_feed:
@@ -2884,6 +2931,16 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
     except ValueError:
         nossos = []
     e = _html.escape
+    FEED_AMIGO.clear()  # 15/11 (Claude): os presentes também vão para o feed.xml (Pinterest), com link para o cartão
+
+    def para_feed(link_loja: str, nome: str, preco: str, foto: str, faixa: str) -> str:
+        anc = _ancora({"u": link_loja})
+        if foto:
+            FEED_AMIGO.append({"guid": anc, "link": f"{SITE_URL}/amigo-secreto/#{anc}", "foto": foto,
+                               "titulo": f"Presente de amigo secreto {faixa.lower()}: {nome}",
+                               "desc": f"{nome}: {preco}. Ideia de presente de amigo secreto {faixa.lower()}, "
+                                       "de marca conhecida, na lista da Bella Lucce. #publi"})
+        return anc
 
     def preco_nosso(txt: str) -> str:
         if m := re.match(r"^(R\$ [\d.,]+) na \w+ \(de (R\$ [\d.,]+)\)$", txt):
@@ -2893,7 +2950,9 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
     def card_nosso(p: dict) -> str:
         foto = p["foto"] if p["foto"].startswith("http") else f"../{p['foto']}"
         c = ("kit-" if p.get("kit") else "loja-") + re.sub(r"[^a-z0-9]+", "-", p["chave"].lower()).strip("-")
-        return (f'<a class="card nosso" href="{e(p["link"])}" target="_blank" rel="noopener" data-c="{e(c)}">'
+        anc = para_feed(p["link"], p["nome"], p["preco"], foto if foto.startswith("http") else f"{SITE_URL}/{p['foto']}",
+                        faixa)
+        return (f'<a class="card nosso" id="{anc}" href="{e(p["link"])}" target="_blank" rel="noopener" data-c="{e(c)}">'
                 f'<div class="img"><img loading="lazy" decoding="async" width="300" height="300" src="{e(foto)}" '
                 f'alt="{e(p["nome"])}"></div><div class="loja">Bella Lucce · nossa loja</div><div class="tit">{e(p["nome"])}</div>'
                 f'<div class="preco">{preco_nosso(p["preco"])}</div><div class="btn">Ver na nossa loja</div></a>')
@@ -2906,7 +2965,8 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
         selo = f'<span class="selo">-{int(o["desconto"])}%</span>' if o.get("desconto") and de else ""
         visto = str(o.get("atualizado_em") or "")
         visto = f'<div class="visto">preço visto {visto[8:10]}/{visto[5:7]} às {visto[11:16]}</div>' if len(visto) >= 16 else ""
-        return (f'<a class="card" href="{e(o["_link"])}" target="_blank" rel="nofollow sponsored noopener" data-c="shopee">'
+        anc = para_feed(o["_link"], t, _brl(o["preco"]), miniatura_shopee(o["foto"]) if o.get("foto") else "", faixa)
+        return (f'<a class="card" id="{anc}" href="{e(o["_link"])}" target="_blank" rel="nofollow sponsored noopener" data-c="shopee">'
                 f'<div class="img"><img loading="lazy" decoding="async" width="300" height="300" '
                 f'src="{e(miniatura_shopee(o["foto"]))}" alt="{e(t)}" onerror="this.style.visibility=\'hidden\'">{selo}</div>'
                 f'<div class="loja">Shopee</div><div class="tit">{e(t)}</div>'
@@ -2915,6 +2975,7 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
 
     blocos, n_total, anteriores = "", 0, 0.0
     for teto, nome, sub in AS_FAIXAS:
+        faixa = nome
         meus = [p for p in nossos if anteriores < (p.get("valor") or 0) <= teto]
         cards = [card_nosso(p) for p in meus] + [card_radar(o) for o in radar[teto]]
         anteriores = teto

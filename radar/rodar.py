@@ -51,7 +51,9 @@ def main() -> None:
     if (a.SITE / "curadoria").exists():  # 26/10: Rastreia/Confere/Acha — só existe com o número do WhatsApp da loja
         shutil.copytree(a.SITE / "curadoria", SAIDA / "curadoria", dirs_exist_ok=True)
     # 15/11: páginas por categoria (/promocao-perfume/ …) com as ofertas escritas na página (busca do Google/Bing/ChatGPT)
-    categorias = [v[0] for v in getattr(a, "PAGINAS_CATEGORIA", {}).values() if (a.SITE / v[0] / "index.html").exists()]
+    # 15/11 03h35: + páginas por loja (/promocao-shopee-beleza/ …), mesmo molde
+    todas = list(getattr(a, "PAGINAS_CATEGORIA", {}).values()) + list(getattr(a, "PAGINAS_LOJA", {}).values())
+    categorias = [v[0] for v in todas if (a.SITE / v[0] / "index.html").exists()]
     for slug in categorias:
         shutil.copytree(a.SITE / slug, SAIDA / slug, dirs_exist_ok=True)
     if (a.SITE / "feed.xml").exists():  # 15/11: feed RSS das ofertas (Pinterest publica sozinho a partir dele)
