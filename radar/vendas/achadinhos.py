@@ -6352,6 +6352,24 @@ def tipos_recentes(agora: datetime | None = None, horas: float | None = None) ->
     return out
 
 
+def tipo_cedo_demais(o: dict, ja: list[dict], recentes: set[str]) -> bool:
+    """16/11 20h (Claude; caixa do HERMES 10h50, conferidor: "shampoo 09:03 e 10:03" no servidor, com o banco e as
+    legendas certos): trava FINAL da rodada, logo antes da legenda, para qualquer caminho que monte a fila. Tipo que
+    saiu há menos de TIPO_ESPACO_H/2 h (`recentes`) ou já está na rodada (`ja`) não vai. Pedido da dona e o tema do
+    dia passam, como no teto por tipo."""
+    t = tipo_repetivel(o)
+    if not t or o.get("pedido_dona"):
+        return False
+    try:
+        from vendas import datas as _datas
+        tema = _datas.tema_do_dia()
+        if tema and _datas.casa(o, tema):
+            return False
+    except Exception:  # noqa: BLE001
+        pass
+    return t in recentes or any(tipo_repetivel(x) == t for x in ja)
+
+
 def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     """04/10 (dona: "cílios 900 vezes"): 2 do mesmo tipo (cílios, batom, sérum…) na mesma rodada, não."""
     t = tipo_repetivel(o)
