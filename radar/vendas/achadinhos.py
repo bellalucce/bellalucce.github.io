@@ -5193,6 +5193,36 @@ def pedidos_dona(horas: int = 24) -> dict:
     return {k: v for k, v in d.items() if isinstance(v, dict) and str(v.get("quando", "")) >= corte}
 
 
+ORIGEM_ORDEM = {"bomba": 1, "referencia": 2}  # 17/11: pedido sem "origem" (o que a dona cola) = 0, vai primeiro
+
+
+def ordem_do_pedido(o: dict, p: dict) -> tuple:
+    """Chave de ordem entre os pedidos (estável: dentro do mesmo grupo vale a ordem do arquivo)."""
+    origem = str(p.get("origem") or "")
+    if origem != "referencia":
+        return (ORIGEM_ORDEM.get(origem, 0), 0)
+    try:
+        pr, de = float(o.get("preco") or 0), float(o.get("preco_antigo") or 0)
+    except (TypeError, ValueError):
+        pr, de = 0.0, 0.0
+    return (ORIGEM_ORDEM["referencia"], -((1 - pr / de) if 0 < pr < de else 0.0))
+
+
+def marcar_origem(oid: str, origem: str) -> bool:
+    """17/11: diz no pedidos_dona.json de onde veio o pedido ("bomba" ou "referencia", do bombas.py). Não mexe em mais nada."""
+    try:
+        d = json.loads(PEDIDOS_DONA.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(d, dict) or not isinstance(d.get(oid), dict):
+        return False
+    d[oid]["origem"] = origem
+    tmp = PEDIDOS_DONA.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(PEDIDOS_DONA)
+    return True
+
+
 def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
     ped = pedidos_dona()
     if not ped:
@@ -5231,6 +5261,10 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
     # 09/10: na ordem do ARQUIVO (o `pedido` da dona entra no começo dele = vai primeiro); antes era a ordem do banco
     pos = {k: i for i, k in enumerate(ped)}
     out.sort(key=lambda o: pos.get(o["id"], len(pos)))
+    # 17/11 (Claude): o `bombas.py` grava até 60 da referência por dia no mesmo arquivo, e o mais novo ia na frente: os
+    # pedidos que a dona cola ficavam atrás deles (só ~1 pedido sai por rodada). Ordem: o dela (sem "origem") primeiro,
+    # depois as bombas, depois a referência do maior desconto para o menor (bombas.py, 14/11). Não muda quantos saem.
+    out.sort(key=lambda o: ordem_do_pedido(o, ped[o["id"]]))
     # 09/10 (dona: Océane abaixo de R$ 90 sempre primeiro): entre os pedidos da Océane vale a "ordem" da Odete
     # (integracoes/oceane.escolher_pedidos); os das outras lojas ficam onde estavam
     pos_oce = [i for i, o in enumerate(out) if o.get("fonte") == "oceane_afiliados"]
