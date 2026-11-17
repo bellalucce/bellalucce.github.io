@@ -5256,7 +5256,8 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
                 or (o.get("fonte") == "oceane_afiliados" and ((o.get("atualizado_em") or "") < oceane_ok
                                                               or sinais_de(o).get("fora")))):
             continue
-        o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}))
+        o.update(publicado_em=None, pedido_dona=True, **({"grupo": p["grupo"]} if p.get("grupo") else {}),
+                 **({"pedido_origem": p["origem"]} if p.get("origem") else {}))  # 17/11: "bomba"/"referencia" (bombas.py)
         out.append(o)
     # 09/10: na ordem do ARQUIVO (o `pedido` da dona entra no começo dele = vai primeiro); antes era a ordem do banco
     pos = {k: i for i, k in enumerate(ped)}
@@ -6392,7 +6393,9 @@ def tipo_cedo_demais(o: dict, ja: list[dict], recentes: set[str]) -> bool:
     saiu há menos de TIPO_ESPACO_H/2 h (`recentes`) ou já está na rodada (`ja`) não vai. Pedido da dona e o tema do
     dia passam, como no teto por tipo."""
     t = tipo_repetivel(o)
-    if not t or o.get("pedido_dona"):
+    # 17/11 (caixa do HERMES 12h50: "hidratante 11:05 e 12:21", os dois gravados pelo bombas.py): só o pedido que a
+    # dona colou passa por cima do espaço entre tipos; bomba e referência (pedido_origem) seguem a regra
+    if not t or (o.get("pedido_dona") and not o.get("pedido_origem")):
         return False
     try:
         from vendas import datas as _datas
