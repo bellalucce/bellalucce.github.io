@@ -14,7 +14,10 @@
     "Achadinhos de Beleza",
     "Achadinhos Bella Lucce"
   ],
-  "canal_nome": "PROMOS DE BELEZA VIP",
+  "canal_nome": "Promos VIP ✨",
+  "canal_nome_alt": [
+    "PROMOS DE BELEZA VIP"
+  ],
   "canais_pausados_sem_seguidor": false,
   "canais_seguidores_da_casa": {
     "telegram": 1,
