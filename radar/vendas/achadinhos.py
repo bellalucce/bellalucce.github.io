@@ -486,6 +486,12 @@ def limpar_titulo(t: str) -> str:
     if t.count("|") == 1 and len(t.split("|")[0].split()) >= 4:
         t = t.split("|")[0]
     t = re.sub(r"\s+(?:n[ºo°.]?\s*)?\d{2}\s+(?:ao?|at[ée])\s+\d{2}\s*$", "", t, flags=re.I)
+    # 17/11 (Claude; escola: o inspetor barrou "… depilar e depilação cod 1610" e "… Edelweiss e Raiz de…" como post bom):
+    # código do anúncio escrito no fim ("cod 1610", "Código: 4521", "Ref. 7006-0061") e título que a loja já manda
+    # cortado com reticências → fecha no último separador (", ", " - ", " e ", " com ", " para ", " + ")
+    t = re.sub(r"(?:\s*[-–|,]?\s*\b(?:c[óo]d(?:igo)?|ref(?:er[êe]ncia)?)\b\.?\s*:?\s*(?:n[ºo°.]\s*)?[\w-]*\d[\w-]*)+\s*$",
+               "", t, flags=re.I).strip(" -–|:/,")
+    t = _sem_reticencias(t)
     # 13/11 (itens abertos da Rita de 09 a 11/10, conferidos de novo): código de modelo com hífen no fim ("Fivela
     # 052-040"), numeração brasileira com cor no fim ("Casual Branco/preto 38 Br") e preposição solta que sobra depois
     # de tirar a grade ("Rasteira … Confortavel do 34 ao 39" → "… Confortavel do")
@@ -590,6 +596,18 @@ def _marca_em(texto: str):
             if not antes.isalnum() and not depois.isalnum():
                 return m
     return None
+
+
+def _sem_reticencias(t: str) -> str:
+    """17/11: "… Células de Edelweiss e Raiz de…" (a loja cortou) → "… Células de Edelweiss"."""
+    if not re.search(r"(?:…|\.{3})\s*$", t or ""):
+        return t
+    t = re.sub(r"\s*(?:…|\.{3})\s*$", "", t)
+    seps = [m.start() for m in re.finditer(r"\s*,\s+|\s+(?:[-–+]|e|com|para)\s+", t, flags=re.I)]
+    seps = [s for s in seps if len(t[:s].split()) >= 4]
+    if seps:
+        return _fim_limpo(t[:seps[-1]])
+    return _fim_limpo(t)
 
 
 def _fim_limpo(t: str) -> str:
@@ -1731,9 +1749,12 @@ def produto_da_loja(o: dict) -> bool:
 
 
 def _sem_acento(t: str) -> str:
+    """17/11 (Claude): havia duas `_sem_acento` neste arquivo e só a de baixo valia (tirava o apóstrofo curvo: "L’Oréal"
+    virava "loreal" e não casava com "L'Oréal" da lista). Agora é uma só: a de baixo (só ASCII, minúscula), com o
+    apóstrofo curvo/acento agudo/crase trocado por ' antes."""
     import unicodedata
-    t = (t or "").lower().replace("’", "'").replace("´", "'").replace("`", "'")
-    return "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn")
+    t = (t or "").replace("’", "'").replace("‘", "'").replace("´", "'").replace("`", "'")
+    return unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
 
 
 def _rx_nomes(nomes: list) -> re.Pattern | None:
@@ -4905,11 +4926,6 @@ GENERICO_LOJA = {"oficial", "official", "oficiais", "loja", "store", "shop", "fl
                  # "Beleza na Web", "Beleza Renovada", "Poderosa Beleza") não é marca de produto
                  "amor", "mix", "lojas", "grupo", "rede", "web", "renovada", "poderosa", "mundo", "casa", "center",
                  "mega", "super", "top", "kbeauty", "kbeleza", "importados", "import", "atacado", "variedades", "com"}
-
-
-def _sem_acento(t: str) -> str:
-    import unicodedata
-    return unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
 
 
 def loja_oficial_da_marca(o: dict) -> bool:
