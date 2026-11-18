@@ -704,6 +704,29 @@ def ganho_afiliado(o: dict) -> float:
         return 0.0
 
 
+VENDIDO_PCT_POST = 30   # abaixo disso o contador não impressiona: não sai no post
+
+
+def _vendido_pct(s) -> int:
+    try:
+        v = int((s or {}).get("vendido_pct") or 0) if isinstance(s, dict) else 0
+    except (TypeError, ValueError):
+        return 0
+    return v if 0 < v <= 100 else 0
+
+
+def _peso_vendido(s) -> float:
+    """18/11 (dona: as promoções com contador "quantas já compraram / quanto falta pra esgotar" são as melhores)."""
+    v = _vendido_pct(s)
+    return 12 if v >= 60 else 8 if v >= VENDIDO_PCT_POST else 4 if v else 0
+
+
+def linha_vendido(s) -> str:
+    """'🔥 *87% já vendido*' para a legenda. A porcentagem só sobe até a oferta acabar, então "já" segue verdade."""
+    v = _vendido_pct(s)
+    return f"🔥 *{v}% já vendido*" if v >= VENDIDO_PCT_POST else ""
+
+
 def pontuar(o: dict) -> float:
     """0–100. Só entra na vitrine/grupo o que é promoção boa DE VERDADE (pedido do usuário)."""
     s, d = o.get("sinais") or {}, o.get("desconto") or 0
@@ -715,6 +738,7 @@ def pontuar(o: dict) -> float:
     p += 6 if (o.get("nota") or 0) >= 4.6 else 0
     vend = s.get("vendidos_num", 0) or (1000 if "mil" in (o.get("vendidos") or "") else 0)
     p += 16 if vend >= 50000 else 12 if vend >= 10000 else 8 if vend >= 5000 else 4 if vend >= 1000 else 0  # viral
+    p += _peso_vendido(s)                                  # 18/11: oferta com contador "x% vendido" (dona: as melhores)
     destaque = s.get("destaque")  # ML: texto ("MAIS VENDIDO"); Promobit: sim/não
     p += 5 if isinstance(destaque, str) and re.search(r"MAIS VENDIDO|IMPERD", destaque, re.I) else 0
     p += min(pct_comissao(o), 20) * 0.4                    # comissão maior = mais ganho para a loja (ML % inteiro, Shopee fração)
@@ -1492,8 +1516,8 @@ def coletar(log=print) -> dict:
 
 
 def _vendidos_num(txt: str | None) -> int:
-    """'1000' → 1000; '50mil' / '50 mil' → 50000."""
-    m = re.match(r"\s*([\d.,]+)\s*(mil)?", txt or "")
+    """'1000' → 1000; '50mil' / '50 mil' → 50000; '+10mil vendidos' → 10000 (18/11: o '+' do cartão do ML dava 0)."""
+    m = re.match(r"\s*\+?\s*([\d.,]+)\s*(mil)?", txt or "")
     if not m:
         return 0
     n = float(m.group(1).replace(".", "").replace(",", "."))
@@ -4115,6 +4139,8 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     linhas.append(por)
     if selo := selo_preco(o):
         linhas.append(selo)
+    if ja := linha_vendido(sinais):  # 18/11: o contador que a dona apontou (só a porcentagem, nunca horário: 05/11)
+        linhas.append(ja)
     if por_que_vale_ligado():  # 09/11: chave DESLIGADA; ligada, só sai com fato do dado da oferta
         try:
             if pqv := por_que_vale(o, gancho, tem_selo=bool(selo)):
@@ -4530,8 +4556,11 @@ TIPO_BELEZA = [(r"m[áa]scara (?:de |para )?c[íi]lios|r[íi]mel", "rímel"), (r
                (r"primer", "primer"),  # 13/11 18h12: primer e limpeza facial não tinham tipo (2 primers no dia)
                (r"(?:gel|espuma|[óo]leo|loç[ãa]o) de limpeza|limpeza facial|cleanser|demaquilante|[áa]gua micelar",
                 "limpeza facial"),
-               (r"hidratante", "hidratante"), (r"sabonete", "sabonete"), (r"m[áa]scara (?:facial|de argila)|sheet mask", "máscara facial"),
+               # 18/11 13h50 (conferidor: "hidratante 13:03 e 13:08"): o das 13h03 era "Shampoo Hidratante" — o
+               # adjetivo "hidratante" vinha antes do tipo de verdade; shampoo, máscara, sabonete e body splash primeiro
+               (r"sabonete", "sabonete"), (r"m[áa]scara (?:facial|de argila)|sheet mask", "máscara facial"),
                (r"shampoo|condicionador", "shampoo"), (r"m[áa]scara (?:capilar|de hidrata)", "máscara capilar"),
+               (r"body splash", "body splash"), (r"hidratante", "hidratante"),
                (r"[óo]leo|finalizador|leave", "finalizador"),
                (r"secador|chapinha|prancha|escova (?:secadora|rotativa)|modelador|babyliss", "aparelho de cabelo"),
                (r"body splash", "body splash"), (r"\btoucas?\b|bonnet", "touca"),  # 13/11: touca de cetim (Beto 10/10)
@@ -5541,6 +5570,11 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
         d["nota"] = _num(m.group(1)) if m else None
     m = re.search(r'\+\s*(\d+(?:[.,]\d+)?)\s*(mil)?\s*vendid', html, re.I)
     d["vendidos_num"] = int(float(m.group(1).replace(",", ".")) * (1000 if m.group(2) else 1)) if m else 0
+    # 18/11 13h45 (dona: "tem até um contador de quanto já foi… quanto falta pra esgotar… Geralmente são as melhores"):
+    # barra de escassez da oferta relâmpago/do dia ("87% VENDIDOS", progress_bar_scarcity no JSON da página)
+    m = (re.search(r'"progress_bar_scarcity"\s*:\s*\{[^{}]*?"value"\s*:\s*(\d{1,3})\b', html)
+         or re.search(r'>\s*(\d{1,3})\s*%\s*VENDIDOS\s*<', html, re.I))
+    d["vendido_pct"] = int(m.group(1)) if m and 0 < int(m.group(1)) <= 100 else 0
     # loja oficial: nome no JSON → o "Loja oficial <loja>" do resumo do vendedor → qualquer "Loja oficial X" que não seja
     # o selo genérico "Loja oficial do Mercado Livre" (09/10: vinha "do Mercado Livre" como nome da loja)
     m = (re.search(r'"official_store_name"\s*:\s*"([^"]{2,60})"', html)
@@ -5705,6 +5739,8 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
         sinais.update(so_pix=True, **({"preco_cartao": d["preco_cartao"]} if d.get("preco_cartao") else {}))
     if d.get("cupom_pagina"):
         sinais.update(cupom_pagina=d["cupom_pagina"], preco_com_cupom=d.get("preco_com_cupom"))
+    if d.get("vendido_pct"):  # 18/11: contador da oferta relâmpago ("87% vendido") → linha no post e prioridade
+        sinais["vendido_pct"] = d["vendido_pct"]
     if texto:
         sinais["gancho_dona"] = texto.strip().upper()
     vend = sinais["vendidos_num"]
