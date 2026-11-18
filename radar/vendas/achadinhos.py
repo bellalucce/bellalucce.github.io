@@ -1314,6 +1314,31 @@ def limpar_link(url: str, cli: httpx.Client | None = None) -> str | None:
 AWIN_DOCEBELEZA = "https://www.awin1.com/cread.php?awinmid=76888&awinaffid=3111704"  # + &ued=<produto codificado>
 AWIN_EVAS = "https://www.awin1.com/cread.php?awinmid=125582&awinaffid=3111704"  # 15/11: Evas (integracoes/evas.py)
 NAO_PERMITE_WHATSAPP = re.compile(r"mercadolivre\.com\.br/|mercadolibre\.com/", re.I)
+# 18/11 18h40 (Claude): loja da Shopee em férias desde 17/11 13h26 → o site e a vitrine levam aos NOSSOS anúncios do ML
+ML_LOJA_URL = "https://lista.mercadolivre.com.br/_CustId_1049022478"   # todos os anúncios da Bella Lucce no ML
+SHOPEE_LOJA_URL = "https://shopee.com.br/shop/254425847"
+
+
+def onde_compra(link: str) -> tuple[str, str]:
+    """("no Mercado Livre", "pelo Mercado Livre, com o pagamento e a entrega dele") pelo link; senão o mesmo da Shopee."""
+    if NAO_PERMITE_WHATSAPP.search(link or ""):
+        return "no Mercado Livre", "pelo Mercado Livre, com o pagamento e a entrega dele"
+    return "na Shopee", "pela Shopee, com o pagamento e a entrega dela"
+
+
+def _seguro_botao_loja() -> tuple[str, str]:
+    try:
+        return botao_nossa_loja()
+    except Exception:  # noqa: BLE001 — o botão nunca derruba a vitrine
+        return SHOPEE_LOJA_URL, "Nossa loja Bella Lucce na Shopee"
+
+
+def botao_nossa_loja() -> tuple[str, str]:
+    """(url, texto) do botão "Nossa loja" do site: com a Shopee em férias, a lista dos nossos anúncios no ML."""
+    from vendas import loja_ferias
+    if loja_ferias.em_ferias():
+        return ML_LOJA_URL, "Nossa loja Bella Lucce no Mercado Livre"
+    return SHOPEE_LOJA_URL, "Nossa loja Bella Lucce na Shopee"
 # 07/10 (DONA, por escrito no chat, depois de avisada do risco: "Pode por, já deveria por em tudo… Aceito o risco"):
 # o ML Afiliados proíbe WhatsApp/Telegram, mas os grupos de referência usam o link de afiliado do ML e ela decidiu fazer
 # igual → o grupo passa a levar o NOSSO link do ML. Para voltar ao link comum (sem etiqueta): False.
@@ -2375,6 +2400,7 @@ def vitrine(horas: int = 36) -> str:
     grupo = canais().get("grupo_whatsapp")
     entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">Entrar no grupo VIP do WhatsApp · grátis</a>'
               if grupo else "")
+    loja_url, loja_txt = _seguro_botao_loja()
     # 26/10 (dona: "Manda p what's da loja"): 1 linha + botão para a /curadoria/ — só aparece com o número da loja
     curadoria = ('<section class="cura"><p>Quer um preço vigiado, um link conferido ou ajuda para achar algo? '
                  'A gente faz de graça, pelo WhatsApp da loja.</p><a class="oce" href="curadoria/">Curadoria grátis '
@@ -2403,7 +2429,7 @@ nav button i{{font-style:normal;font-size:10px;opacity:.75;margin-left:4px;lette
 .cura{{max-width:520px;margin:18px auto 0;padding:0 16px;text-align:center}}.cura p{{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--cacau)}}.cura .oce{{margin:0 auto}}
 .nossa{{max-width:1240px;margin:0 auto}}.trilho{{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,175px);gap:14px;overflow-x:auto;padding:0 16px 14px}}.nossa .btn{{background:var(--car2)}}
 </style></head><body>
-<header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza e moda</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume, cabelo e moda, para elas e para eles, das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="https://shopee.com.br/shop/254425847" target="_blank" rel="noopener">Nossa loja Bella Lucce na Shopee</a><a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
+<header class="hero"><img class="logo" src="logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · curadoria de beleza e moda</p><h1>Promos de <em>Beleza</em> VIP</h1><div class="orn">✦</div><p class="lead">Make, skincare, dermo, perfume, cabelo e moda, para elas e para eles, das lojas que você já conhece, com o preço conferido e desconto de verdade.</p><ul class="selos"><li>Preço conferido</li><li>Sem desconto inflado</li><li>Atualizado {agora}</li></ul><div class="acoes">{entrar}<a class="oce" href="{loja_url}" target="_blank" rel="noopener">{loja_txt}</a><a class="oce" href="oceane/">Área Océane · cupom BELLALUCCE 10% off</a></div></header>
 <section class="passos"><div><b>Garimpo</b><span>a gente procura nas lojas grandes</span></div><div><b>Confere</b><span>preço, loja e se o desconto é real</span></div><div><b>Você compra</b><span>direto na loja, sem pagar nada a mais</span></div></section>
 {curadoria}
 {faixa}
@@ -2480,7 +2506,7 @@ def _faixa_nossa_loja(e, slug: str = "") -> str:
             FEED_NOSSA.append({"guid": anc, "link": f"{SITE_URL}/{slug}/#{anc}",
                                "foto": foto if foto.startswith("http") else f"{SITE_URL}/{p['foto']}",
                                "titulo": f"{p['nome']} · Bella Lucce",
-                               "desc": f"{p['nome']}: {p.get('preco') or ''}. Da nossa loja Bella Lucce na Shopee."})
+                               "desc": f"{p['nome']}: {p.get('preco') or ''}. Da nossa loja Bella Lucce {onde_compra(link)[0]}."})
         itens.append(f'<a class="card" id="{anc}" href="{e(link, quote=True)}" target="_blank" rel="noopener">'
                      f'<div class="img"><img loading="lazy" src="{e(foto, quote=True)}" alt="{e(p["nome"], quote=True)}"></div>'
                      f'<div class="loja">Bella Lucce · nossa loja</div><div class="tit">{e(p["nome"])}</div>'
@@ -2547,23 +2573,26 @@ def paginas_nossa_loja(agora: datetime | None = None) -> list[str]:
                             "seller": {"@type": "Organization", "name": "Bella Lucce"}}
         return ld
 
-    rodape = ("<footer>Produtos da nossa loja Bella Lucce na Shopee: a compra, o pagamento e a entrega são feitos pela "
-              "Shopee. Preço visto em " + agora.strftime("%d/%m/%Y") + "; pode mudar, confira na loja.</footer>"
-              + CONTADOR_SITE + "</body></html>")
+    def rodape(link: str) -> str:   # 18/11: a loja de cada produto pelo link (Shopee em férias → ML)
+        loja = "Mercado Livre" if NAO_PERMITE_WHATSAPP.search(link or "") else "Shopee"
+        return (f"<footer>Produtos da nossa loja Bella Lucce {onde_compra(link)[0]}: a compra, o pagamento e a entrega "
+                f"são feitos pel{'o' if loja == 'Mercado Livre' else 'a'} {loja}. Preço visto em "
+                + agora.strftime("%d/%m/%Y") + "; pode mudar, confira na loja.</footer>" + CONTADOR_SITE + "</body></html>")
     feitos = []
     for p in prods:
         url = f"{SITE_URL}/nossa-loja/{p['slug']}/"
-        desc = f"{p['nome']}: {p.get('preco') or ''}. Na nossa loja Bella Lucce na Shopee."
+        onde, como = onde_compra(p["link"])
+        desc = f"{p['nome']}: {p.get('preco') or ''}. Na nossa loja Bella Lucce {onde}."
         outros = "".join(f'<a class="oce" href="../{x["slug"]}/">{e(x["nome"])}</a>' for x in prods if x is not p)
         html_p = (cabeca(f"{p['nome']} · Bella Lucce", desc, url, foto_abs(p), produto_ld(p, url))
                   + f'<header class="hero"><a href="../../"><img class="logo" src="../../logo.png" alt="Bella Lucce"></a>'
                   f'<p class="sobre">Bella Lucce · nossa loja</p><h1>{e(p["nome"])}</h1><div class="orn">✦</div></header>'
                   f'<section class="prod"><img src="{e(foto_abs(p), quote=True)}" alt="{e(p["nome"], quote=True)}">'
                   f'<div><div class="preco"><b>{e(p.get("preco") or "")}</b></div>'
-                  f'<p>Da nossa loja Bella Lucce na Shopee. Você compra pela Shopee, com o pagamento e a entrega dela.</p>'
+                  f'<p>Da nossa loja Bella Lucce {onde}. Você compra {como}.</p>'
                   f'<a class="entrar" href="{e(p["link"], quote=True)}" target="_blank" rel="noopener">Comprar na nossa loja</a>'
                   f'</div></section><h2 class="sec">Mais da nossa loja</h2><nav class="outras">{outros}'
-                  f'<a class="oce" href="../../promocao-maquiagem/">Promoções de maquiagem</a></nav>' + rodape)
+                  f'<a class="oce" href="../../promocao-maquiagem/">Promoções de maquiagem</a></nav>' + rodape(p["link"]))
         (base / p["slug"]).mkdir(parents=True, exist_ok=True)
         (base / p["slug"] / "index.html").write_text(html_p, encoding="utf-8")
         feitos.append(p["slug"])
@@ -2578,10 +2607,10 @@ def paginas_nossa_loja(agora: datetime | None = None) -> list[str]:
         f'<div class="btn">Ver produto</div></a>' for p in prods)
     (base / "index.html").write_text(
         cabeca("Nossa loja Bella Lucce: maquiagem com preço bom", "Batom, gloss, blush, pó e lip balm da nossa loja "
-               "Bella Lucce na Shopee.", url, foto_abs(prods[0]), lista_ld)
+               f"Bella Lucce {onde_compra(prods[0]['link'])[0]}.", url, foto_abs(prods[0]), lista_ld)
         + '<header class="hero"><a href="../"><img class="logo" src="../logo.png" alt="Bella Lucce"></a>'
         '<p class="sobre">Bella Lucce</p><h1>Nossa loja</h1><div class="orn">✦</div></header>'
-        f'<main>{cartoes}</main>' + rodape, encoding="utf-8")
+        f'<main>{cartoes}</main>' + rodape(prods[0]["link"]), encoding="utf-8")
     return feitos
 
 
@@ -7641,12 +7670,21 @@ def _publicar_loja(pasta, radar) -> None:
     radar/config/loja.json + fotos reduzidas em loja/<sku>.jpg no repositório do site."""
     from PIL import Image
 
-    from vendas import midia
+    from vendas import loja_ferias, midia
     cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
     prods = cfg["produtos"]
     (pasta / "loja").mkdir(exist_ok=True)
     lista = []
-    if foco := foco_loja(None, cfg):  # 14/10 (dona disse SIM à Vitória): na janela do foco a vitrine mostra SÓ os itens dele
+    # 18/11 18h40 (Claude): com a Shopee em férias a vitrine do site mandava para a loja fechada (o 1º link do produto
+    # é o da Shopee). Em férias: só o link do NOSSO anúncio no ML e o preço do ML; sem anúncio no ML, o produto não entra;
+    # o foco (ofertas da Shopee) fica fora, igual ao post da loja no grupo.
+    ferias = bool(loja_ferias.em_ferias())
+    if ferias:
+        prods = {k: {**p, "links": ml, "promo": None,
+                     "preco": " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "ML" in x or "Mercado" in x)}
+                 for k, p in prods.items()
+                 if (ml := {c: u for c, u in (p.get("links") or {}).items() if NAO_PERMITE_WHATSAPP.search(u)})}
+    if not ferias and (foco := foco_loja(None, cfg)):  # 14/10 (dona disse SIM à Vitória): na janela do foco a vitrine mostra SÓ os itens dele
         vistos = set()
         for chave, p, ok in itens_do_foco(cfg, foco):
             if not ok or chave in vistos:  # 27/10: item repetido no foco (mais vezes no grupo) aparece 1× só na vitrine
