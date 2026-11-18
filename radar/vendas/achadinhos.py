@@ -4380,10 +4380,14 @@ def chamada_loja(propria: str | None, agora: datetime) -> str:
 def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     """(legenda, foto local) de um produto da PRÓPRIA loja com estoque, em rodízio, nas HORAS_LOJA (1ª rodada da hora).
     Produtos/links/legendas vêm de config/midia.json (os mesmos dos vídeos). None fora do horário ou sem estoque."""
-    from vendas import midia
+    from vendas import loja_ferias, midia
     agora = agora or datetime.now()
+    # 18/11 (Claude): com a loja da Shopee em férias (17/11 13h26, Iria) o link da Shopee leva a uma loja fechada. O
+    # filtro "só Shopee" é de 06/10; em 07/10 a dona liberou o ML no grupo ("Pode por, já deveria por em tudo… Aceito o
+    # risco"). Então, em férias, o post da loja leva o link do ANÚNCIO DELA no ML (e o preço do ML); sem link do ML, não sai.
+    ferias = bool(loja_ferias.em_ferias())
     cfg = json.loads((config.CONFIG / "midia.json").read_text(encoding="utf-8"))
-    if foco := foco_loja(agora, cfg):  # 14/10: janela de foco (só as 3 ofertas, 1×/dia) — fora dela, tudo como antes
+    if not ferias and (foco := foco_loja(agora, cfg)):  # 14/10: janela de foco (só as 3 ofertas, 1×/dia) — fora dela, tudo como antes
         return _post_do_foco(cfg, foco, agora)
     horas_loja = horas_da_loja()  # 04/11 22h: ritmo ligado → nos horários do grupo; 10/11: 4 por dia de novo
     if agora.hour not in horas_loja or agora.minute >= 15:
@@ -4397,18 +4401,25 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         preco = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "ML" not in x and "Mercado" not in x)
         return {**p, "links": links, "foto": p.get("foto_grupo") or p.get("foto"), "preco": preco}
 
+    def _so_ml(p: dict) -> dict:
+        links = {c: u for c, u in (p.get("links") or {}).items() if NAO_PERMITE_WHATSAPP.search(u)}
+        preco = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "ML" in x or "Mercado" in x)
+        return {**p, "links": links, "foto": p.get("foto_grupo") or p.get("foto"), "preco": preco, "promo": None}
+
+    filtro = _so_ml if ferias else _so_shopee
+
     def _tem(prefixos: list[str]) -> bool:
         from vendas import estoque
         itens = estoque.itens()
         return all(any(i["sku"].startswith(pre) and i["qtd"] > 0 for i in itens) for pre in prefixos)
 
-    esg = esgotados_na_shopee(agora)  # 10/11: anúncio esgotado na Shopee não entra no rodízio do grupo
-    ok = [(k, q) for k, p in prods.items() if (q := _so_shopee(p))["links"] and midia.tem_estoque(k)
+    esg = {} if ferias else esgotados_na_shopee(agora)  # 10/11: anúncio esgotado na Shopee não entra no rodízio
+    ok = [(k, q) for k, p in prods.items() if (q := filtro(p))["links"] and midia.tem_estoque(k)
           and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
     # 06/10 (Kátia, dona: "impulsiona os KITS"): kit montado na Shopee pelo Leve Mais por Menos entra no rodízio
     # (config/midia.json → kits_grupo; só com estoque de TODOS os componentes e a foto com as mesmas unidades do kit)
     ok += [(f"kit:{k.get('id', i)}", q) for i, k in enumerate(cfg.get("kits_grupo") or [])
-           if k.get("ativo") and (q := _so_shopee(k))["links"] and _tem(k.get("estoque") or [])
+           if not ferias and k.get("ativo") and (q := _so_shopee(k))["links"] and _tem(k.get("estoque") or [])
            and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
     if not ok:
         return None
