@@ -4433,6 +4433,10 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
         preco = " · ".join(x for x in str(p.get("preco") or "").split(" · ") if "ML" in x or "Mercado" in x)
         # 18/11: legenda feita para a Shopee ("Menos de R$ 13 na nossa lojinha") mentia com o preço do ML → fica fora
         legendas = [x for x in p.get("legendas") or [] if not re.search(r"R\$\s*\d|shopee", x, re.I)]
+        # 18/11 18h12: "brilho suave e 6 cores" saiu com o link do ML, onde o gloss só tem a Rose → a conta de cores
+        # é da Shopee; sai da frase (e a frase que ainda falar em "N cores" fica fora)
+        legendas = [re.sub(r"(?:,\s*|\s+e\s+)\d+\s+cores(?=[.!,;]|\s*$)", "", x, flags=re.I) for x in legendas]
+        legendas = [x for x in legendas if not re.search(r"\b\d+\s+cores\b", x, re.I)]
         return {**p, "links": links, "foto": p.get("foto_grupo") or p.get("foto"), "preco": preco, "promo": None,
                 "legendas": legendas}
 
