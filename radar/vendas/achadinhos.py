@@ -6701,9 +6701,18 @@ def troca_por_baratas(fila: list[dict], reserva: list[dict], faltam: int, teto: 
     return out
 
 
-def _protegida_no_mix(o: dict, ped: set) -> bool:
+def _protegida_no_mix(o: dict, ped: set, devendo: set | None = None) -> bool:
+    """18/11 20h15 (rodada das 20h: o Magalu entrou pela meta "+ 10 da magalu e 10 da Amazon" e o mix da noite trocou
+    por uma barata): oferta de loja que está devendo a meta do dia (cota_lojas.devendo_meta) também fica."""
+    if devendo is None:
+        try:
+            from vendas import cota_lojas
+            devendo = cota_lojas.devendo_meta("grupo")
+        except Exception:  # noqa: BLE001
+            devendo = set()
     return bool(o.get("pedido_dona") or o.get("id") in ped or o.get("fonte") in FONTES_SO_BELEZA
-                or (LUXO.search(o.get("titulo") or "") and (o.get("preco_antigo") or 0) >= 150))
+                or (LUXO.search(o.get("titulo") or "") and (o.get("preco_antigo") or 0) >= 150)
+                or (devendo and loja_de(o) in devendo))
 
 
 def _precos_postados_desde(inicio: datetime) -> list[float]:
