@@ -6584,6 +6584,17 @@ def tipo_cedo_demais(o: dict, ja: list[dict], recentes: set[str]) -> bool:
     return t in recentes or any(tipo_repetivel(x) == t for x in ja)
 
 
+def pedido_dela(o: dict) -> bool:
+    """18/11 19h23: o link que a DONA mandou (pedido sem "origem"; bomba, referência e relâmpago gravam origem)."""
+    return bool(o.get("pedido_dona")) and not o.get("pedido_origem")
+
+
+def vagas_de_pedido(o: dict, n: int) -> int:
+    """Até quantas vagas da rodada de `n` os pedidos podem ocupar: o dela, a rodada inteira (dona 18/11 19h23: "devem
+    passar na frente de todos"); os outros, metade (08/10, Vitória: 33 do ML seguidos)."""
+    return max(1, n) if pedido_dela(o) else max(1, n // 2)
+
+
 def tipo_na_rodada(o: dict, out: list[dict]) -> bool:
     """04/10 (dona: "cílios 900 vezes"): 2 do mesmo tipo (cílios, batom, sérum…) na mesma rodada, não."""
     t = tipo_repetivel(o)
@@ -6826,17 +6837,22 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
     pos_hoje = (db.consultar("SELECT COUNT(*) n FROM ofertas WHERE date(publicado_em) = date('now','localtime')")
                 or [{"n": 0}])[0]["n"]
     for o in [x for x in cand if x.get("pedido_dona")]:
-        if len(out) >= max(1, n // 2):
-            break
+        # 18/11 19h23 (dona: "Os links q eu mando são prioridade p sair no grupo e devem passar na frente de todos"): o
+        # link que ELA mandou ocupa a rodada inteira, sem o 1 por loja nem o 1 por tipo (os 7 links do ML de 11h10 saíam
+        # 1 por hora). Bomba, referência e relâmpago (com "origem") seguem com metade da rodada e 1 por loja.
+        dela = pedido_dela(o)
+        if len(out) >= vagas_de_pedido(o, n):
+            continue
         loja = (o.get("loja") or o.get("fonte") or "")[:20]
-        if lojas_ped.get(loja) or not sem_rajada([o], lojas_cand):
+        if not dela and (lojas_ped.get(loja) or not sem_rajada([o], lojas_cand)):
             continue
         # 13/10: as vagas de beleza têm subtipo ("Bk" skincare, "Bp" perfume…) → a Océane (make) só ocupa "B" e "Bm"
         # 04/11: a vaga 2 virou "Mh" (masculino) — a reserva dela é "B" (RESERVA_H), e a Océane continua com as 2 vagas
         k_oce = (pos_hoje + len(out)) % len(PADRAO_LINHA)
-        if o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[k_oce] not in ("B", "Bm") and RESERVA_H.get(k_oce) != "B":
+        if (not dela and o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[k_oce] not in ("B", "Bm")
+                and RESERVA_H.get(k_oce) != "B"):
             continue
-        if not tipo_na_rodada(o, out) and foto_ok(o):
+        if (dela or not tipo_na_rodada(o, out)) and foto_ok(o):
             lojas_ped[loja] = 1
             out.append(o)
             ultimo.append(o["grupo"])
