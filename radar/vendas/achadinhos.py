@@ -5592,7 +5592,39 @@ def pendentes() -> list[dict]:
         lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return [p for p in lista if isinstance(p, dict) and p.get("mlb")] if isinstance(lista, list) else []
+    return [p for p in lista if isinstance(p, dict) and (p.get("mlb") or p.get("link"))] \
+        if isinstance(lista, list) else []
+
+
+def _meli_nosso(alvo: str, cli: httpx.Client) -> bool:
+    """18/11: meli.la que leva o NOSSO matt_tool (link da dona). Lê só o Location, sem abrir página do ML."""
+    if not re.match(r"https?://(www\.)?meli\.la/", (alvo or "").strip()):
+        return False
+    tool = (config.segredos().get("afiliados") or {}).get("ml_tool")
+    if not tool:
+        return False
+    try:
+        destino = _seguir_encurtador(alvo.strip(), cli)
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(re.search(rf"[?&]matt_tool={re.escape(str(tool))}(&|$)", destino))
+
+
+def retomar_pedidos(cli: httpx.Client | None = None) -> list[dict]:
+    """18/11 (dona: 'quero esse produto no grupo'): pedido guardado na pausa do ML entra sozinho quando a pausa acaba.
+    Com o ML ainda em pausa, não toca em nada."""
+    lista = pendentes()
+    if not lista or ml_pausado():
+        return []
+    saida = []
+    for p in lista:
+        r = pedido(p.get("mlb") or p["link"], p.get("texto") or None, cli=cli)
+        saida.append(r)
+        if not r.get("ok") and ml_pausado():
+            break
+        if not r.get("ok") and not r.get("pendente"):  # erro que não é pausa: não reabrir o ML a cada 15 min
+            _pendente(p.get("mlb"), None, "", tirar=True, link=p.get("link"))
+    return saida
 
 
 def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
