@@ -5567,16 +5567,21 @@ def _gravar_pedido_dona(oid: str, grupo: str | None = None) -> None:
     tmp.replace(arq)
 
 
-def _pendente(mlb: str, texto: str | None, motivo: str, tirar: bool = False) -> None:
-    """pedidos_pendentes.json: [{mlb, texto, quando, motivo}] — só o MLB (nunca o link de terceiro)."""
+def _pendente(mlb: str | None, texto: str | None, motivo: str, tirar: bool = False, link: str | None = None) -> None:
+    """pedidos_pendentes.json: [{mlb, texto, quando, motivo}] — só o MLB (nunca o link de terceiro). 18/11: ou
+    {link} com o meli.la DELA (nosso matt_tool), quando a pausa do ML impede até de saber qual é o produto."""
     try:
         lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
         lista = lista if isinstance(lista, list) else []
     except (OSError, ValueError):
         lista = []
-    lista = [p for p in lista if p.get("mlb") != mlb]
+    if link:
+        lista = [p for p in lista if p.get("link") != link]
+    else:
+        lista = [p for p in lista if p.get("mlb") != mlb or not mlb]
     if not tirar:
-        lista.append({"mlb": mlb, "texto": texto or "", "quando": datetime.now().isoformat(timespec="seconds"),
+        item = {"link": link} if link else {"mlb": mlb}
+        lista.append({**item, "texto": texto or "", "quando": datetime.now().isoformat(timespec="seconds"),
                       "motivo": motivo})
     PEDIDOS_PENDENTES.parent.mkdir(parents=True, exist_ok=True)
     PEDIDOS_PENDENTES.write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -5700,6 +5705,9 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
     except MLBloqueado as e:
         if mlb:
             _pendente(mlb, texto, str(e))
+        elif _meli_nosso(alvo, cli):  # 18/11: meli.la DELA (nosso matt_tool) na pausa: guarda o link e tenta depois
+            _pendente(None, texto, str(e), link=alvo)
+            return {"ok": False, "erro": str(e), "mlb": None, "pendente": True}
         return {"ok": False, "erro": str(e), "mlb": mlb, "pendente": bool(mlb)}
     except (PedidoErro, httpx.HTTPError) as e:
         return {"ok": False, "erro": str(e) if isinstance(e, PedidoErro) else f"rede: {type(e).__name__}", "mlb": mlb}
@@ -5743,6 +5751,8 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
     else:
         _gravar_pedido_dona(o["id"])
     _pendente(mlb, None, "", tirar=True)
+    if "meli.la" in alvo:
+        _pendente(None, None, "", tirar=True, link=alvo)
     return {"ok": True, "id": o["id"], "titulo": o["titulo"], "preco": o["preco"], "de": o["preco_antigo"],
             "link": link_afiliado(o["link_loja"], canal="whatsapp"), "grupo": o["grupo"], "avisos": avisos,
             "outros": r.get("outros") or []}
