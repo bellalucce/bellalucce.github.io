@@ -6849,8 +6849,7 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
         # 13/10: as vagas de beleza têm subtipo ("Bk" skincare, "Bp" perfume…) → a Océane (make) só ocupa "B" e "Bm"
         # 04/11: a vaga 2 virou "Mh" (masculino) — a reserva dela é "B" (RESERVA_H), e a Océane continua com as 2 vagas
         k_oce = (pos_hoje + len(out)) % len(PADRAO_LINHA)
-        if (not dela and o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[k_oce] not in ("B", "Bm")
-                and RESERVA_H.get(k_oce) != "B"):
+        if o.get("fonte") in FONTES_SO_BELEZA and PADRAO_LINHA[k_oce] not in ("B", "Bm") and RESERVA_H.get(k_oce) != "B":
             continue
         if (dela or not tipo_na_rodada(o, out)) and foto_ok(o):
             lojas_ped[loja] = 1
