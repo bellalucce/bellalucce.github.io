@@ -16,6 +16,7 @@ import html as _html
 import json
 import os
 import re
+import sys
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -5641,6 +5642,30 @@ def retomar_pedidos(cli: httpx.Client | None = None) -> list[dict]:
     return saida
 
 
+def _html_ml_pelo_chrome(url: str, nh=None) -> str | None:
+    """18/11: abre o anúncio numa aba do Chrome do Hermes (onde a dona resolve a verificação) e devolve o HTML que a
+    extensão manda na leitura (navegador_hermes.js, 15/11). None = navegador fora, ocupado ou em pausa (o pedido usa
+    a leitura direta); "" = abriu mas caiu em verificação ou sem o anúncio."""
+    if nh is None:
+        if "pytest" in sys.modules:
+            return None
+        from vendas import navegador_hermes as nh
+    aba = "pedido_ml"
+    try:
+        if not nh.passo({"acao": "abrir", "url": url}, aba=aba).get("ok"):
+            return None
+        nh.passo({"acao": "esperar", "ms": 5000}, aba=aba, espera_s=30)
+        lt = nh.passo({"acao": "ler"}, aba=aba)
+        return str(lt.get("html") or "") if lt.get("ok") and not PAREDE_ML.search(str(lt.get("url") or "")) else ""
+    except Exception:  # noqa: BLE001 — sem o Chrome do Hermes: segue pela leitura direta
+        return None
+    finally:
+        try:
+            nh.passo({"acao": "fechar"}, aba=aba, espera_s=20)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
     mlb = r["mlb"]
     url = r.get("url") or f"https://produto.mercadolivre.com.br/MLB-{mlb[3:]}"
@@ -5652,8 +5677,17 @@ def _pedido_ml(r: dict, texto: str | None, cli: httpx.Client) -> dict:
         if r.get("so_html"):  # --html: a página do Chrome é a ÚNICA fonte — nunca abre o ML daqui
             raise PedidoErro(f"{mlb}: o HTML salvo não tem título/preço/foto deste anúncio — abra o produto de novo no "
                              "Chrome da loja e rode o ml_pedido.js")
-        # a vitrine /social é só o caminho do meli.la deles; o anúncio é a 1 página do produto que o pedido lê
-        d = ler_anuncio_ml(_get_ml(url, cli), mlb)
+        # 18/11 13h45 (dona: "já abri a aba dele e fiz o captcha"): a leitura direta do PC (httpx) cai na verificação
+        # mesmo com o Chrome do Hermes liberado. Primeiro a página pelo Chrome do Hermes; a direta só se ele falhar.
+        # Chrome leu mas não é a página do anúncio (ex.: número de catálogo): erro do pedido, sem cair na leitura
+        # direta, que pausava o ML inteiro de novo (13h44, MLB19513855).
+        h = _html_ml_pelo_chrome(url)
+        if h is None:  # navegador do Hermes fora/ocupado: leitura direta (pode cair na verificação)
+            d = ler_anuncio_ml(_get_ml(url, cli), mlb)
+        elif not h:  # o Chrome do Hermes abriu e caiu em verificação ou página vazia: não re-pausar o ML inteiro
+            raise PedidoErro(f"{mlb}: o Chrome do Hermes não mostrou o anúncio (verificação ou página de catálogo)")
+        else:
+            d = ler_anuncio_ml(h, mlb)
     if not d.get("do_anuncio"):
         raise PedidoErro(f"{mlb}: a página aberta não é a deste anúncio")
     if not (d.get("titulo") and d.get("preco")):
