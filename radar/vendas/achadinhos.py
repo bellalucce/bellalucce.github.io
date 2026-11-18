@@ -5253,7 +5253,9 @@ def pedidos_dona(horas: int = 24) -> dict:
     return {k: v for k, v in d.items() if isinstance(v, dict) and str(v.get("quando", "")) >= corte}
 
 
-ORIGEM_ORDEM = {"bomba": 1, "relampago": 1, "referencia": 2}  # 17/11: pedido sem "origem" (o que a dona cola) = 0, vai primeiro
+# 17/11: pedido sem "origem" (o que a dona cola) = 0, vai primeiro. 18/11 16h10: relâmpago com contador antes da bomba
+# (dona 14h04: "essas promoções com contador… geralmente são as melhores… vocês não pegam nenhuma"). Só a ordem.
+ORIGEM_ORDEM = {"relampago": 1, "bomba": 2, "referencia": 3}
 
 
 def ordem_do_pedido(o: dict, p: dict) -> tuple:
