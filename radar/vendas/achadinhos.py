@@ -5329,6 +5329,8 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
     out = []
     for r in db.consultar(f"SELECT * FROM ofertas WHERE id IN ({','.join('?' * len(ped))})", tuple(ped)):
         o, p = dict(r), ped[r["id"]]
+        if p.get("engano"):  # 18/11 21h (Bolo Fake): marcado como engano — nunca sai, nem com "forcar"
+            continue
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
             continue  # já saiu depois do pedido
         # 28/10 (dona: Ofertas Relâmpago do ML "que vai durar pouco"): pedido com "ate" não sai depois que a oferta acaba
@@ -5477,7 +5479,12 @@ def resolver_pedido(alvo: str, cli: httpx.Client) -> dict:
         return {"loja": "ml", "mlb": ids[0], "html": html, "outros": ids[1:6], "vitrine": True}
     m = re.search(r"/p/(MLB\d+)", url)  # anúncio de catálogo: a URL da página é a própria /p/
     if m and not MLB_ANUNCIO.search(url.split("/p/")[0]):
-        return {"loja": "ml", "mlb": m.group(1), "url": url.split("?")[0].split("#")[0]}
+        # 18/11 21h (BOLO FAKE no grupo): o número do /p/ é do CATÁLOGO e pode ser igual ao de OUTRO anúncio
+        # (/p/MLB2112370849 = kit Floratta; produto…/MLB-2112370849 = Bolo Fake). Se a URL traz o anúncio
+        # (item_id:MLB… / wid=MLB…), vale ele; senão o pedido fica marcado como catálogo e nunca vira produto…/MLB-.
+        if it := re.search(r"(?:item_id(?:%3A|:)|[?&]wid=)(MLB\d{6,11})(?!\d)", url, re.I):
+            return {"loja": "ml", "mlb": it.group(1).upper()}
+        return {"loja": "ml", "mlb": m.group(1), "url": url.split("?")[0].split("#")[0], "catalogo": True}
     if not (m := MLB_ANUNCIO.search(url)):
         raise PedidoErro(f"não achei o MLB no link: {url.split('?')[0][:70]}")
     return {"loja": "ml", "mlb": f"MLB{m.group(1)}"}
@@ -5633,7 +5640,7 @@ def ler_anuncio_ml(html: str, mlb: str) -> dict:
     return d
 
 
-def _gravar_pedido_dona(oid: str, grupo: str | None = None) -> None:
+def _gravar_pedido_dona(oid: str, grupo: str | None = None, alvo: str | None = None) -> None:
     """Põe o id no COMEÇO de pedidos_dona.json (mesmo formato da Rafa/Océane: {id: {"quando", "motivo", "grupo"?}})."""
     arq = PEDIDOS_DONA
     try:
@@ -5643,7 +5650,8 @@ def _gravar_pedido_dona(oid: str, grupo: str | None = None) -> None:
     if not isinstance(d, dict):
         raise PedidoErro(f"{arq.name} fora do formato")
     novo = {"quando": datetime.now().isoformat(timespec="seconds"), "motivo": MOTIVO_PEDIDO_WHATSAPP,
-            **({"grupo": grupo} if grupo else {})}
+            **({"grupo": grupo} if grupo else {}),
+            **({"alvo": alvo} if alvo else {})}  # 18/11 21h: o MLB pedido (nunca o link de terceiro)
     d = {oid: novo, **{k: v for k, v in d.items() if k != oid}}
     arq.parent.mkdir(parents=True, exist_ok=True)
     tmp = arq.with_suffix(".tmp")
@@ -5676,8 +5684,24 @@ def pendentes() -> list[dict]:
         lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return [p for p in lista if isinstance(p, dict) and (p.get("mlb") or p.get("link"))] \
+    return [p for p in lista if isinstance(p, dict) and (p.get("mlb") or p.get("link")) and not p.get("vencido")] \
         if isinstance(lista, list) else []
+
+
+PENDENTE_VALIDADE_D = 2
+
+
+def _marcar_vencidos(velhos: list[dict]) -> None:
+    """Marca "vencido" nos pendentes velhos (ficam no arquivo para consulta; a fila não os retoma)."""
+    try:
+        lista = json.loads(PEDIDOS_PENDENTES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    chaves = {(p.get("mlb"), p.get("link"), p.get("quando")) for p in velhos}
+    for p in lista if isinstance(lista, list) else []:
+        if isinstance(p, dict) and (p.get("mlb"), p.get("link"), p.get("quando")) in chaves:
+            p["vencido"] = datetime.now().isoformat(timespec="seconds")
+    PEDIDOS_PENDENTES.write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _meli_nosso(alvo: str, cli: httpx.Client) -> bool:
@@ -5700,6 +5724,13 @@ def retomar_pedidos(cli: httpx.Client | None = None) -> list[dict]:
     lista = pendentes()
     if not lista or ml_pausado():
         return []
+    # 18/11 21h (BOLO FAKE): um pendente de 31/10 (número de catálogo solto) ficou 18 dias na fila e voltou hoje como
+    # "pedido da dona". Pendente velho não volta sozinho: fica marcado "vencido" no arquivo (nada apagado).
+    corte = (datetime.now() - timedelta(days=PENDENTE_VALIDADE_D)).isoformat(timespec="seconds")
+    velhos = [p for p in lista if p.get("quando") and str(p["quando"]) < corte]
+    if velhos:
+        _marcar_vencidos(velhos)
+        lista = [p for p in lista if p not in velhos]
     saida = []
     for p in lista:
         r = pedido(p.get("mlb") or p["link"], p.get("texto") or None, cli=cli)
@@ -5843,7 +5874,7 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
     _tabela()
     fechar = cli is None
     cli = cli or httpx.Client(timeout=25)
-    mlb = None
+    mlb, r = None, {}
     try:
         if html is not None:
             r = {**_resolver_sem_rede(alvo), "html": html, "so_html": True}
@@ -5854,7 +5885,9 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
         mlb = r["mlb"]
         o = _pedido_ml(r, texto, cli)
     except MLBloqueado as e:
-        if mlb:
+        if mlb and (r or {}).get("catalogo"):  # 18/11 21h: catálogo guarda a página /p/, nunca o número solto
+            _pendente(None, texto, str(e), link=r["url"])
+        elif mlb:
             _pendente(mlb, texto, str(e))
         elif _meli_nosso(alvo, cli):  # 18/11: meli.la DELA (nosso matt_tool) na pausa: guarda o link e tenta depois
             _pendente(None, texto, str(e), link=alvo)
@@ -5900,7 +5933,7 @@ def pedido(alvo: str, texto: str | None = None, cli: httpx.Client | None = None,
     if ja and ja[0]["publicado_em"]:
         avisos.append(f"já saiu no grupo em {ja[0]['publicado_em'][:16]} → preço atualizado, NÃO voltou para a fila")
     else:
-        _gravar_pedido_dona(o["id"])
+        _gravar_pedido_dona(o["id"], alvo=mlb + (" (catálogo)" if r.get("catalogo") else ""))
     _pendente(mlb, None, "", tirar=True)
     if "meli.la" in alvo:
         _pendente(None, None, "", tirar=True, link=alvo)
