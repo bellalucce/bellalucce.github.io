@@ -4440,7 +4440,7 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     Produtos/links/legendas vêm de config/midia.json (os mesmos dos vídeos). None fora do horário ou sem estoque."""
     from vendas import loja_ferias, midia
     agora = agora or datetime.now()
-    # 18/11 (Claude): com a loja da Shopee em férias (17/11 13h26, Iria) o link da Shopee leva a uma loja fechada. O
+    # 18/11 (Claude): com a loja da Shopee em férias (17/11 13h26, dona) o link da Shopee leva a uma loja fechada. O
     # filtro "só Shopee" é de 06/10; em 07/10 a dona liberou o ML no grupo ("Pode por, já deveria por em tudo… Aceito o
     # risco"). Então, em férias, o post da loja leva o link do ANÚNCIO DELA no ML (e o preço do ML); sem link do ML, não sai.
     ferias = bool(loja_ferias.em_ferias())
@@ -7845,6 +7845,22 @@ def _reclonar_site(pasta, git: list) -> None:
     subprocess.run(git + ["reset", "-q"], check=True)
 
 
+def _copiar_sem_nome(origem, destino) -> None:
+    """19/11 12h10 (verificação de segurança 01h53: "nome pessoal da dona aparece no site público"): o código vai para o
+    repositório PÚBLICO do site e um comentário trazia o nome dela. A cópia troca o nome (palavra inteira, com ou sem
+    acento) por "dona"; o arquivo do PC fica como está."""
+    from pathlib import Path
+    texto = Path(origem).read_text(encoding="utf-8")
+    nome = str(config.segredos().get("whatsapp_dona") or "")
+    if len(nome) > 2:
+        variantes = {nome, nome.lower(), nome.upper(), nome.capitalize()}
+        if nome[:1].lower() == "i":
+            variantes |= {"Í" + nome[1:].lower(), "Í" + nome[1:].upper()}
+        texto = re.sub(r"(?<![\wÀ-ÿ])(?:" + "|".join(map(re.escape, sorted(variantes, key=len, reverse=True))) + r")(?![\wÀ-ÿ])",
+                       "dona", texto)
+    Path(destino).write_text(texto, encoding="utf-8")
+
+
 def publicar_site() -> str:
     """Alimenta o RADAR NA NUVEM (repo bellalucce/bellalucce.github.io, GitHub Actions a cada 20 min — quem monta e
     publica o site é a nuvem, mesmo com o PC desligado). O PC só envia, quando mudam: o código deste módulo, a config,
@@ -7858,8 +7874,8 @@ def publicar_site() -> str:
     radar = pasta / "radar"
     for sub in ("vendas", "config", "dados"):
         (radar / sub).mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(Path(__file__), radar / "vendas" / "achadinhos.py")
-    shutil.copyfile(Path(__file__).with_name("ganchos.py"), radar / "vendas" / "ganchos.py")  # achadinhos importa (30/09)
+    _copiar_sem_nome(Path(__file__), radar / "vendas" / "achadinhos.py")
+    _copiar_sem_nome(Path(__file__).with_name("ganchos.py"), radar / "vendas" / "ganchos.py")  # achadinhos importa (30/09)
     shutil.copyfile(config.CONFIG / "achadinhos.json", radar / "config" / "achadinhos.json")
     af = config.segredos().get("afiliados") or {}
     publicos = {k: af[k] for k in ("amazon_tag", "magalu_loja", "ml_tool", "ml_etiqueta", "shopee_id") if k in af}
