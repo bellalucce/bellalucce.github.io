@@ -1748,7 +1748,9 @@ MAKE_RX = re.compile(r"(?i)batom|gloss|\bbase\b|corretivo|r[íi]mel|c[íi]lios|s
                      r"esmalte|unhas?\b|sobrancelha|maquiagem|contorno(?! (?:d[oa]s? |de )?olhos)|bronzer|\blip\b|"
                      r"lip ?(?:oil|tint|balm)|labial|tint\b|cushion|"
                      r"m[áa]scara de c[íi]lios|make")
-MARCA_EXTRA = re.compile(r"(?i)vnox|rommanel|bamoer|curren|bio extratus|cadiveu|acquaflora|jacques janine|truss|lowell|amend|"
+# 18/11 23h30 (dona 22h45 "investe na Amazon"; medido: Sundown, Mustela, Darrow, Anasol, Secret e Paixão saíam em "só
+# marca conhecida" — marcas de farmácia que toda cliente reconhece)
+MARCA_EXTRA = re.compile(r"(?i)\b(?:sundown|mustela|darrow|anasol|secret|paix[aã]o\s+[oó]leo|[oó]leo\s+corporal\s+paix[aã]o)\b|vnox|rommanel|bamoer|curren|bio extratus|cadiveu|acquaflora|jacques janine|truss|lowell|amend|"
                          r"revlon|bra[ée]\b|itallian|trivitt|laikou|natura|botic[áa]rio|vizzano|moleca|anacapri|"
                          r"granado|phebo|nyx|maybelline|vult|kafurux|isoi|lizz|britânia|philco|taiff|mondial")
 # 26/10 (dona: "quero só coisa conhecida… não precisa ser marca cara, mas conhecida… uns esmaltes de marca nada a ver…
