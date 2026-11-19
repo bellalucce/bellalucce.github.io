@@ -7135,7 +7135,8 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
     try:
         from vendas import cota_lojas
         out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava,
-                                       atrasadas=cota_lojas.atrasadas(canal))
+                                       atrasadas=cota_lojas.atrasadas(canal),
+                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None)
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas: {type(e).__name__}: {str(e)[:120]}")
     return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
