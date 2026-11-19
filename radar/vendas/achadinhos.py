@@ -5296,6 +5296,12 @@ ORIGEM_ORDEM = {"relampago": 1, "bomba": 2, "referencia": 3}
 def ordem_do_pedido(o: dict, p: dict) -> tuple:
     """Chave de ordem entre os pedidos (estável: dentro do mesmo grupo vale a ordem do arquivo)."""
     origem = str(p.get("origem") or "")
+    # 19/11 05h44 (Claude, [criterio]): a frente era para a relâmpago COM contador (dona 18/11 14h04). As 23 da fila
+    # de hoje não têm contador (574 cartões lidos, nenhum com a barra) e seguravam a única vaga de pedido da rodada:
+    # em 18/11 saíram só 8 dos 60 pedidos da referência ("1º todas as boas das referências", dona 14/11 22h28).
+    # Sem contador, a relâmpago disputa com a referência pelo maior desconto. O total de posts não muda.
+    if origem == "relampago" and not _vendido_pct(sinais_de(o)):
+        origem = "referencia"
     if origem != "referencia":
         return (ORIGEM_ORDEM.get(origem, 0), 0)
     try:
