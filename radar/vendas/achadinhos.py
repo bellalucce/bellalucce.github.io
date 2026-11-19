@@ -4494,8 +4494,11 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     if ferias:
         # 19/11 13h40 (Claude; dona 12h37 "a gente tem que vender pelo menos mais um hoje"): no ML as vendas vieram do
         # Batom Mágico (4 vendas, o mais visitado) e do Pó Max Love (2 vendas em 17 e 18/11); o rodízio igual dava a
-        # mesma vez ao Gloss Gold sem visita. Os campeões entram 2× no fim da volta (longe da 1ª vez: nunca 2× no dia).
-        ok += [(k, q) for k, q in list(ok) if k in CAMPEOES_ML]
+        # mesma vez ao Gloss Gold sem visita. Os campeões entram 2× na volta, a cópia do outro lado do círculo (meia volta
+        # de distância): com 3 posts seguidos por dia, nunca sai o mesmo produto 2× no dia.
+        for par in [x for x in ok if x[0] in CAMPEOES_ML]:
+            i = next(n for n, x in enumerate(ok) if x[0] == par[0])
+            ok.insert((i + (len(ok) + 2) // 2) % (len(ok) + 1), par)
     vez = agora.timetuple().tm_yday * len(horas_loja) + horas_loja.index(agora.hour)
     sku, p = ok[vez % len(ok)]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
