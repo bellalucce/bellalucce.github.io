@@ -5147,14 +5147,19 @@ def lugar_sem_promo(cand: list, horas: float | None = None) -> list:
     return resto[:SEM_PROMO_POSICAO] + sem[:1] + resto[SEM_PROMO_POSICAO:]
 
 
-def limitar_sem_promo(cand: list, ja_hoje: int | None = None) -> list:
-    """Promoção é o foco: das sem promoção fica só a mais vendida (1 por rodada) e nenhuma depois do teto do dia."""
+def limitar_sem_promo(cand: list, ja_hoje: int | None = None, devendo: set | None = None) -> list:
+    """Promoção é o foco: das sem promoção fica só a mais vendida (1 por rodada) e nenhuma depois do teto do dia.
+    19/11 15h20 (Claude; funil no servidor: 7 da Amazon chegavam aqui, 5 sem "De", e a vaga ia para a Shopee mais
+    vendida): a loja que deve a meta do dia (`devendo`, dona 18/11 "+10 da magalu e 10 da Amazon") vem primeiro na vaga;
+    o teto (1 por rodada, SEM_PROMO_DIA_MAX por dia) não muda."""
     sem = [o for o in cand if achadinho_sem_promo(o)]
     if not sem:
         return cand
     ja_hoje = sem_promo_hoje() if ja_hoje is None else ja_hoje
     vagas = max(0, min(SEM_PROMO_POR_RODADA, SEM_PROMO_DIA_MAX - ja_hoje))
-    fica = {o["id"] for o in sorted(sem, key=lambda o: -int(float(sinais_de(o).get("vendidos_num") or 0)))[:vagas]}
+    devendo = set(devendo or ())
+    fica = {o["id"] for o in sorted(sem, key=lambda o: (loja_de(o) not in devendo,
+                                                        -int(float(sinais_de(o).get("vendidos_num") or 0))))[:vagas]}
     return [o for o in cand if o["id"] in fica or not achadinho_sem_promo(o)]
 
 
@@ -6357,7 +6362,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         cand.sort(key=lambda o: o["id"] not in dest)
     except Exception:  # noqa: BLE001 — sem a leitura, segue a ordem normal
         pass
-    cand = limitar_sem_promo(cand)
+    cand = limitar_sem_promo(cand, devendo=devendo)
     marca(f"sem promoção: no máx. {SEM_PROMO_POR_RODADA} por rodada e {SEM_PROMO_DIA_MAX} por dia", cand)
     cand = lugar_sem_promo(cand, horas_desde_sem_promo())
     marca(f"sem promoção: 2º lugar, 1 a cada {SEM_PROMO_ESPACO_H} h", cand)
@@ -6856,7 +6861,9 @@ def _fila_posts_base(n: int = 5, horas: int = 30, so_com_link_curto: bool = True
                                        lambda o, atual: (bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
                                                          and not tipo_na_rodada(o, [x for x in atual if x is not o])
                                                          and (tipo_repetivel(o) or "") not in recentes),
-                                       atrasadas=cota_lojas.atrasadas(canal))
+                                       atrasadas=cota_lojas.atrasadas(canal),
+                                       # 19/11 15h08: no modo cópia esta trava é a que fica, e não tinha a 2ª vaga
+                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None)
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas (modo cópia): {type(e).__name__}: {str(e)[:120]}")
     return out
