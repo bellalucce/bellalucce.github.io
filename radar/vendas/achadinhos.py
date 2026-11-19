@@ -4267,12 +4267,33 @@ HORAS_LOJA = (12, 18, 20)
 CAMPEOES_ML = ("batom_magico", "po_max_love")   # 19/11: os que já venderam no ML (estoque.vendas)
 
 
+def noite_ml_arq() -> Path:
+    return config.DADOS / "loja" / "noite_ml.json"
+
+
+def noite_ml(agora: datetime | None = None) -> dict | None:
+    """19/11 16h13 (dona: "pode fazer o negocio da 19 hrs"): noite de divulgação das UNIDADES baratas do ML no grupo
+    (um produto da loja por hora, com o link do anúncio dela no ML). Vale só no `dia` do arquivo
+    dados/loja/noite_ml.json → {"dia": "AAAA-MM-DD", "horas": [19, 20, 21], "ordem": [sku, ...]}."""
+    agora = agora or datetime.now()
+    try:
+        d = json.loads(noite_ml_arq().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict) or d.get("dia") != agora.date().isoformat():
+        return None
+    horas = [int(h) for h in d.get("horas") or [] if str(h).isdigit() and 8 <= int(h) <= 22]
+    return {**d, "horas": horas} if horas else None
+
+
 def horas_da_loja() -> tuple[int, ...]:
     """As horas do post da nossa loja no grupo. 10/11 (lido no registro): com o ritmo por hora (05/11) as "horas do
     grupo" viraram TODAS as 14 horas do dia e o post da loja saiu de hora em hora (8 vezes até as 16h, com 4 combinados).
     Com o ritmo ligado valem as HORAS_LOJA que são hora do grupo; se nenhuma for (ritmo de poucos horários), as horas do
     grupo, como desde 04/11."""
     base = HORAS_BOOM if boom_shopee() else HORAS_LOJA
+    if nm := noite_ml():   # 19/11 16h13 (dona: "pode fazer o negocio da 19 hrs"): + as horas da noite do ML, só no dia
+        base = tuple(sorted(set(base) | set(nm["horas"])))
     do_ritmo = _horas_do_ritmo()
     if not do_ritmo:
         return base
@@ -4501,6 +4522,13 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
             ok.insert((i + (len(ok) + 2) // 2) % (len(ok) + 1), par)
     vez = agora.timetuple().tm_yday * len(horas_loja) + horas_loja.index(agora.hour)
     sku, p = ok[vez % len(ok)]
+    nm = noite_ml(agora) if ferias else None
+    if nm and agora.hour in nm["horas"]:   # noite do ML: o produto daquela hora pela ordem combinada (com estoque e link)
+        k = nm["horas"].index(agora.hour)
+        fila_nm = [s for s in nm.get("ordem") or [] if s in dict(ok)]
+        if fila_nm:
+            sku = fila_nm[k % len(fila_nm)]
+            p = dict(ok)[sku]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
     cabeca = "*DA NOSSA LOJINHA, EM PROMOÇÃO 💖*"
     # 01/10 (dona: "o batom de ursinho é bom pro Dia das Crianças também"): data grande chegando com produto NOSSO
