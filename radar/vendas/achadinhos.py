@@ -6319,9 +6319,18 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     marca("teto do mesmo tipo por dia", cand)
     # 04/11 (dona: "um milhão de vezes… não vejo Amazon nem Magalu"): Amazon/Magalu chegavam a 2–3 ofertas boas até aqui e as
     # regras de VARIEDADE (marca no dia, tipo em 24 h, teto) levavam as últimas → 0. A loja com estoque bom não zera.
+    try:  # 18/11 21h50 (dona 19h41: "quero + 10 da magalu e 10 da Amazon"): loja que deve a meta resgata mais
+        from vendas import cota_lojas
+        devendo = cota_lojas.devendo_meta("grupo", agora)
+    except Exception:  # noqa: BLE001
+        devendo = set()
     cand = resgatar_lojas(cand, antes_variedade, agora,
                           {k for k, quando in saiu_tipo.items()
-                           if quando >= (agora - timedelta(hours=JANELAS_TIPO_H[-1])).isoformat(sep=" ", timespec="seconds")})
+                           if quando >= (agora - timedelta(hours=JANELAS_TIPO_H[-1])).isoformat(sep=" ", timespec="seconds")},
+                          devendo=devendo,
+                          tipos_meta={k for k, quando in saiu_tipo.items()
+                                      if quando >= (agora - timedelta(hours=TIPO_META_H)).isoformat(sep=" ",
+                                                                                                  timespec="seconds")})
     marca("+ cota por loja (resgate das regras de variedade)", cand)
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
@@ -6345,9 +6354,12 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
 
 LOJAS_COTA = ("amazon", "magalu", "mercadolivre", "shopee", "océane")  # lojas com cota (loja_de)
 RESGATE_POR_LOJA = 3  # cada loja chega à fila com pelo menos isto (se tiver estoque bom antes da variedade)
+RESGATE_META = 6  # loja que deve a meta do dia (cota_lojas.META_DIA) chega à fila com pelo menos isto
+TIPO_META_H = 3  # e o tipo dela só fica de fora se saiu no grupo há menos disto
 
 
-def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_recentes: set) -> list[dict]:
+def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_recentes: set,
+                   devendo: set | None = None, tipos_meta: set | None = None) -> list[dict]:
     """04/11: cota por loja na FILA. `antes` = ofertas que já passaram em TODAS as regras de qualidade (foto, preço, De,
     marca conhecida, perfil…) e só ainda não passaram nas de VARIEDADE; `final` = o que sobrou delas. A loja com menos de
     RESGATE_POR_LOJA em `final` recebe de volta as melhores de `antes`: 1 por tipo, marca com o teto dobrado, e sem o
@@ -6358,16 +6370,21 @@ def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_
         tem[loja_de(o)] = tem.get(loja_de(o), 0) + 1
     tipos = {chave_variedade(o) for o in final}
     extra: list[dict] = []
+    devendo = devendo or set()
     for lj in LOJAS_COTA:
-        falta = RESGATE_POR_LOJA - tem.get(lj, 0)
+        # 18/11 21h50: no funil do servidor a Magalu tinha 16 boas antes da variedade e 3 depois (Amazon 11 → 2); com a
+        # meta de 10/dia, a loja que DEVE a meta resgata até RESGATE_META e o tipo só barra se saiu há TIPO_META_H
+        meta = lj in devendo
+        falta = (RESGATE_META if meta else RESGATE_POR_LOJA) - tem.get(lj, 0)
         if falta <= 0:
             continue
+        recentes = (tipos_meta or set()) if meta else tipos_recentes
         pool = variar_marcas([o for o in antes if loja_de(o) == lj and o["id"] not in ids], agora, fator=2)
         for o in pool:
             k = chave_variedade(o)
             if falta <= 0:
                 break
-            if k in tipos or k in tipos_recentes:
+            if k in tipos or k in recentes:
                 continue
             tipos.add(k)
             extra.append(o)
