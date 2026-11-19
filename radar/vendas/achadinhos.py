@@ -4264,6 +4264,9 @@ SITE_URL = "https://bellalucce.github.io"
 HORAS_LOJA = (12, 18, 20)
 
 
+CAMPEOES_ML = ("batom_magico", "po_max_love")   # 19/11: os que já venderam no ML (estoque.vendas)
+
+
 def horas_da_loja() -> tuple[int, ...]:
     """As horas do post da nossa loja no grupo. 10/11 (lido no registro): com o ritmo por hora (05/11) as "horas do
     grupo" viraram TODAS as 14 horas do dia e o post da loja saiu de hora em hora (8 vezes até as 16h, com 4 combinados).
@@ -4488,6 +4491,11 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
            and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
     if not ok:
         return None
+    if ferias:
+        # 19/11 13h40 (Claude; dona 12h37 "a gente tem que vender pelo menos mais um hoje"): no ML as vendas vieram do
+        # Batom Mágico (4 vendas, o mais visitado) e do Pó Max Love (2 vendas em 17 e 18/11); o rodízio igual dava a
+        # mesma vez ao Gloss Gold sem visita. Os campeões entram 2× no fim da volta (longe da 1ª vez: nunca 2× no dia).
+        ok += [(k, q) for k, q in list(ok) if k in CAMPEOES_ML]
     vez = agora.timetuple().tm_yday * len(horas_loja) + horas_loja.index(agora.hour)
     sku, p = ok[vez % len(ok)]
     legenda = p["legendas"][vez % len(p["legendas"])] if p.get("legendas") else p["nome"]
