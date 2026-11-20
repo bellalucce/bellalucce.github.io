@@ -4589,6 +4589,32 @@ def canais() -> dict:
     return {"site": SITE_URL, **(json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {})}
 
 
+_LONGO_ML_AMAZON = re.compile(r"^https://www\.(?:mercadolivre|amazon)\.com\.br/")
+
+
+def sem_curto_oficial(o: dict) -> bool:
+    """ML ou Amazon cujo link no grupo ainda sairia comprido (o meli.la e o link.amazon nascem no Chrome do Hermes)."""
+    lk = o.get("link_loja") or ""
+    if not re.search(r"(?:mercadolivre|amazon)\.com\.br/", lk):
+        return False
+    return bool(_LONGO_ML_AMAZON.match(link_afiliado(lk, canal="whatsapp") or ""))
+
+
+def curtos_primeiro_na_loja(cand: list[dict]) -> list[dict]:
+    """20/11 02h (Caixa de revisão 19/11, regra da dona de 13/10 "todos precisam ir encurtados"): depois dos consertos
+    de 19/11 ainda saíram ~10 links compridos do ML e da Amazon contra 14 curtos. Dentro de cada uma dessas lojas, o que
+    já tem curto toma as primeiras posições DA LOJA (ordem estável); as posições de cada loja na fila não mudam, então
+    a mistura e a cota por loja ficam iguais. Sem curto nenhum, a loja segue com o comprido (não some do grupo)."""
+    cand = list(cand)
+    for loja in ("mercadolivre", "amazon"):
+        pos = [i for i, o in enumerate(cand) if loja_de(o) == loja]
+        if len(pos) < 2:
+            continue
+        for i, o in zip(pos, sorted((cand[i] for i in pos), key=sem_curto_oficial)):
+            cand[i] = o
+    return cand
+
+
 def shopee_sem_curto(o: dict) -> bool:
     """Produto da Shopee cujo link para o grupo ainda seria o comprido (shope.ee/an_redir?...)."""
     if not re.search(r"shopee\.com\.br/product/", o.get("link_loja") or ""):
@@ -6391,6 +6417,7 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
                                       if quando >= (agora - timedelta(hours=TIPO_META_H)).isoformat(sep=" ",
                                                                                                   timespec="seconds")})
     marca("+ cota por loja (resgate das regras de variedade)", cand)
+    cand = curtos_primeiro_na_loja(cand)  # 20/11: regra de 13/10 (todos encurtados); a ordem entre lojas fica
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
         from vendas import referencia
         dest = referencia.na_frente()
