@@ -4280,8 +4280,15 @@ def noite_ml(agora: datetime | None = None) -> dict | None:
         d = json.loads(noite_ml_arq().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(d, dict) or d.get("dia") != agora.date().isoformat():
+    if not isinstance(d, dict):
         return None
+    if d.get("dia") != agora.date().isoformat():
+        # 19/11 21h57 (Claude; meta de 1 venda não bateu, e meta que não bate acumula para o dia seguinte): outros dias
+        # na lista "outros_dias" ([{"dia", "horas", "ordem"}]), sem mexer no dia que está valendo
+        d = next((x for x in d.get("outros_dias") or [] if isinstance(x, dict)
+                  and x.get("dia") == agora.date().isoformat()), None)
+        if d is None:
+            return None
     horas = [int(h) for h in d.get("horas") or [] if str(h).isdigit() and 8 <= int(h) <= 22]
     return {**d, "horas": horas} if horas else None
 
