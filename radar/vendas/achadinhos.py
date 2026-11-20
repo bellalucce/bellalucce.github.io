@@ -140,6 +140,10 @@ PALAVRAS["casa"] += (r"|\bta[çc]as?\b|\bvelas? (?:decorativ|arom[áa]tic|perfum
                      r"cortador(?:es)? de biscoito|sanduicheira|torradeira|batedeira|chaleira el[ée]trica|\btalheres\b")
 # 13/11 (Claude 09/10, Caixa): "Wella … Shamp 250ml + Cond 200ml" ficava em "outros" pela abreviação
 PALAVRAS["beleza"] += r"|\bshamp\b|\bcond\b(?=\s*\d)"
+# 20/11 05h55 (Claude, varredura das "outros" fora do nicho): pincel de rosto/maquiagem, brow lamination, lash lifting,
+# depilatório e a linha Tododia (Natura) ficavam em "outros"; pincel automotivo segue fora (sem rosto/maquiagem)
+PALAVRAS["beleza"] += (r"|pincel (?:profissional )?(?:grande |pequeno )?(?:para |de )?(?:rosto|maquiagem|base|blush|sombra|"
+                       r"p[óo]|corretivo|contorno|esfumar)|\bmacrilan\b|brow lamination|lash lifting|depilat[óo]ri|\btododia\b")
 # Linha do grupo (usuário, 29/09 noite): beleza/cabelo/perfume primeiro; fitness, casa viral e bebê; moda; pet só de
 # marca popular. Peso somado ao score — segue uma linha em vez de "aleatório".
 PESO_GRUPO = {"beleza": 10, "cabelo": 10, "perfume": 9, "esporte": 7, "casa": 6, "infantil": 6, "moda": 5, "pet": 3,
@@ -151,7 +155,15 @@ CABELO = re.compile(r"shampoo|xampu|condicionador|m[áa]scara capilar|capilar|ca
                    r"wella (?:professionals|invigo|fusion|oil reflections|nutri)|"
                    # 07/11 (HERMES): kits de cabelo do ML sem "shampoo" no título caíam em "outros" e a Mila local
                    # acusava "fora do nicho" (Kit Dacca Cauterização, Kit Fattore Fórmula 12 em 1, Kit Prohair)
-                   r"cauteriza[çc]|p[óo]s[- ]?qu[íi]mica|\bdacca\b|\bfattore\b|\bprohair\b|\bsha ?\+ ?con\b",
+                   r"cauteriza[çc]|p[óo]s[- ]?qu[íi]mica|\bdacca\b|\bfattore\b|\bprohair\b|\bsha ?\+ ?con\b|"
+                   # 20/11 05h20 (Caixa HERMES, inspetor da escola): «Protetor Térmico Liss Express Felps» caía em
+                   # "outros" e o curador ensinava "fora do nicho"; protetor de panela/forno/notebook segue fora
+                   r"protetor t[ée]rmico(?! (?:para |de |p/ )?(?:panelas?|forno|mesa|cozinha|notebook|celular|motor|"
+                   r"escapamento|fog[ãa]o|churrasqueira))|\bfelps\b|"
+                   # 20/11 05h55 (Claude, varredura das "outros" que saíam fora do nicho): alisante, henê, reparador de
+                   # pontas, Uniq One, cacheador e pente de fitagem são cabelo
+                   r"alisante|\bhen[êe]\b|\bembelleze\b|reparador de pontas|uniq one|cacheador|instacachos|"
+                   r"pente (?:para |de )?(?:fitagem|cabelo|cachos)|todecacho",
                    re.I)  # 01/10: Lola Rapunzel; 03/10: bifásico Dove = cabelo; 06/10: Kérastase Masque; 10/10: "Shamp + Cond" (Wella caiu em "outros")
 FITNESS = re.compile(r"bicicleta ergom|esteira|legging|top fitness|conjunto fitness|academia|halter|anilha|el[áa]stico de "
                      r"exerc|colchonete|yoga|pilates|whey|creatina|pr[ée]-?treino|squeeze|coqueteleira|corda de pular|"
@@ -4794,11 +4806,13 @@ CASA_BONITA = re.compile(
     r"aromatizador|home spray|sach[êe]s? perfumados?|porta[- ]?j[óo]ias|"
     r"organizador(?:es)? (?:de )?(?:maquiagem|acr[íi]lico|penteadeira|cosm[ée]ticos|j[óo]ias|bijuterias?)|"
     r"espelho (?:de (?:mesa|maquiagem|parede|camarim)|decorativo|com (?:led|luz))|lumin[áa]ria|abajur|cord[ãa]o de luz|"
-    r"fio de fada|\bvasos? (?:decorativos?|de cer[âa]mica|de vidro)|flores? (?:artificia|permanente)|\balmofadas?\b|"
-    r"\bmanta\b|jogo de (?:cama|len[çc]ol|banho|toalhas?|ta[çc]as|x[íi]caras)|len[çc]ol (?:de )?(?:cetim|seda|percal)|"
+    r"fios? de fada|\bvasos? (?:decorativos?|de cer[âa]mica|de vidro)|flores? (?:artificia|permanente)|\balmofadas?\b|"
+    r"\bmanta\b|jogo (?:de )?(?:cama|len[çc]ol|banho|toalhas?|ta[çc]as|x[íi]caras)|len[çc]ol (?:de )?(?:cetim|seda|percal)|"
     r"toalhas? (?:de banho|felpudas?|de rosto)|roup[ãa]o|\bcanecas?\b|\bx[íi]caras?\b|\bta[çc]as?\b|"
     r"bandeja (?:espelhada|decorativa)|quadros? decorativ|porta[- ]?retratos?|tapete (?:felpudo|shaggy|decorativo)|"
-    r"cabides? de veludo|kit lavabo")
+    r"cabides? de veludo|kit lavabo|"
+    # 20/11 05h55 (Claude): colcha e cobre-leito são cama e banho como o "jogo de cama" (caíam fora do nicho)
+    r"\bcolchas?\b|cobre[- ]?leitos?|\bedredons?\b|\bfronhas?\b|\blen[çc][óo]is\b")
 FORA_FEMININO = re.compile(r"(?i)barbear|barbeir|\bwahl\b|m[áa]quinas (?:de )?(?:cortar|corte|acabamento)|barbeador|\bbarbas?\b|p[óo]s[- ]barba|aparador|cortador de (?:cabelo|pelos)|"
                            r"m[áa]quina de (?:cortar|corte|acabamento)|navalha|depilador|caneta depil|infantil|crian[çc]a|"
                            # 09/10 noite (funil: beleza e moda boas caíam aqui por engano): "baby doll" é pijama (liberado
@@ -4970,7 +4984,8 @@ def no_perfil_feminino(o: dict) -> bool:
     if o.get("grupo") == "moda" and re.search(r"(?i)feminin", t):
         fora = [x for x in fora if not re.fullmatch(r"rel[óo]gio", x)]
     # 09/10 noite: piranha/presilha/tiara "de pelúcia" é acessório de cabelo, não brinquedo
-    if re.search(r"(?i)piranha|presilha|\btiara\b|scrunchie|xuxinha|prendedor de cabelo", t):
+    # 20/11 05h55: "Henê Gel Pelúcia" (Embelleze) é a linha do alisante, não brinquedo
+    if re.search(r"(?i)piranha|presilha|\btiara\b|scrunchie|xuxinha|prendedor de cabelo|\bhen[êe]\b|alisante", t):
         fora = [x for x in fora if not re.fullmatch(r"pel[úu]cia", x)]
     if fora or fora_do_nicho_grupo(t) or eh_masculino(o):
         return False
