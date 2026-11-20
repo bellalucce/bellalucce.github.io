@@ -7248,7 +7248,48 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
                                        dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None)
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas: {type(e).__name__}: {str(e)[:120]}")
+    if tema and datas.noite_tematica():
+        try:
+            def _pode_tema(o: dict, atual: list) -> bool:
+                return (not por_vendedor.get(vendedor(o)) and not tipo_na_rodada(o, atual)
+                        and bool(dentro_do_teto_dia([o])) and bool(foto_ok(o)))
+            out = tema_na_vaga_da_loja(out, cand, tema, _pode_tema, protegidos=frente,
+                                       maximo=datas.vagas_do_tema(pos, 0, len(out), int(tema.get("em_10", datas.FOCO))))
+        except Exception as e:  # noqa: BLE001 — o tema nunca derruba a rodada
+            print(f"tema na vaga da loja: {type(e).__name__}: {str(e)[:120]}")
     return dentro_do_teto_dia(out)  # 09/10: guarda final (a grife/pool não pode furar o teto da Shein)
+
+
+def tema_na_vaga_da_loja(out: list[dict], candidatos: list[dict], tema: dict, pode, protegidos=frozenset(),
+                         maximo: int | None = None) -> list[dict]:
+    """20/11 03h50 (medido no servidor: o Especial de Natal das 18h, pedido dela em 30/10, abria a noite com a chamada
+    e a arte, mas nenhuma oferta da busca de Natal saía desde 13/11; na fila das 19h havia 9, todas da Shopee, e a regra
+    de não repetir loja seguida, mais a cota por loja, barravam as 9 no bloco do tema). Sem mudar o mix: troca a oferta
+    comum de uma loja pela do tema da MESMA loja, na mesma posição — quantas por loja e a ordem das lojas ficam iguais.
+    Pedido da dona, link dela e o que os grupos de referência postaram (`protegidos`) nunca saem. `pode(o, atual)`."""
+    from vendas import datas as _dt
+    ja = sum(1 for x in out if _dt.casa(x, tema))
+    vagas = (maximo if maximo is not None else len(out)) - ja
+    if vagas <= 0:
+        return out
+    ids = {x.get("id") for x in out}
+    do_tema = sorted((o for o in candidatos if o.get("id") not in ids and _dt.casa(o, tema) and not o.get("pedido_dona")),
+                     key=lambda o: (o.get("score") or 0) + _dt.bonus(o), reverse=True)
+    novo = list(out)
+    for i in range(len(novo) - 1, -1, -1):          # de trás para a frente: a 1ª da rodada (a melhor) fica
+        if vagas <= 0 or not do_tema:
+            break
+        x = novo[i]
+        if x.get("pedido_dona") or x.get("id") in protegidos or _dt.casa(x, tema):
+            continue
+        resto = novo[:i] + novo[i + 1:]
+        o = next((o for o in do_tema if loja_de(o) == loja_de(x) and pode(o, resto)), None)
+        if o is None:
+            continue
+        novo[i] = o
+        do_tema.remove(o)
+        vagas -= 1
+    return novo
 
 
 # 09/10 (dona: "vamos pôr poucas coisas deles" → "Shein é 1 por DIA no grupo, só isso"): teto RÍGIDO de posts por dia de
