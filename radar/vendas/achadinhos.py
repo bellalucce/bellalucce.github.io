@@ -5007,7 +5007,15 @@ def barrada_na_hora(o: dict) -> bool:
             # 04/11 (dona: "comece a incluir roupas masculinas e acessórios"): o masculino DO PERFIL passa
             or (not no_perfil_masculino(o) and (eh_masculino(o) or fora_do_nicho_grupo(t)))
             or validade_na_foto(o) or titulo_sem_tipo(o)
-            or kit_salao_shopee(o) or titulo_com_defeito(o))
+            or kit_salao_shopee(o) or titulo_com_defeito(o) or roupa_brega(o))
+
+
+def roupa_brega(o: dict) -> bool:
+    """20/11 12h48 (Claude): às 12h21 saiu no grupo, como "achado encaminhável do dia", a «Blusa Listrada Feminina Manga
+    Dobrada…» (Shopee, aprovada no banco antes da regra). A regra da dona de 13/11 18h45 (ROUPA_BREGA: listrada,
+    estampada, colorida, esportiva…) só valia na entrada; agora vale também na hora de postar. Pijama tem regra própria."""
+    t = o.get("titulo") or ""
+    return bool(o.get("grupo") == "moda" and tipo_moda(t) == "roupa" and ROUPA_BREGA.search(t))
 
 
 def titulo_com_defeito(o: dict) -> bool:
@@ -7026,6 +7034,10 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
         # link que ELA mandou ocupa a rodada inteira, sem o 1 por loja nem o 1 por tipo (os 7 links do ML de 11h10 saíam
         # 1 por hora). Bomba, referência e relâmpago (com "origem") seguem com metade da rodada e 1 por loja.
         dela = pedido_dela(o)
+        if not dela and roupa_brega(o):
+            # 20/11 12h48: cópia da referência não passa por cima da regra de roupa dela (blusa listrada às 12h21)
+            cand.remove(o)
+            continue
         if len(out) >= vagas_de_pedido(o, n):
             continue
         loja = (o.get("loja") or o.get("fonte") or "")[:20]
