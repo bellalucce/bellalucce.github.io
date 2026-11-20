@@ -4252,12 +4252,28 @@ def com_tipo(o: dict) -> dict:
     return {**o, "titulo": t} if t and t != (o.get("titulo") or "") else o
 
 
+def _com_o_tipo(curto: str, inteiro: str, n: int) -> str:
+    """20/11 20h55 (Claude): o corte tirou a palavra que diz o que é → ela volta, antes do tamanho se ele fecha o nome
+    ("L'Oréal Professionnel Absolut Repair Shampoo 750ml"). Sem ela, a regra da dona de 23/10 barrava a oferta."""
+    if curto == inteiro:
+        return curto
+    from vendas import titulo_regras
+    tipo = titulo_regras.tipo_que_falta(curto, inteiro)
+    if not tipo or len(curto) + 1 + len(tipo) > n:
+        return curto
+    if (m := re.search(r"\s(" + TAMANHO_TITULO.pattern.removeprefix("(?i)") + r")$", curto, re.I)):
+        return f"{curto[:m.start()]} {tipo} {m.group(1)}"
+    return f"{curto} {tipo}"
+
+
 def titulo_do_post(o: dict) -> str:
     """Nome do produto no post: limpo, cortado e — 08/10 noite — com o tipo quando o título só diz marca + linha.
     12/10: o que é só palavra de busca/enfeite/tipo empilhado SAI do nome (titulo_regras.consertar) em vez de a oferta
     ser barrada — a fila tinha ficado sem moda. Desliga em config/achadinhos.json → "titulo_conserta": false."""
     t = limpar_titulo(o.get("titulo") or "")
-    t = cortar(tipo_completado({**o, "titulo": t}) or t, 100)
+    inteiro = tipo_completado({**o, "titulo": t}) or t
+    t = cortar(inteiro, 100)
+    t = _com_o_tipo(t, inteiro, 100)
     try:
         if canais().get("titulo_conserta") is False:
             return t
