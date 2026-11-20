@@ -498,6 +498,14 @@ def limpar_titulo(t: str) -> str:
     # de tirar a grade ("Rasteira … Confortavel do 34 ao 39" → "… Confortavel do")
     t = re.sub(r"\s+\d{2,4}-\d{2,4}\s*$", "", t)
     t = re.sub(r"\s+\d{2}\s*br\s*$", "", t, flags=re.I)
+    # 20/11 02h43 (Claude; alerta da Rita/Nina de 19/11 16h38: "HARUHARU … Toner 150ml, 300ml / 4 Options"): a lista de
+    # opções do anúncio ("/ 4 Options") e a lista de tamanhos ("150ml, 300ml") diziam um preço só para vários tamanhos
+    # → saem as duas; o post fica sem tamanho em vez de prometer um que talvez não seja o do preço
+    # ("Paleta 12 Cores" fica: "cores"/"modelos" é parte do produto; só sai a contagem de opções do anúncio)
+    t = re.sub(r"\s*[/|,-]?\s*\(?\d+\s*options?\)?\s*$|\s*[/|]\s*\(?\d+\s*(?:op[çc][õo]es|varia[çc][õo]es)\)?\s*$", "",
+               t, flags=re.I).strip(" -–|:/,")
+    t = re.sub(r"\s*,?\s*\b\d+(?:[.,]\d+)?\s*(ml|g|kg|l)\b(?:\s*[,/]\s*\d+(?:[.,]\d+)?\s*\1\b)+", "", t,
+               flags=re.I).strip(" -–|:/,")
     if len(t.split()) >= 4:
         t = re.sub(rf"\s+{CORES}(?:\s*/\s*{CORES})+\s*$", "", t, flags=re.I)
     t = re.sub(r"(?:\s+(?:do|da|de|dos|das|ao|e|com|para|p/|em|no|na|tam))+\s*$", "", t, flags=re.I)
@@ -6281,6 +6289,15 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
     for nome, passa in regras:
         cand = [o for o in cand if passa(o)]
         marca(nome, cand)
+    # 20/11 02h46 (Claude; alarme de mix: Océane fora de 5 rodadas): a Black escolhia a MELHOR da Océane (1 por loja) e
+    # logo depois esta regra tirava justamente ela (família saiu há < 72 h): 26 → 1 → 0 no funil do servidor. A regra
+    # da família vem antes da Black, que então escolhe a melhor que pode sair. Nenhuma regra mudou, só a ordem.
+    fam_marca = familias_recentes_da_marca()  # 13/10: família da Océane não volta em OCEANE_FAMILIA_H
+
+    def familia_repetida(o: dict) -> bool:
+        return o.get("fonte") in FONTES_SO_BELEZA and chave_produto(o.get("titulo") or "") in fam_marca
+    cand = [o for o in cand if not familia_repetida(o)]
+    marca(f"família da marca própria sem repetir em {OCEANE_FAMILIA_H} h", cand)
     try:  # 04/11 (dona: "só vai postar as melhores promoções"): esquenta e Black — filtro duro que solta se o grupo secar
         from vendas import black_friday
         if black_friday.ativo(agora):
@@ -6308,12 +6325,6 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
             unicas.append(o)
     cand = unicas
     marca("título de post não repetido no dia", cand)
-    fam_marca = familias_recentes_da_marca()  # 13/10: família da Océane não volta em OCEANE_FAMILIA_H
-
-    def familia_repetida(o: dict) -> bool:
-        return o.get("fonte") in FONTES_SO_BELEZA and chave_produto(o.get("titulo") or "") in fam_marca
-    cand = [o for o in cand if not familia_repetida(o)]
-    marca(f"família da marca própria sem repetir em {OCEANE_FAMILIA_H} h", cand)
     antes_variedade = list(cand)  # 04/11: o que a cota por loja pode resgatar (só as regras de VARIEDADE caem)
     variada = variar_marcas(cand, agora)
     cand = variada if len(variada) >= min(POUCO_ESTOQUE, len(cand)) // 4 else variar_marcas(cand, agora, fator=2)
@@ -6918,7 +6929,12 @@ def _fila_posts_base(n: int = 5, horas: int = 30, so_com_link_curto: bool = True
     try:  # a cópia é a MAIORIA, não tudo: loja com oferta boa na fila normal ainda entra (cota_lojas)
         from vendas import cota_lojas
         ids = {o["id"] for o in out}
-        restos = [o for o in normal if o["id"] not in ids]
+        # 20/11 02h40 (Claude; conferência de 19/11: 11 da referência de 43 posts, e as vagas da meta da Amazon e da
+        # Magalu, dona 18/11 19h29, saíram da fila normal): a cópia da referência que não coube vai NA FRENTE do estoque
+        # de cada loja, para a vaga da meta preferir o que as referências postaram ("1º todas as boas das referências",
+        # dona 14/11 22h28). Quantos posts e quantos de cada loja não mudam.
+        restos = ([o for o in copias if o["id"] not in ids]
+                  + [o for o in normal if o["id"] not in ids and all(o["id"] != c["id"] for c in copias)])
         out = cota_lojas.trava_na_fila(out, restos, n, cota_lojas.posts_24h(),
                                        lambda o, atual: (bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
                                                          and not tipo_na_rodada(o, [x for x in atual if x is not o])
