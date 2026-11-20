@@ -519,6 +519,10 @@ def limpar_titulo(t: str) -> str:
     letras = [c for c in t if c.isalpha()]
     if len(t) > 20 and letras and sum(c.isupper() for c in letras) / len(letras) > 0.85:
         t = _sem_gritar(t)  # título TODO EM MAIÚSCULAS parece spam no grupo
+    # 20/11 02h59 (Claude; 6 cópias da referência de 19/11 barradas por "título começa em minúscula", como "etude house
+    # my lash serum 9g"): a 1ª letra maiúscula conserta; antes a oferta saía da fila
+    if t[:1].islower():
+        t = t[:1].upper() + t[1:]
     return t
 
 
@@ -1625,8 +1629,11 @@ def salvar_shopee_afiliados(itens: list[dict]) -> dict:
                     sinais["origem"] = it["origem"]
                 antes = con.execute("SELECT sinais FROM ofertas WHERE id = ?", (f"shpaf:{it['id']}",)).fetchone()
                 try:
-                    if antes and json.loads(antes[0] or "{}").get("origem") == "vitrine_fiel":
-                        sinais["origem"] = "vitrine_fiel"
+                    # 20/11 02h56 (Claude; 46 casadas da referência de 19/11 reprovadas: 7 de beleza/cabelo tinham
+                    # perdido a marca): a coleta comum (beleza/marcas) relia o produto que veio dos grupos de referência
+                    # e apagava o "referencia" → caía na régua comum (desconto mínimo) e saía de aprovada. Fica também.
+                    if antes and json.loads(antes[0] or "{}").get("origem") in ("vitrine_fiel", "referencia"):
+                        sinais["origem"] = json.loads(antes[0] or "{}")["origem"]
                 except ValueError:
                     pass
             link = it.get("url") if it.get("url") and pagina_de_produto(it["url"]) else None
