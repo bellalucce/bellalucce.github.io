@@ -7301,14 +7301,26 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
 
     # 04/11 (dona: "um sistema que não vai te deixar errar mais"): TRAVA do mix — a rodada não fecha só com uma loja
     # quando outra tem oferta boa na fila (a que menos postou em 24 h entra; mesmo gênero masculino/feminino da vaga)
-    def _pode_trava(o: dict, atual: list) -> bool:
-        if por_vendedor.get(vendedor(o)) or tipo_na_rodada(o, atual):
-            return False
+    def _motivo_trava(o: dict, atual: list) -> str:
+        """21/11 13h42 (Claude): o porquê de a oferta não entrar na rodada ("" = entra). Antes o log da loja da meta
+        dizia só "barradas pela regra da rodada (tipo/foto/teto)" e a conferência tinha de adivinhar qual."""
+        if por_vendedor.get(vendedor(o)):
+            return "vendedor repetido"
+        if tipo_na_rodada(o, atual):
+            return "tipo já na rodada"
         if not loja_cabe(loja_de(o), antes + [loja_de(x) for x in atual]):
-            return False
+            return "loja seguida demais"
         if eh_perfume_post(o) and sum((perf_antes + [eh_perfume_post(x) for x in atual])[-(PERFUME_JANELA - 1):]) >= PERFUME_MAX_JANELA:
-            return False
-        return bool(dentro_do_teto_dia([o])) and bool(foto_ok(o))
+            return "perfume demais"
+        if not dentro_do_teto_dia([o]):
+            return "teto do dia"
+        if not foto_ok(o):
+            return "foto"
+        return ""
+
+    def _pode_trava(o: dict, atual: list) -> bool:
+        return not _motivo_trava(o, atual)
+    _pode_trava.motivo = _motivo_trava  # lido por cota_lojas.trava_na_fila só para o log
     try:
         from vendas import cota_lojas
         out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava,
