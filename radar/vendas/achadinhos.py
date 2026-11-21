@@ -5093,6 +5093,10 @@ def tipo_completado(o: dict) -> str | None:
     """Título sem o tipo → "Perfume …" quando a categoria (ou marca de perfumaria com ml, sem ser kit) diz que é
     perfume; senão None. Título que já diz o tipo volta igual."""
     t = o.get("titulo") or ""
+    # 20/11 21h25 (Claude; funil): "Rabanne Lady Million Fabulous Edp 80ml" tinha tipo para o robô (EDP), mas a regra da
+    # dona de 23/10 quer o tipo em português → só a sigla de perfume ganha "Perfume" na frente
+    if re.search(r"(?i)\bed[ptc]\b", t) and not re.search(r"(?i)perfume|col[ôo]nia|eau de|parfum|splash|body", t):
+        return f"Perfume {t}"
     if TIPO_PRODUTO.search(t) or MARCAS_SKINCARE.search(t):
         return t
     if o.get("grupo") == "perfume" or (PERFUMARIA.search(t) and re.search(r"(?i)\d+\s?ml\b", t)
