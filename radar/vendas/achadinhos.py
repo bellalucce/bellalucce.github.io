@@ -6529,6 +6529,9 @@ def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_
             continue
         recentes = (tipos_meta or set()) if meta else tipos_recentes
         pool = variar_marcas([o for o in antes if loja_de(o) == lj and o["id"] not in ids], agora, fator=2)
+        # 21/11 12h18: o resgate pegava "sem promoção" (Bepantol, Eucerin, Clear a 0%) e limitar_sem_promo cortava 2 logo
+        # depois, enquanto Armani -39%, Kérastase -27% e Nivea -25% ficavam de fora → com promoção primeiro (ordem estável)
+        pool = sorted(pool, key=achadinho_sem_promo)
         for o in pool:
             k = chave_variedade(o)
             if falta <= 0:
