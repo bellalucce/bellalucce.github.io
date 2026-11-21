@@ -5070,6 +5070,8 @@ TIPO_PRODUTO = re.compile(
     r"pomada|\bwax\b|\bcera\b|tintura|colora[çc]|descolor|tonaliz|matizad|oxidante|reparador|ativador|definidor|"
     r"alisa|relaxa|tratamento|treatment|reconstru|cronograma|capilar|cabelos?\b|\bfios\b|\bpele\b|facial|rosto|"
     r"acidificante|antiqueda|elseve|"
+    # 20/11 22h50 (Claude; funil: 57 barradas por "sem o tipo", várias com o tipo em português no título)
+    r"progressiva|nanoplastia|redutor|\bpastas?\b|gel[ée]ias?|l[âa]minas?|labiais|antifrizz|selagem|seladora|"
     r"corporal|\bmilk\b|secador|chapinha|prancha|escova|modelador|babyliss|difusor|pente|presilha|piranha|tiara|"
     r"maquiagem|makeup|\bmake\b|skin ?care|rotina|stick|bast[ãa]o|vela|sais de banho|sach[êe]|[áa]cido|retinol|retinal|"
     r"niacinamida|vitamina|bb ?cream|cc ?cream|aplicador|curvex|pin[çc]a|lixa|depila|\brolo\b|gua ?sha|massageador|"
