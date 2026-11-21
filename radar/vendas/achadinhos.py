@@ -4236,7 +4236,13 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
             linhas += ["", fr]
     except Exception:  # noqa: BLE001
         pass
-    linhas += ["", f"🛒 *Compre aqui:* {link or link_afiliado(o['link_loja'], canal='whatsapp')}"]  # post do grupo = WhatsApp
+    base = link_afiliado(o['link_loja'], canal='whatsapp')
+    try:  # 21/11 13h10 (dona: "Pode, link nosso"): página nossa que conta o clique, só se já está no ar com este destino
+        from vendas.integracoes import link_contador
+        contado = link_contador.para_o_post(base)
+    except Exception:  # noqa: BLE001 — sem a página, o link de sempre
+        contado = None
+    linhas += ["", f"🛒 *Compre aqui:* {contado or link or base}"]  # post do grupo = WhatsApp
     if so_prime:
         return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
@@ -6472,6 +6478,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
         devendo = cota_lojas.devendo_meta("grupo", agora)
     except Exception:  # noqa: BLE001
         devendo = set()
+    try:  # 21/11 13h15 (dona 12h32 "sim": "dar menos espaço à loja ou ao tipo de oferta que quase ninguém clica")
+        from vendas.integracoes import link_contador
+        frio = link_contador.frios_agora()
+    except Exception:  # noqa: BLE001 — sem clique medido nada muda
+        frio = {"lojas": [], "tipos": []}
     cand = resgatar_lojas(cand, antes_variedade, agora,
                           {k for k, quando in saiu_tipo.items()
                            if quando >= (agora - timedelta(hours=JANELAS_TIPO_H[-1])).isoformat(sep=" ", timespec="seconds")},
@@ -6479,6 +6490,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
                           tipos_meta={k for k, quando in saiu_tipo.items()
                                       if quando >= (agora - timedelta(hours=TIPO_META_H)).isoformat(sep=" ",
                                                                                                   timespec="seconds")})
+    if frio.get("lojas") or frio.get("tipos"):  # loja/tipo frio: fora do resgate e para o fim da fila (ordem estável)
+        fl, ft = set(frio.get("lojas") or []), set(frio.get("tipos") or [])
+        ids_final = {o["id"] for o in final}
+        cand = [o for o in cand if o["id"] in ids_final or loja_de(o) not in fl]
+        cand.sort(key=lambda o: loja_de(o) in fl or chave_variedade(o) in ft)
     marca("+ cota por loja (resgate das regras de variedade)", cand)
     cand = curtos_primeiro_na_loja(cand)  # 20/11: regra de 13/10 (todos encurtados); a ordem entre lojas fica
     try:  # 04/10 (dona): produto que os grupos de referência postaram (e temos, com o NOSSO link) vem primeiro
@@ -8105,6 +8121,11 @@ def publicar_site() -> str:
         print(oceane_curto.ciclo())
     except Exception as ex:  # noqa: BLE001 — link curto é um extra: sem ele o grupo sai com o link comprido
         print("links curtos Océane falharam:", ex)
+    try:  # 21/11 13h10 (dona: "Pode, link nosso"): páginas /c/<codigo>/ que contam o clique (todas as lojas)
+        from vendas.integracoes import link_contador
+        print(link_contador.ciclo())
+    except Exception as ex:  # noqa: BLE001 — sem a página, o post sai com o link de sempre
+        print("link que conta o clique falhou:", type(ex).__name__, str(ex)[:120])
     try:  # 16/10 (dona: "awin desconectar toda hora"): tidd.ly pela API da Awin, sem painel logado
         from vendas.integracoes import awin
         print("links curtos Awin:", awin.curtos_pendentes(10, log=lambda m: None))
@@ -8125,6 +8146,8 @@ def publicar_site() -> str:
                 for sub in ("grupo", "links") if (pasta / sub / "index.html").exists()]
     if (pasta / "o").is_dir():  # 15/10: página /o/ nova também publica sem esperar o cron da nuvem
         digitais.append(f"o {len(list((pasta / 'o').glob('*/index.html')))}")
+    if (pasta / "c").is_dir():  # 21/11: idem para o link que conta o clique
+        digitais.append(f"c {len(list((pasta / 'c').glob('*/index.html')))}")
     (radar / "dados" / "paginas.txt").write_text("\n".join(digitais) + "\n", encoding="utf-8")
     git = ["git", "-C", str(pasta), "-c", "user.name=bellalucce", "-c", "user.email=bellalucce@users.noreply.github.com",
            "-c", "credential.helper=", "-c", "credential.helper=manager"]
