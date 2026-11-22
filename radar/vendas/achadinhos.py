@@ -7490,6 +7490,80 @@ def foto_px(url: str) -> int:
     return px
 
 
+# 22/11 15h40 (dona, com o print do 212 VIP Black pixelado no grupo: "Q qualidade é wssa"): a foto da Época tinha
+# 800x800, mas era uma imagem de ~60 px esticada em blocos; o foto_px mede só o tamanho. Medida da nitidez: na grade
+# de blocos que melhor encaixa (6 a 24 px), a variação DENTRO dos blocos de borda dividida pelo salto ENTRE eles.
+# Foto esticada em blocos ≈ 0 (0,025 no 212); fotos boas de hoje (Amazon, Shopee, ML, Época, Océane) de 0,198 a 0,485.
+FOTO_BLOCOS_MAX = 0.08
+_FOTO_NITIDA_ARQ = config.DADOS / "achadinhos" / "foto_nitida.json"
+
+
+def razao_blocos(img) -> float:
+    """Menor razão (variação dentro do bloco / salto entre blocos) nos blocos de borda; ~0 = imagem pequena esticada."""
+    import numpy as np
+    im = img.convert("L")
+    if max(im.size) > 800:
+        k = 800 / max(im.size)
+        im = im.resize((max(1, int(im.size[0] * k)), max(1, int(im.size[1] * k))))
+    a = np.asarray(im, dtype=float)
+    ys, xs = np.where(a < 235)   # só a área do produto (o fundo branco não diz nada e pesa a conta)
+    if len(ys) > 100:
+        a = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    melhor = 9.0
+    for s in range(6, 25):
+        passo = max(1, s // 6)
+        for oy in range(0, s, passo):
+            for ox in range(0, s, passo):
+                b = a[oy:, ox:]
+                h, w = (b.shape[0] // s) * s, (b.shape[1] // s) * s
+                if h < 4 * s or w < 4 * s:
+                    continue
+                g = b[:h, :w].reshape(h // s, s, w // s, s)
+                dentro, media = g.std(axis=(1, 3)), g.mean(axis=(1, 3))
+                salto = np.zeros_like(media)
+                salto[:, 1:] = np.maximum(salto[:, 1:], np.abs(np.diff(media, axis=1)))
+                salto[1:, :] = np.maximum(salto[1:, :], np.abs(np.diff(media, axis=0)))
+                borda = salto > 20
+                if borda.sum() < 20:
+                    continue
+                melhor = min(melhor, float(np.median(dentro[borda]) / np.median(salto[borda])))
+    return melhor
+
+
+def foto_nitida(url: str) -> bool:
+    """False só quando a foto é uma imagem pequena esticada em blocos (cache em dados/achadinhos/foto_nitida.json).
+    Foto que não baixa fica como True aqui: quem barra foto que não abre é o foto_px (0 px)."""
+    try:
+        cache = json.loads(_FOTO_NITIDA_ARQ.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        cache = {}
+    if url in cache:
+        return cache[url]
+    import io
+
+    from PIL import Image
+
+    from vendas.integracoes.whatsapp import foto_grande
+    nitida, medida = True, False
+    for u in dict.fromkeys((foto_grande(url), url)):
+        try:
+            r = httpx.get(u, timeout=20, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code == 200:
+                medida = True
+                nitida = razao_blocos(Image.open(io.BytesIO(r.content))) > FOTO_BLOCOS_MAX
+                break
+        except Exception:  # noqa: BLE001
+            pass
+    if not medida:
+        return True  # sem resposta agora: não guarda, mede de novo na próxima
+    cache[url] = nitida
+    if len(cache) > 5000:
+        cache = dict(list(cache.items())[-4000:])
+    _FOTO_NITIDA_ARQ.parent.mkdir(parents=True, exist_ok=True)
+    _FOTO_NITIDA_ARQ.write_text(json.dumps(cache), encoding="utf-8")
+    return nitida
+
+
 # 05/10 (Mila, 02/10: "grife 0 de 106" — Beauty Box/Sephora vinham da Promobit com foto de 400 px e a vaga se perdia):
 # a foto grande vem da própria página do produto (og:image), 1 vez por link (cache em foto_loja.json)
 LOJAS_FOTO = re.compile(r"(beautybox|sephora|epocacosmeticos|belezanaweb|boticario|natura|eudora|quemdisseberenice)"
@@ -7542,7 +7616,8 @@ def foto_boa(o: dict) -> bool:
     # 27/10 (dona: "quando tiver coisa baixa dos pixels do mínimo, você resolve aí e posta do mesmo jeito"): pedido
     # DELA com foto real entre FOTO_MIN_PEDIDO e 600 px vai — o envio (whatsapp._quadro_nitido) amplia com nitidez e
     # centraliza no quadro branco 1080×1080
-    return bool(f) and foto_px(f) >= (FOTO_MIN_PEDIDO if o.get("pedido_dona") else FOTO_MIN_PX)
+    return (bool(f) and foto_px(f) >= (FOTO_MIN_PEDIDO if o.get("pedido_dona") else FOTO_MIN_PX)
+            and (not f.startswith("http") or foto_nitida(f)))
 
 
 def foto_do_mesmo_produto(o: dict, fotos: dict | None = None) -> str | None:
