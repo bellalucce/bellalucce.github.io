@@ -7934,42 +7934,52 @@ def registrar_legenda_postada(o: dict, legenda: str, canal: str = "grupo") -> No
 def reavaliar() -> int:
     """Reaplica as regras (que mudam com os pedidos do usuário) em tudo que está no banco."""
     _tabela()
-    n = 0
+    # 22/11 20h40 (Claude, lido no servidor): o UPDATE ficava no meio do laço das ~11 mil ofertas, e a escrita segurava o
+    # banco do 1º UPDATE até o fim (minutos, com pontuar/aprovada em cada uma). As 5 travas de 21-22/11 ("database is
+    # locked": rodada das 20h15 sem WhatsApp, referência sem par → API) caíram todas com o radar rodando. Agora calcula
+    # tudo só lendo e grava as mudanças de uma vez, numa transação curta.
+    mudou = []
     with db.conectar() as con:
-        for r in con.execute("SELECT * FROM ofertas").fetchall():
-            o = dict(r)
-            o["sinais"] = json.loads(o["sinais"] or "{}")
-            g = _grupo_final(o["grupo"], o["titulo"])
-            # 08/10: loja que só vende beleza (Océane) não troca de grupo ("Toalha Demaquilante" virava casa e saía)
-            o["grupo"] = (o["grupo"] if o.get("fonte") in FONTES_SO_BELEZA and o["grupo"] in LINHA_PRINCIPAL
-                          and g not in LINHA_PRINCIPAL else g)
-            if o.get("fonte") == FONTE_SHEIN:  # 09/10: Shein entra só como moda (bolsa/sapato/acessório/pijama)
-                o["grupo"] = "moda"
-            o["cupom"] = cupom_valido(o["cupom"])
-            o["score"] = pontuar(o)
-            ok = int(aprovada(o))
-            if (ok, o["grupo"], o["cupom"], o["score"]) != (r["aprovada"], r["grupo"], r["cupom"], r["score"]):
-                con.execute("UPDATE ofertas SET aprovada = ?, grupo = ?, cupom = ?, score = ? WHERE id = ?",
-                            (ok, o["grupo"], o["cupom"], o["score"], o["id"]))
-                n += 1
-    return n
+        linhas = con.execute("SELECT * FROM ofertas").fetchall()
+    for r in linhas:
+        o = dict(r)
+        o["sinais"] = json.loads(o["sinais"] or "{}")
+        g = _grupo_final(o["grupo"], o["titulo"])
+        # 08/10: loja que só vende beleza (Océane) não troca de grupo ("Toalha Demaquilante" virava casa e saía)
+        o["grupo"] = (o["grupo"] if o.get("fonte") in FONTES_SO_BELEZA and o["grupo"] in LINHA_PRINCIPAL
+                      and g not in LINHA_PRINCIPAL else g)
+        if o.get("fonte") == FONTE_SHEIN:  # 09/10: Shein entra só como moda (bolsa/sapato/acessório/pijama)
+            o["grupo"] = "moda"
+        o["cupom"] = cupom_valido(o["cupom"])
+        o["score"] = pontuar(o)
+        ok = int(aprovada(o))
+        if (ok, o["grupo"], o["cupom"], o["score"]) != (r["aprovada"], r["grupo"], r["cupom"], r["score"]):
+            mudou.append((ok, o["grupo"], o["cupom"], o["score"], o["id"]))
+    if mudou:
+        with db.conectar() as con:
+            con.executemany("UPDATE ofertas SET aprovada = ?, grupo = ?, cupom = ?, score = ? WHERE id = ?", mudou)
+    return len(mudou)
 
 
 def auditar() -> list[str]:
     """Revisão de segurança a cada ciclo (pedido do usuário: 'revê isso sempre'): nenhuma oferta aprovada pode ter
     afiliado de terceiros nem link que não seja página de produto. Achou? Derruba e registra no log."""
-    problemas = []
-    with db.conectar() as con:
-        for r in con.execute("SELECT id, titulo, link_loja FROM ofertas WHERE aprovada = 1").fetchall():
-            link = r["link_loja"]
-            final = link_afiliado(link) if link else None
-            ruim = tem_afiliado_terceiro(link) or (link and not pagina_de_produto(link))
-            nosso = config.segredos().get("afiliados", {}).get("amazon_tag")
-            if final and "tag=" in final and (not nosso or f"tag={nosso}" not in final):
-                ruim = True  # tag de Amazon que não é a nossa
-            if ruim:
-                problemas.append(f"{r['id']} {link}")
-                con.execute("UPDATE ofertas SET aprovada = 0 WHERE id = ?", (r["id"],))
+    problemas, derrubar = [], []
+    with db.conectar() as con:  # 22/11 20h40: lê tudo antes; a escrita (curta) fica no fim, como em reavaliar()
+        linhas = con.execute("SELECT id, titulo, link_loja FROM ofertas WHERE aprovada = 1").fetchall()
+    for r in linhas:
+        link = r["link_loja"]
+        final = link_afiliado(link) if link else None
+        ruim = tem_afiliado_terceiro(link) or (link and not pagina_de_produto(link))
+        nosso = config.segredos().get("afiliados", {}).get("amazon_tag")
+        if final and "tag=" in final and (not nosso or f"tag={nosso}" not in final):
+            ruim = True  # tag de Amazon que não é a nossa
+        if ruim:
+            problemas.append(f"{r['id']} {link}")
+            derrubar.append((r["id"],))
+    if derrubar:
+        with db.conectar() as con:
+            con.executemany("UPDATE ofertas SET aprovada = 0 WHERE id = ?", derrubar)
     if problemas:
         (config.DADOS / "achadinhos").mkdir(parents=True, exist_ok=True)  # na nuvem a pasta não existe
         with open(config.DADOS / "achadinhos" / "auditoria.log", "a", encoding="utf-8") as f:
