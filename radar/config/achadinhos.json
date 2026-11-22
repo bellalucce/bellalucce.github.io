@@ -86,7 +86,8 @@
       "21": 5
     },
     "teto_hora": 6,
-    "espalhar_na_hora": true
+    "espalhar_na_hora": true,
+    "teto_rodada": 4
   },
   "mix_noite": {
     "ligado": true,
