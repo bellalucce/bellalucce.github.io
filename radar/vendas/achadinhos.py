@@ -7954,10 +7954,14 @@ def reavaliar() -> int:
         o["score"] = pontuar(o)
         ok = int(aprovada(o))
         if (ok, o["grupo"], o["cupom"], o["score"]) != (r["aprovada"], r["grupo"], r["cupom"], r["score"]):
-            mudou.append((ok, o["grupo"], o["cupom"], o["score"], o["id"]))
+            mudou.append((ok, o["grupo"], o["cupom"], o["score"], o["id"],
+                          r["aprovada"], r["grupo"], r["cupom"], r["score"]))
     if mudou:
+        # 22/11 21h32 (revisor): entre a leitura e a gravação o radar pode ter mudado a oferta; só grava se os 4 campos
+        # ainda estão como foram lidos (senão a próxima reavaliação refaz com o valor novo)
         with db.conectar() as con:
-            con.executemany("UPDATE ofertas SET aprovada = ?, grupo = ?, cupom = ?, score = ? WHERE id = ?", mudou)
+            con.executemany("UPDATE ofertas SET aprovada = ?, grupo = ?, cupom = ?, score = ? WHERE id = ? "
+                            "AND aprovada IS ? AND grupo IS ? AND cupom IS ? AND score IS ?", mudou)
     return len(mudou)
 
 
