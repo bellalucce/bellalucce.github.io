@@ -102,5 +102,29 @@
   "links": {
    "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5328513651"
   }
+ },
+ {
+  "nome": "Kit Amigo Secreto: Pó + Batom Matte 30h Nude + Lip Balm",
+  "preco": "R$ 29,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB8043609336.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-8043609336"
+  }
+ },
+ {
+  "nome": "Kit Amigo Secreto: Pó + Batom Matte 30h Terracota + Lip Balm",
+  "preco": "R$ 29,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB5602302153.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-5602302153"
+  }
+ },
+ {
+  "nome": "Kit Amigo Secreto: Pó + Batom Matte 30h Rosa + Lip Balm",
+  "preco": "R$ 29,90 (Mercado Livre)",
+  "foto": "loja/kit_MLB8043741770.jpg",
+  "links": {
+   "Mercado Livre": "https://produto.mercadolivre.com.br/MLB-8043741770"
+  }
  }
 ]
