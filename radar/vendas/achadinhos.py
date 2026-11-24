@@ -3168,13 +3168,18 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
     # itens da Shopee saem (o link leva a uma loja fechada).
     from vendas import loja_ferias
     ferias = bool(loja_ferias.em_ferias())
-    try:
-        for chave, k in kits_ml_do_grupo(cfg, agora):
-            por(chave, k["nome"], k["preco"], k["links"]["Mercado Livre"], k["foto"], True)
-    except Exception:  # noqa: BLE001 — falha no estoque do ML não derruba a lista
-        pass
+
+    def _kits_ml_do_amigo() -> None:
+        try:
+            for chave, k in kits_ml_do_grupo(cfg, agora):
+                por(chave, k["nome"], k["preco"], k["links"]["Mercado Livre"], k["foto"], True)
+        except Exception:  # noqa: BLE001 — falha no estoque do ML não derruba a lista
+            pass
     if ferias:
+        _kits_ml_do_amigo()
         return _as_fotos(kits, pasta)
+    # 24/11 11h35 (Claude; dona 11h28 "volta tudo jogando pra Shopee"): com a Shopee vendendo, os itens da Shopee vão na
+    # frente e os kits de amigo secreto do ML entram depois dos kits da Shopee (cada anúncio com o seu estoque)
     if foco := foco_loja(agora, cfg):  # itens do foco já trazem o link CURTO oficial da Shopee
         for chave, p, ok in itens_do_foco(cfg, foco):
             if ok:
@@ -3190,6 +3195,7 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
         if promo_valendo(p, agora) and midia.tem_estoque(sku) and not esgotado_na_shopee(p.get("links") or {}, esg):
             por(sku, p["nome"], preco_loja_site(p, agora), (p.get("links") or {}).get("Shopee", ""),
                 p.get("foto_grupo") or p.get("foto", ""), False)
+    _kits_ml_do_amigo()
     return _as_fotos(kits + avulsos, pasta)
 
 
