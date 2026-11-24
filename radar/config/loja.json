@@ -40,27 +40,67 @@
   "foto": "loja/item_bml30h_avulso.jpg"
  },
  {
-  "nome": "Gloss Ursinho Chaveiro Vivai",
-  "preco": "R$ 16,90 na Shopee (de R$ 22,90)",
+  "nome": "Kit presente batom matte 30h + 2 lip balm Vivai",
+  "preco": "R$ 29,90 o kit (Shopee)",
   "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/22594698859"
+   "Shopee": "https://s.shopee.com.br/9zzZU75Tml"
   },
-  "foto": "loja/gloss_ursinho.jpg"
- },
- {
-  "nome": "Gloss Mágico Febella com partículas douradas",
-  "preco": "R$ 16,90 na Shopee (de R$ 24,90)",
-  "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/58250636573"
-  },
-  "foto": "loja/gloss_gold.jpg"
+  "foto": "loja/item_kit_n1.jpg"
  },
  {
   "nome": "Blush Vivai UniBlush",
   "preco": "R$ 13,90 na Shopee (de R$ 18,90)",
   "links": {
-   "Shopee": "https://shopee.com.br/product/254425847/23893980551"
+   "Shopee": "https://s.shopee.com.br/1qcrBW12QB"
   },
   "foto": "loja/blush.jpg"
+ },
+ {
+  "nome": "Kit presente blush Vivai + batom matte 30h + lip balm",
+  "preco": "R$ 33,90 o kit (Shopee)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/3LSfXrZjvf"
+  },
+  "foto": "loja/item_kit_n2.jpg"
+ },
+ {
+  "nome": "Kit presente gloss ursinho chaveiro + 2 lip balm Vivai",
+  "preco": "R$ 33,90 o kit (Shopee)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/1CDZjmIBy"
+  },
+  "foto": "loja/item_kit_n3.jpg"
+ },
+ {
+  "nome": "Gloss Ursinho Chaveiro Vivai",
+  "preco": "R$ 16,90 na Shopee (de R$ 22,90)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/1BOAy0nQ0v"
+  },
+  "foto": "loja/gloss_ursinho.jpg"
+ },
+ {
+  "nome": "Kit make completa mini: blush + batom 30h + gloss ursinho + lip balm",
+  "preco": "R$ 44,90 os 4 (Shopee)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/8pnc5yJ8IU"
+  },
+  "foto": "loja/item_kit_n4.jpg"
+ },
+ {
+  "nome": "Kit presente blush Vivai + 2 lip balm",
+  "preco": "R$ 30,90 o kit (Shopee)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/30pp9FjoAn"
+  },
+  "foto": "loja/item_kit_n5.jpg"
+ },
+ {
+  "nome": "Gloss Mágico Febella com partículas douradas",
+  "preco": "R$ 16,90 na Shopee (de R$ 24,90)",
+  "links": {
+   "Shopee": "https://s.shopee.com.br/3qO1y6VZmw"
+  },
+  "foto": "loja/gloss_gold.jpg"
  }
 ]
