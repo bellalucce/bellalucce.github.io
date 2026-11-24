@@ -4515,6 +4515,32 @@ def chamada_loja(propria: str | None, agora: datetime) -> str:
     return CHAMADAS_LOJA[(agora.toordinal() * 24 + agora.hour) % len(CHAMADAS_LOJA)]
 
 
+def kits_ml_do_grupo(cfg: dict, agora: datetime, disponivel: dict | None = None) -> list[tuple[str, dict]]:
+    """24/11 01h15 (Claude; dona 00h48 "crie os kits bonitinhos de amigo secreto no ml"): com a Shopee em férias o post
+    da loja no grupo só girava os produtos avulsos do ML, e os kits de amigo secreto ficavam de fora bem na época. Entra
+    o kit de config/midia.json "kits_ml" marcado com "grupo": true, até a data "grupo_ate" (AAAA-MM-DD), com foto e
+    com estoque no Hermes (o disponível do anúncio; sem dado de estoque, não entra: nunca anuncia o que acabou)."""
+    disp = _estoque_ml() if disponivel is None else disponivel
+    if disponivel is None and not disp:  # no SERVIDOR: vale o que o PC mediu (nuvem._loja_para_servidor)
+        disp = cfg.get("_estoque_pc_kits_ml") or {}
+    out = []
+    for k in cfg.get("kits_ml") or []:
+        mlb = str(k.get("mlb") or "")
+        if not (k.get("grupo") and mlb and k.get("ativo") is not False) or (disp.get(mlb) or 0) <= 0:
+            continue
+        if k.get("grupo_ate") and agora.strftime("%Y-%m-%d") > str(k["grupo_ate"]):
+            continue
+        if not (config.RAIZ / str(k.get("foto") or "")).is_file():
+            continue
+        preco = re.sub(r"\s*\((?:no )?Mercado Livre\)", "", str(k.get("preco") or "")).strip()
+        out.append((f"kit_ml:{mlb}", {
+            "nome": k.get("nome") or mlb, "foto": k["foto"], "promo": None,
+            "preco": f"{preco} · frete grátis no Mercado Livre" if preco else "",
+            "links": {"Mercado Livre": f"https://produto.mercadolivre.com.br/{mlb[:3]}-{mlb[3:]}"},
+            "legendas": [x for x in [k.get("legenda_grupo"), k.get("nome")] if x]}))
+    return out
+
+
 def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     """(legenda, foto local) de um produto da PRÓPRIA loja com estoque, em rodízio, nas HORAS_LOJA (1ª rodada da hora).
     Produtos/links/legendas vêm de config/midia.json (os mesmos dos vídeos). None fora do horário ou sem estoque."""
@@ -4566,6 +4592,8 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     ok += [(f"kit:{k.get('id', i)}", q) for i, k in enumerate(cfg.get("kits_grupo") or [])
            if not ferias and k.get("ativo") and (q := _so_shopee(k))["links"] and _tem(k.get("estoque") or [])
            and not esgotado_na_shopee(q["links"], esg) and (config.RAIZ / q["foto"]).exists()]
+    if ferias:
+        ok += kits_ml_do_grupo(cfg, agora)
     if not ok:
         return None
     if ferias:
