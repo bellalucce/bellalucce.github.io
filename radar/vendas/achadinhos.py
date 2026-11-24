@@ -3143,7 +3143,8 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
 
     def por(chave: str, nome: str, preco: str, link: str, foto: str, kit: bool) -> None:
         valor = _as_valor(preco)
-        if chave in vistos or not (link and "shopee" in link and foto and 0 < valor <= AS_FAIXAS[-1][0]):
+        loja_ok = "shopee" in link or "mercadolivre.com.br" in link   # 24/11: kit do ML também (Shopee em férias)
+        if chave in vistos or not (link and loja_ok and foto and 0 < valor <= AS_FAIXAS[-1][0]):
             return
         if not (config.RAIZ / foto).is_file():
             return
@@ -3152,6 +3153,19 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
                                            "preco": re.sub(r"\s*\(Shopee\)\s*$", "", preco).strip(), "valor": valor,
                                            "link": link, "foto": foto, "kit": kit})
 
+    # 24/11 10h49 (Claude; dona 00h48 "crie os kits bonitinhos de amigo secreto no ml"): a página /amigo-secreto/ só
+    # levava itens nossos da Shopee, que está em férias desde 17/11; os 3 kits de amigo secreto do ML (R$ 29,90) não
+    # apareciam. Entram primeiro os kits do ML do grupo (mesmas travas: estoque, foto, até "grupo_ate"); em férias, os
+    # itens da Shopee saem (o link leva a uma loja fechada).
+    from vendas import loja_ferias
+    ferias = bool(loja_ferias.em_ferias())
+    try:
+        for chave, k in kits_ml_do_grupo(cfg, agora):
+            por(chave, k["nome"], k["preco"], k["links"]["Mercado Livre"], k["foto"], True)
+    except Exception:  # noqa: BLE001 — falha no estoque do ML não derruba a lista
+        pass
+    if ferias:
+        return _as_fotos(kits, pasta)
     if foco := foco_loja(agora, cfg):  # itens do foco já trazem o link CURTO oficial da Shopee
         for chave, p, ok in itens_do_foco(cfg, foco):
             if ok:
@@ -3167,7 +3181,11 @@ def kits_amigo_secreto(pasta=None, agora: datetime | None = None) -> list[dict]:
         if promo_valendo(p, agora) and midia.tem_estoque(sku) and not esgotado_na_shopee(p.get("links") or {}, esg):
             por(sku, p["nome"], preco_loja_site(p, agora), (p.get("links") or {}).get("Shopee", ""),
                 p.get("foto_grupo") or p.get("foto", ""), False)
-    out = kits + avulsos
+    return _as_fotos(kits + avulsos, pasta)
+
+
+def _as_fotos(out: list[dict], pasta=None) -> list[dict]:
+    """Grava as fotos reduzidas em <pasta>/loja/as_<chave>.jpg e troca o caminho (sem pasta: devolve como veio)."""
     if pasta is not None:
         from PIL import Image
         (pasta / "loja").mkdir(exist_ok=True)
@@ -3326,7 +3344,7 @@ def pagina_amigo_secreto(ofs: list[dict] | None = None, agora: datetime | None =
 <header class="hero"><img class="logo" src="../logo.png" alt="Bella Lucce"><p class="sobre">Bella Lucce · lista de presentes</p><h1>Amigo <em>secreto</em></h1><div class="orn">✦</div><p class="lead">Presentes de beleza de marcas que todo mundo conhece, separados por valor. Manda esta lista no grupo do amigo secreto da família ou da firma.</p><ul class="selos">{atalhos}<li>Atualizado {agora:%d/%m %H:%M}</li></ul><div class="acoes"><a class="entrar" href="{e(zap)}" target="_blank" rel="noopener" data-c="compartilhar">Mandar a lista no WhatsApp</a><a class="entrar" href="../sorteio-amigo-secreto/" data-c="sorteio">Fazer o sorteio grátis pelo WhatsApp</a></div></header>
 {blocos}
 <section class="fim"><p>Quer receber promoção de beleza assim todo dia? O grupo é grátis e você sai quando quiser.</p><a class="entrar" href="/grupo/?de=as" data-c="grupo">Entrar no grupo VIP do WhatsApp</a></section>
-<footer>Os itens "Bella Lucce · nossa loja" são da nossa loja na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
+<footer>Os itens "Bella Lucce · nossa loja" são da nossa loja no Mercado Livre ou na Shopee. Preços vistos nas últimas {AS_HORAS} h; podem mudar a qualquer momento, confira na loja antes de comprar.</footer>
 {AS_JS}
 {CONTADOR_SITE}
 </body></html>"""
