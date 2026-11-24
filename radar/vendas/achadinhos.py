@@ -2529,6 +2529,9 @@ def _faixa_nossa_loja(e, slug: str = "") -> str:
         link = next(iter((p.get("links") or {}).values()), "")
         if not (link and p.get("nome") and p.get("foto")):
             continue
+        teto = TETO_NOSSA_LOJA.get(slug)
+        if teto and not (0 < _as_valor(p.get("preco") or "") <= teto):   # 24/11: só o que cabe no título da página
+            continue
         foto = p["foto"] if str(p["foto"]).startswith("http") else f"../{p['foto']}"
         anc = _ancora({"u": link})
         if slug and all(x["guid"] != anc for x in FEED_NOSSA):
@@ -2727,6 +2730,12 @@ PAGINAS_PRESENTE = {
                   lambda o: o.get("k") in BELEZA_LOJA and 50 < _preco_oferta(o) <= 100),
 }
 PAGINAS_COM_NOSSA_LOJA = {"promocao-maquiagem", "promocao-shopee-beleza"}  # nossos produtos são de maquiagem e da Shopee
+# 24/11 11h11 (Claude): com a Shopee em férias os nossos produtos e kits estão no ML, e é época de presente: a faixa
+# "Da nossa loja" entra também nas páginas de presente de Natal e na do ML. Página com teto no título mostra só o que
+# cabe nele (a de R$ 50 não mostra o kit de R$ 79,90).
+PAGINAS_COM_NOSSA_LOJA |= {"presente-de-natal-para-ela", "presente-de-natal-ate-50-reais",
+                           "presente-de-natal-ate-100-reais", "promocao-mercado-livre-beleza"}
+TETO_NOSSA_LOJA = {"presente-de-natal-ate-50-reais": 50.0, "presente-de-natal-ate-100-reais": 100.0}
 PAGINAS_FEITAS: list[tuple[str, str]] = []  # (slug, título) escritas na última rodada → links fixos na inicial
 PAGINA_CAT_MIN = 4
 PAGINA_CAT_MAX = 60
@@ -8182,8 +8191,15 @@ def _publicar_loja(pasta, radar) -> None:
             im = Image.open(foto).convert("RGB")
             im.thumbnail((500, 500))
             im.save(destino, quality=85)
-        lista.append({"nome": k["nome"], "preco": k.get("preco", ""), "foto": f"loja/kit_{k['mlb']}.jpg",
-                      "links": {"Mercado Livre": f"https://produto.mercadolivre.com.br/{k['mlb'][:3]}-{k['mlb'][3:]}"}})
+        item = {"nome": k["nome"], "preco": k.get("preco", ""), "foto": f"loja/kit_{k['mlb']}.jpg",
+                "links": {"Mercado Livre": f"https://produto.mercadolivre.com.br/{k['mlb'][:3]}-{k['mlb'][3:]}"}}
+        # 24/11 10h59 (Claude): os kits de amigo secreto (grupo: true, até grupo_ate) eram os últimos de 16 na faixa
+        # "Da nossa loja" do site; na época deles vêm primeiro
+        if k.get("grupo") and datetime.now().strftime("%Y-%m-%d") <= str(k.get("grupo_ate") or "0000"):
+            lista.insert(sum(1 for x in lista if x.get("_epoca")), {**item, "_epoca": True})
+        else:
+            lista.append(item)
+    lista = [{c: v for c, v in x.items() if c != "_epoca"} for x in lista]
     (radar / "config" / "loja.json").write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
