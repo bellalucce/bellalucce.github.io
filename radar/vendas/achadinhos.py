@@ -472,6 +472,9 @@ def limpar_titulo(t: str) -> str:
     t = re.sub(r"\s+([,)])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" -–|:,")
     t = re.sub(r"(?i)\b(a[çc]o) ino\b", r"\1 Inox", t)
     t = re.sub(r"\s+\d{1,2}(?:/\d{1,2})+\s*$", "", t).strip(" -–|:,")
+    # 24/11 (escola: o inspetor barrou «Base … Cover Fix Fps 30 27g D9»): código de tom/variação colado depois da medida
+    # ("27g D9", "30ml B7") é código do vendedor; sai. Só depois de uma medida, para não cortar nome como "Galaxy S9".
+    t = re.sub(r"(\d+(?:[.,]\d+)?\s?(?:g|ml|mg|kg|l))\s+[A-Z]{1,2}\d{1,3}\s*$", r"\1", t, flags=re.I).strip(" -–|:,")
     # 08/10 (Beto: Yara Moi "… 100ml Lipx" vetado e de volta): "Lipx"/"Com Nf" = etiqueta do vendedor do ML, não nome
     t = re.sub(r"(?:\s+(?:lan[çc]amento|original|oferta|barato|top|lipx|(?:com|c/)\s*nf(?:-?e)?|nota fiscal))+\s*$", "", t,
                flags=re.I).strip(" -–|:")
