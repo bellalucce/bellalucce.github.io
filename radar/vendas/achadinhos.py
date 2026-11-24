@@ -2527,6 +2527,8 @@ def _faixa_nossa_loja(e, slug: str = "") -> str:
     itens = []
     for p in loja if isinstance(loja, list) else []:
         link = next(iter((p.get("links") or {}).values()), "")
+        if slug == "promocao-mercado-livre-beleza":   # 24/11 11h35: a página do ML mostra o anúncio do ML (a loja da Shopee voltou)
+            link = (p.get("links") or {}).get("Mercado Livre", "")
         if not (link and p.get("nome") and p.get("foto")):
             continue
         teto = TETO_NOSSA_LOJA.get(slug)
@@ -4615,6 +4617,9 @@ def post_da_loja(agora: datetime | None = None) -> tuple[str, str] | None:
     def _tem(prefixos: list[str]) -> bool:
         from vendas import estoque
         itens = estoque.itens()
+        if not itens and cfg.get("_estoque_pc_kits_grupo") is not None:
+            # 24/11 11h35 (Claude): no SERVIDOR o estoque do Hermes é vazio; vale o que o PC mediu (nuvem._loja_para_servidor)
+            return "|".join(prefixos) in (cfg.get("_estoque_pc_kits_grupo") or [])
         return all(any(i["sku"].startswith(pre) and i["qtd"] > 0 for i in itens) for pre in prefixos)
 
     esg = {} if ferias else esgotados_na_shopee(agora)  # 10/11: anúncio esgotado na Shopee não entra no rodízio
@@ -8201,7 +8206,9 @@ def _publicar_loja(pasta, radar) -> None:
                 "links": {"Mercado Livre": f"https://produto.mercadolivre.com.br/{k['mlb'][:3]}-{k['mlb'][3:]}"}}
         # 24/11 10h59 (Claude): os kits de amigo secreto (grupo: true, até grupo_ate) eram os últimos de 16 na faixa
         # "Da nossa loja" do site; na época deles vêm primeiro
-        if k.get("grupo") and datetime.now().strftime("%Y-%m-%d") <= str(k.get("grupo_ate") or "0000"):
+        # 24/11 11h35 (dona 11h28 "volta tudo jogando pra Shopee"): só nas férias; com a Shopee vendendo, os itens da
+        # Shopee ficam na frente e os kits do ML vão atrás
+        if ferias and k.get("grupo") and datetime.now().strftime("%Y-%m-%d") <= str(k.get("grupo_ate") or "0000"):
             lista.insert(sum(1 for x in lista if x.get("_epoca")), {**item, "_epoca": True})
         else:
             lista.append(item)
