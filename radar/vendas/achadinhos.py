@@ -4196,6 +4196,9 @@ def por_que_vale(o: dict, gancho: str = "", tem_selo: bool = False) -> str:
     return ""
 
 
+LINHA_CARRINHO_AMAZON = "_Não vai comprar agora? Põe no carrinho pelo link pra não perder._"
+
+
 def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar: bool = False) -> str:
     """Legenda no formato dos grupos: GANCHO → loja → produto → De/Por → cupom → link → aviso.
     marcar=True (só a rodada de verdade): Shopee sai com o link marcado deste post (marcador_post, 04/11)."""
@@ -4283,6 +4286,10 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     except Exception:  # noqa: BLE001 — sem a página, o link de sempre
         contado = None
     linhas += ["", f"🛒 *Compre aqui:* {contado or link or base}"]  # post do grupo = WhatsApp
+    # 25/11 18h20 (dona "sim p tudo" ao item 15b de 18/11): na Amazon, o carrinho feito pelo nosso link e comprado em até
+    # 89 dias também paga comissão. Linha curta logo abaixo do link, só na Amazon, sem horário (regra dela de 05/11).
+    if "amazon." in (o.get("link_loja") or "").lower():
+        linhas.append(LINHA_CARRINHO_AMAZON)
     if so_prime:
         return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
