@@ -2430,7 +2430,9 @@ def vitrine(horas: int = 36) -> str:
             f'<div class="btn">Ver na loja</div></a>' for p in loja)
         faixa = f'<section class="nossa"><h2 class="sec">Da nossa loja <i>Bella Lucce</i></h2><div class="trilho">{itens_loja}</div></section>'
     grupo = canais().get("grupo_whatsapp")
-    entrar = (f'<a class="entrar" href="{e(grupo)}" target="_blank" rel="noopener">Entrar no grupo VIP do WhatsApp · grátis</a>'
+    # 25/11 (Claude, Caixa-de-revisao item 1612): pela /grupo/ com a origem, como as outras páginas (?de=as, ?de=b-…): a
+    # /grupo/ conta a entrada por origem e leva ao mesmo grupo; antes a vitrine era a única que ia direto e não contava
+    entrar = ('<a class="entrar" href="/grupo/?de=vitrine">Entrar no grupo VIP do WhatsApp · grátis</a>'
               if grupo else "")
     loja_url, loja_txt = _seguro_botao_loja()
     # 26/10 (dona: "Manda p what's da loja"): 1 linha + botão para a /curadoria/ — só aparece com o número da loja
