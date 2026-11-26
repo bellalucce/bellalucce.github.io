@@ -601,6 +601,9 @@ def cortar(t: str, n: int) -> str:
     # "de Massa com Peptídeos…"): o corte deixou "para/com/sem + 1 palavra" de uma frase que continuava → sai a frase
     resto = original[len(t):].lstrip()
     m_frase = re.search(r"\s+(?:para|pra|com|sem|contra)\s+\S+(\s+(?:de|da|do|das|dos|e|com|a|ao))?$", t, re.I)
+    # 26/11 05h04 (revisor Sonnet): "Sem Fio"/"Com Fio" é atributo do produto (fone, mouse), não frase pela metade
+    if m_frase and re.match(r"\s+(?:sem|com)\s+fios?\b", m_frase.group(0), re.I):
+        m_frase = None
     if m_frase and m_frase.start() >= n * 0.5 and (
             m_frase.group(1) or re.match(r"(?:de|da|do|das|dos|e|com|a|ao)\b", resto, re.I)):
         t = t[:m_frase.start()]
@@ -2499,6 +2502,8 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{{document.quer
 /* 11/10: link que já abre numa aba (pins do Pinterest por tipo de produto): /?aba=<código da aba> */
 (()=>{{const a=new URLSearchParams(location.search).get('aba');if(!a)return;const b=[...document.querySelectorAll('nav button')].find(x=>x.dataset.g===a);if(b){{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));G=a}}}})();
 fetch('ofertas.json?v='+Date.now()).then(r=>r.json()).then(d=>{{T=d;filtrar()}});
+/* 26/11 05h09: visita por origem (?de=pinterest…), como a /amigo-secreto/; o botão do grupo leva a mesma origem */
+(()=>{{let de='';try{{de=(new URLSearchParams(location.search).get('de')||'').replace(/[^a-z0-9_-]/gi,'').slice(0,24)}}catch(e){{}}if(!de)return;window.goatcounter={{path:()=>'/?de='+de}};const a=document.querySelector('a.entrar');if(a)a.href='/grupo/?de='+de}})();
 </script>
 {CONTADOR_SITE}
 </body></html>"""
@@ -4305,7 +4310,9 @@ def legenda_post(o: dict, n: int = 0, recentes: list[str] | None = None, marcar:
     if so_prime:
         return "\n".join(linhas + ["", f"_Não é Prime? Dá pra testar grátis por 30 dias:_ {PRIME_TESTE}"])
     if n % 5 == 4:  # como os grupos grandes: de vez em quando pede indicação (crescimento sem pegar número de ninguém)
-        linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL)}"]
+        # 26/11 04h57: direto na /grupo/ com a origem (a home pedia 1 clique a mais e a visita caía em "direto"); a
+        # indicação é a porta que mais converte (descrição do grupo: 6 visitas, 3 toques em 30 dias)
+        linhas += ["", f"💌 Indique pra uma amiga: {canais().get('site', SITE_URL).rstrip('/')}/grupo/?de=indique"]
     elif n % 5 == 2 and not o.get("cupom") and (c := _cupom_shopee_manha(o)):
         linhas += ["", f"🎟️ Resgate os cupons do dia: {c}"]
     return "\n".join(linhas)
