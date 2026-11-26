@@ -523,6 +523,11 @@ def limpar_titulo(t: str) -> str:
                flags=re.I).strip(" -–|:/,")
     if len(t.split()) >= 4:
         t = re.sub(rf"\s+{CORES}(?:\s*/\s*{CORES})+\s*$", "", t, flags=re.I)
+    # 26/11 04h29 (Claude; a Rita local acusou e os posts SAÍRAM assim no grupo em 24 e 25/11): marca colada 2 vezes
+    # ("EudoraEudora Sérum…") e atributo do ML colado no fim ("… 100ml Volume da unidade"). O código de modelo de
+    # aparelho ("… 2000W SCN-01", "ES-50") FICA: decisão de 17/11 (test_titulo_codigo_reticencias_1711).
+    t = re.sub(r"\b([A-Z][a-zà-ÿ]{3,})\1\b", r"\1", t)
+    t = re.sub(r"\s+(?:volume|conte[úu]do|quantidade) (?:da|de) unidade\s*$", "", t, flags=re.I)
     t = re.sub(r"(?:\s+(?:do|da|de|dos|das|ao|e|com|para|p/|em|no|na|tam))+\s*$", "", t, flags=re.I)
     t = re.sub(r"\s{2,}", " ", t).strip(" -–|:/,")
     t = sem_lista_de_palavras(t)
