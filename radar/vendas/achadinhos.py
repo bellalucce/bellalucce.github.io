@@ -597,6 +597,13 @@ def cortar(t: str, n: int) -> str:
         tams = [m for m in TAMANHO_TITULO.finditer(t) if m.end() >= n * 0.35]
         if tams and len(t[tams[-1].end():].split()) >= 2:
             t = t[:tams[-1].end()]
+    # 26/11 04h40 (Claude; a Rita local acusou e saiu no grupo em 25/11: "… Efeito Teia Para Resgate" — o original segue
+    # "de Massa com Peptídeos…"): o corte deixou "para/com/sem + 1 palavra" de uma frase que continuava → sai a frase
+    resto = original[len(t):].lstrip()
+    m_frase = re.search(r"\s+(?:para|pra|com|sem|contra)\s+\S+(\s+(?:de|da|do|das|dos|e|com|a|ao))?$", t, re.I)
+    if m_frase and m_frase.start() >= n * 0.5 and (
+            m_frase.group(1) or re.match(r"(?:de|da|do|das|dos|e|com|a|ao)\b", resto, re.I)):
+        t = t[:m_frase.start()]
     t = _fim_limpo(t)
     # 13/11 (Rita 10/10, item aberto: "Kérastase Chronologiste R$ 386 virou 'Máscara Capilar Regeneradora… 200ml'"): a
     # marca vinha no FIM, sem vírgula, e o corte a perdeu → volta só o nome da marca, se couber
@@ -4940,6 +4947,10 @@ FORA_NICHO_GRUPO = re.compile(
     # 09/10 (dona: "o que foi aquela cola de prótese capilar? não tem nada a ver com a nossa coisa"): prótese (capilar,
     # dentária) e cola/fita de fixação de peruca/mega hair/lace = produto técnico, fora do público "quem ama comprar"
     r"(?i)esmalte sint[ée]tico|enferrujad|\bferrugem\b|"  # 17/10 (nuvem): tinta de portão caía em "beleza make" por "esmalte"
+    # 26/11 04h39 (Claude; a Mila local acusou e SAIU no grupo em 19/11): aparelho de exercício é fitness, e a dona
+    # disse em 05/11 22h01 "não vai pegar coisa fitness". Potes, placa de número, garrafa térmica e bomba de ar que ela
+    # também acusou FICAM: "algumas coisas de casa" foram liberadas na mesma fala (referencia.CASA_COPIA).
+    r"aparelho abdominal|abdominal com ventosa|(?:aparelho|equipamento) (?:de |para )?(?:exerc[íi]cio|gin[áa]stica)|"
     # 13/11 (Rita 10/10): miçanga de ARTESANATO ("Blend Mix… artesanato Diy bijuterias") passava como moda; a pulseira
     # de miçanga pronta segue no nicho
     r"mi[çc]angas?\b[^|]{0,60}(?:artesanato|\bdiy\b|para fazer|para montar)|(?:artesanato|\bdiy\b)[^|]{0,60}mi[çc]anga|"
