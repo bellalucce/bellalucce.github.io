@@ -6621,6 +6621,11 @@ def _candidatos(horas: int = 30, so_com_link_curto: bool = True, funil: list | N
 LOJAS_COTA = ("amazon", "magalu", "mercadolivre", "shopee", "océane")  # lojas com cota (loja_de)
 RESGATE_POR_LOJA = 3  # cada loja chega à fila com pelo menos isto (se tiver estoque bom antes da variedade)
 RESGATE_META = 6  # loja que deve a meta do dia (cota_lojas.META_DIA) chega à fila com pelo menos isto
+# 27/11 19h13 (Claude): na rodada a Amazon (meta 15, em 11 às 18h50) "não entrou: 7 na fila, 5 barradas (perfume
+# demais 5)" com 431 aprovadas variadas. Cada perfume é um tipo diferente (Calvin, Azzaro, Lancôme…), então o resgate
+# enchia a fila da loja de perfume e a regra de perfume da rodada (PERFUME_MAX_JANELA) barrava todos. No resgate, no
+# máximo isto de perfume por loja; o resto das vagas vai para cabelo, casa, beleza…
+RESGATE_PERFUME_MAX = 2
 TIPO_META_H = 3  # e o tipo dela só fica de fora se saiu no grupo há menos disto
 
 
@@ -6649,12 +6654,17 @@ def resgatar_lojas(final: list[dict], antes: list[dict], agora: datetime, tipos_
         # 21/11 12h18: o resgate pegava "sem promoção" (Bepantol, Eucerin, Clear a 0%) e limitar_sem_promo cortava 2 logo
         # depois, enquanto Armani -39%, Kérastase -27% e Nivea -25% ficavam de fora → com promoção primeiro (ordem estável)
         pool = sorted(pool, key=achadinho_sem_promo)
+        perf = sum(1 for o in final if loja_de(o) == lj and eh_perfume_post(o))
         for o in pool:
             k = chave_variedade(o)
             if falta <= 0:
                 break
             if k in tipos or k in recentes:
                 continue
+            if eh_perfume_post(o):
+                if perf >= RESGATE_PERFUME_MAX:
+                    continue
+                perf += 1
             tipos.add(k)
             extra.append(o)
             falta -= 1
