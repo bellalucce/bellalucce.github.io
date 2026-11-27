@@ -7113,7 +7113,9 @@ def _fila_posts_base(n: int = 5, horas: int = 30, so_com_link_curto: bool = True
                                                          and (tipo_repetivel(o) or "") not in recentes),
                                        atrasadas=cota_lojas.atrasadas(canal),
                                        # 19/11 15h08: no modo cópia esta trava é a que fica, e não tinha a 2ª vaga
-                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None)
+                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None,
+                                       # 27/11: loja sumida há 6 h+ (o ML na Black) fura também a meta
+                                       sumidas_longas=cota_lojas.sumidas(canal) if canal == "grupo" else None)
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas (modo cópia): {type(e).__name__}: {str(e)[:120]}")
     return out
@@ -7426,7 +7428,8 @@ def _fila_normal(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, co
         from vendas import cota_lojas
         out = cota_lojas.trava_na_fila(out, [x for k in ("B", "M", "C", "O") for x in filas[k]], n, posts_dia, _pode_trava,
                                        atrasadas=cota_lojas.atrasadas(canal),
-                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None)
+                                       dobrar=cota_lojas.muito_atrasadas() if canal == "grupo" else None,
+                                       sumidas_longas=cota_lojas.sumidas(canal) if canal == "grupo" else None)
     except Exception as e:  # noqa: BLE001 — a trava nunca derruba a rodada
         print(f"trava de lojas: {type(e).__name__}: {str(e)[:120]}")
     if tema and datas.noite_tematica():
