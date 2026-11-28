@@ -1518,18 +1518,32 @@ def _shopee_curto(url: str) -> str | None:
 
 
 # ---------------- ciclo ----------------
+COLETA_TIMEOUT_S, COLETA_FALHAS_SEGUIDAS, COLETA_LINKS_MAX_S = 15, 3, 240
+
+
 def coletar(log=print) -> dict:
     """1 ciclo (roda a cada 20 min): lê as fontes, pontua, grava, resolve o link só das aprovadas novas."""
     _tabela()
     agora = datetime.now().isoformat(sep=" ", timespec="seconds")
     vistos, erros = [], []
-    with httpx.Client(headers=UA, timeout=25, follow_redirects=True) as cli:
+    t_ini = time.monotonic()
+    # 27/11 (hermes-radar estourou os 15 min às 22:35): cada fonte tem limite — Promobit para depois de
+    # COLETA_FALHAS_SEGUIDAS páginas seguidas com erro (o resto fica para a próxima rodada) e a resolução de links
+    # para ao passar de COLETA_LINKS_MAX_S; a rodada loga o tempo de cada fase
+    seguidas = 0
+    with httpx.Client(headers=UA, timeout=COLETA_TIMEOUT_S, follow_redirects=True) as cli:
         for cam in PAGINAS_PROMOBIT:
             try:
                 vistos += _promobit(cam, cli)
+                seguidas = 0
             except Exception as e:
                 erros.append(f"promobit{cam}: {e}")
+                seguidas += 1
+                if seguidas >= COLETA_FALHAS_SEGUIDAS:
+                    erros.append(f"promobit: {seguidas} páginas seguidas com erro — pulo o resto nesta rodada")
+                    break
             time.sleep(1.5)  # educado com o site
+        t_pag = time.monotonic() - t_ini
         novos = aprov = 0
         antes = {r["id"]: r for r in db.consultar("SELECT id, link_loja, link_tentado_em FROM ofertas WHERE fonte = 'promobit'")}
         ontem = (datetime.now() - timedelta(hours=24)).isoformat(sep=" ", timespec="seconds")
@@ -1544,7 +1558,8 @@ def coletar(log=print) -> dict:
             link = limpar_link(link) if link else None  # link guardado (cache da nuvem) passa pela limpeza atual
             if (ok and not link and o.get("link_fonte", "").startswith(PROMOBIT) and not (tentado and tentado > ontem)
                     and o.get("loja") not in PROMOBIT_SEM_LINK
-                    and resolvidos < PROMOBIT_LINKS_POR_CICLO and not promobit_em_pausa()):
+                    and resolvidos < PROMOBIT_LINKS_POR_CICLO and not promobit_em_pausa()
+                    and time.monotonic() - t_ini < COLETA_LINKS_MAX_S):
                 resolvidos += 1
                 try:
                     link = _link_loja(o["link_fonte"], cli)
@@ -1583,10 +1598,14 @@ def coletar(log=print) -> dict:
                              aprovada=excluded.aprovada, link_loja=COALESCE(excluded.link_loja, link_loja),
                              atualizado_em=excluded.atualizado_em, link_tentado_em=excluded.link_tentado_em""", linhas)
         _guardar_precos(con, [(x[0], x[5]) for x in linhas])
+    t_grava = time.monotonic() - t_ini
     reavaliar()
+    t_reav = time.monotonic() - t_ini
     problemas = auditar()
     res = {"vistas": len(vistos), "novas": novos, "aprovadas": aprov, "auditoria": len(problemas), "erros": erros}
     log(f"achadinhos: {res}")
+    log(f"achadinhos: tempos (s): páginas {t_pag:.0f}, até gravar {t_grava:.0f}, reavaliar {t_reav - t_grava:.0f}, "
+        f"auditar {time.monotonic() - t_ini - t_reav:.0f}")
     return res
 
 
@@ -8151,6 +8170,9 @@ def registrar_legenda_postada(o: dict, legenda: str, canal: str = "grupo") -> No
         print(f"legendas_postadas: {e}")
 
 
+REAVALIAR_DIAS = 4
+
+
 def reavaliar() -> int:
     """Reaplica as regras (que mudam com os pedidos do usuário) em tudo que está no banco."""
     _tabela()
@@ -8159,8 +8181,15 @@ def reavaliar() -> int:
     # locked": rodada das 20h15 sem WhatsApp, referência sem par → API) caíram todas com o radar rodando. Agora calcula
     # tudo só lendo e grava as mudanças de uma vez, numa transação curta.
     mudou = []
+    # 27/11 22h45 (hermes-radar do servidor estourou os 15 min às 22:35; antes levava 10-11 min, 6 min de CPU): a tabela
+    # tem ~90 mil linhas (só Promobit reprovado passa de 60 mil) e esta reavaliação refazia pontuar+aprovada em TODAS a
+    # cada 20 min. Só interessa o que pode ir ao grupo: aprovada agora (pode ter deixado de valer) ou vista/atualizada
+    # nos últimos REAVALIAR_DIAS dias (pode ter passado a valer). A velha e reprovada espera a oferta voltar à coleta
+    # (que a atualiza e a traz de volta para esta janela).
+    corte = (datetime.now() - timedelta(days=REAVALIAR_DIAS)).isoformat(sep=" ", timespec="seconds")
     with db.conectar() as con:
-        linhas = con.execute("SELECT * FROM ofertas").fetchall()
+        linhas = con.execute("SELECT * FROM ofertas WHERE aprovada = 1 OR atualizado_em >= ? OR visto_em >= ?",
+                             (corte, corte)).fetchall()
     for r in linhas:
         o = dict(r)
         o["sinais"] = json.loads(o["sinais"] or "{}")
