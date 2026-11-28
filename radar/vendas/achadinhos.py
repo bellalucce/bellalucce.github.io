@@ -5477,7 +5477,7 @@ def preco_fresco(o: dict, agora: datetime | None = None) -> bool:
         h = min(h, 12)
     if o.get("fonte") == "oceane_afiliados":
         h = min(h, OCEANE_VALIDADE_H)
-    if not _da_shopee(o):  # 28/11 12h: loja sem releitura na hora (a Shopee é relida 1 min antes do post) → 6 h no máximo
+    if not _da_shopee(o):  # 28/11 12h: loja sem releitura na hora (a Shopee é relida 1 min antes do post) → 1 h no máximo (era 6 h até 28/11 13h50)
         h = min(h, PRECO_SEM_RELEITURA_H)
     return visto.replace("T", " ") >= (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
 
