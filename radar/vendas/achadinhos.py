@@ -8220,11 +8220,13 @@ def auditar() -> list[str]:
     problemas, derrubar = [], []
     with db.conectar() as con:  # 22/11 20h40: lê tudo antes; a escrita (curta) fica no fim, como em reavaliar()
         linhas = con.execute("SELECT id, titulo, link_loja FROM ofertas WHERE aprovada = 1").fetchall()
+    # 27/11: a tag da Amazon era relida do arquivo de segredos a CADA oferta (milhares por rodada; a auditoria levava ~3 min
+    # no servidor e o hermes-radar estourou os 15 min às 22:35); lê 1 vez
+    nosso = config.segredos().get("afiliados", {}).get("amazon_tag")
     for r in linhas:
         link = r["link_loja"]
         final = link_afiliado(link) if link else None
         ruim = tem_afiliado_terceiro(link) or (link and not pagina_de_produto(link))
-        nosso = config.segredos().get("afiliados", {}).get("amazon_tag")
         if final and "tag=" in final and (not nosso or f"tag={nosso}" not in final):
             ruim = True  # tag de Amazon que não é a nossa
         if ruim:
