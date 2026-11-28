@@ -5477,7 +5477,71 @@ def preco_fresco(o: dict, agora: datetime | None = None) -> bool:
         h = min(h, 12)
     if o.get("fonte") == "oceane_afiliados":
         h = min(h, OCEANE_VALIDADE_H)
+    if not _da_shopee(o):  # 28/11 12h: loja sem releitura na hora (a Shopee é relida 1 min antes do post) → 6 h no máximo
+        h = min(h, PRECO_SEM_RELEITURA_H)
     return visto.replace("T", " ") >= (agora - timedelta(hours=h)).isoformat(sep=" ", timespec="seconds")
+
+
+# 28/11 12h00 (dona, print do Love Kit Franciny Ehlke: postado às 09h02 por R$ 39,90 com o preço lido às 21h45 da
+# véspera, na Black Friday; a cliente foi comprar e estava R$ 164,35): "Essa oferta q vc postou tá errada Claude vc não
+# tá conferindo?" e "Vc tem q conferir um minuto antes de postar não horas antes". A Shopee é relida pela API logo antes
+# de CADA post (whatsapp.postar → antes_de_enviar); preço diferente, item fora do ar ou API sem resposta = não posta e
+# o banco fica com o preço novo. Loja sem leitura pela API do servidor (ML deu 403, Amazon/Magalu barram o robô) só
+# sai com o preço visto há PRECO_SEM_RELEITURA_H horas ou menos.
+PRECO_SEM_RELEITURA_H = 6
+PRECO_TOLERANCIA = 0.01      # 1% (arredondamento da API); acima disso o post estaria com o preço errado
+RELIDO_SEM_API_MIN = 60      # API da Shopee sem resposta: só posta se a leitura anterior tem até 60 min
+_RX_SHOPEE_ITEM = re.compile(r"shopee\.com\.br/(?:product/(\d+)/(\d+)|[^?#]*-i\.(\d+)\.(\d+))", re.I)
+
+
+def _da_shopee(o: dict) -> bool:
+    return str(o.get("id") or "").startswith("shpaf:") or bool(_RX_SHOPEE_ITEM.search(o.get("link_loja") or ""))
+
+
+def _ids_shopee(o: dict) -> tuple[str, str | None] | None:
+    m = _RX_SHOPEE_ITEM.search(o.get("link_loja") or "")
+    if m:
+        loja, item = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        return item, loja
+    oid = str(o.get("id") or "")
+    return (oid.split(":", 1)[1], None) if oid.startswith("shpaf:") and oid.split(":", 1)[1].isdigit() else None
+
+
+def relido_agora(o: dict, ler=None, agora: datetime | None = None) -> tuple[bool, str]:
+    """(pode_postar, motivo). Chamado 1 minuto antes do envio de cada oferta (rodada do grupo, pedido da dona e canal
+    do Telegram). `ler(item, loja)` = leitura da Shopee (padrão: API de afiliados, por_item)."""
+    agora = agora or datetime.now()
+    if not _da_shopee(o):
+        return (True, "preço visto há pouco") if preco_fresco(o, agora) else \
+            (False, f"preço visto há mais de {PRECO_SEM_RELEITURA_H} h e esta loja não dá para reler na hora")
+    ids = _ids_shopee(o)
+    try:
+        if ids is None:
+            raise ValueError("sem o número do item da Shopee")
+        if ler is None:
+            from vendas.integracoes import shopee_afiliados
+            with httpx.Client(timeout=20) as cli:
+                novo = shopee_afiliados.por_item(ids[0], ids[1], cli)
+        else:
+            novo = ler(*ids)
+    except Exception as e:  # noqa: BLE001 — sem leitura: só passa se a anterior é de até 60 min
+        visto = preco_visto_em(o).replace("T", " ")
+        if visto and visto >= (agora - timedelta(minutes=RELIDO_SEM_API_MIN)).isoformat(sep=" ", timespec="seconds"):
+            return True, f"API sem resposta ({type(e).__name__}), preço lido há menos de {RELIDO_SEM_API_MIN} min"
+        return False, f"não consegui reler o preço na Shopee ({type(e).__name__})"
+    if not novo or not float(novo.get("preco") or 0):
+        return False, "o produto saiu da Shopee (a API não acha mais)"
+    antes, depois = float(o.get("preco") or 0), float(novo["preco"])
+    agora_txt = agora.isoformat(sep=" ", timespec="seconds")
+    try:
+        with db.conectar() as con:
+            con.execute("UPDATE ofertas SET preco = ?, preco_antigo = ?, atualizado_em = ? "
+                        "WHERE id = ?", (depois, novo.get("preco_antigo"), agora_txt, o["id"]))
+    except Exception:  # noqa: BLE001 — gravar é secundário; a decisão abaixo vale igual
+        pass
+    if antes <= 0 or abs(depois - antes) > max(antes * PRECO_TOLERANCIA, 0.05):
+        return False, f"preço mudou de R$ {antes:.2f} para R$ {depois:.2f}".replace(".", ",")
+    return True, f"preço confere (R$ {depois:.2f})".replace(".", ",")
 
 
 # 08/10 (Beto: Laneige Lip Glowy Balm saiu 06/10 e voltou 08/10 pela vaga da grife, que deixava voltar em 2 dias): o
