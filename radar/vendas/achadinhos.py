@@ -5488,7 +5488,9 @@ def preco_fresco(o: dict, agora: datetime | None = None) -> bool:
 # de CADA post (whatsapp.postar → antes_de_enviar); preço diferente, item fora do ar ou API sem resposta = não posta e
 # o banco fica com o preço novo. Loja sem leitura pela API do servidor (ML deu 403, Amazon/Magalu barram o robô) só
 # sai com o preço visto há PRECO_SEM_RELEITURA_H horas ou menos.
-PRECO_SEM_RELEITURA_H = 6
+# 28/11 13h50 (Claude, revisão: "1 minuto antes" — ML /products volta sem preço e /items dá 403; Amazon e Magalu barram
+# o robô e não se contorna): 6 h → 1 h. Na fila e no post, loja sem releitura só com preço visto na última hora.
+PRECO_SEM_RELEITURA_H = 1
 PRECO_TOLERANCIA = 0.01      # 1% (arredondamento da API); acima disso o post estaria com o preço errado
 RELIDO_SEM_API_MIN = 60      # API da Shopee sem resposta: só posta se a leitura anterior tem até 60 min
 _RX_SHOPEE_ITEM = re.compile(r"shopee\.com\.br/(?:product/(\d+)/(\d+)|[^?#]*-i\.(\d+)\.(\d+))", re.I)
