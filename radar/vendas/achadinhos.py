@@ -1156,6 +1156,11 @@ def aprovada(o: dict) -> bool:
     if o["fonte"] == "ml_ofertas":
         return d >= 55 or (d >= 40 and (s.get("oficial") or (o.get("nota") or 0) >= 4.6))
     if o["fonte"] == "awin_docebeleza":  # 05/10: conferida à mão (loja de dermo, "de" = tabela das marcas): ≥ 25% off
+        # 27/11: a Doce Beleza FECHOU o programa na Awin (todo link cai em closedMerchant): nada dela é aprovado enquanto
+        # doce_beleza_status.fechada(); volta sozinha quando o teste diário do link passar
+        from vendas import doce_beleza_status
+        if doce_beleza_status.fechada():
+            return False
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
     if o["fonte"] == "awin_evas":  # 15/11 (Claude): promoção OFICIAL da loja na Awin; "De" = o % OFF que a loja declarou
         return d >= 25 and o.get("grupo") in ("beleza", "cabelo", "perfume")
@@ -1438,6 +1443,9 @@ def link_afiliado(url: str | None, canal: str = "site") -> str | None:
     if canal == "whatsapp" and NAO_PERMITE_WHATSAPP.search(url) and not ML_AFILIADO_NO_WHATSAPP:
         return url
     if re.match(r"https://(?:www\.)?docebeleza\.com\.br/products/", url):  # 05/10: Awin (mid 76888, nossa conta 3111704)
+        from vendas import doce_beleza_status  # 27/11: programa fechado → o link Awin morre em closedMerchant: sem link
+        if doce_beleza_status.fechada():
+            return None
         from urllib.parse import quote
         return _curto_oficial(url) or f"{AWIN_DOCEBELEZA}&ued={quote(url, safe='')}"  # 13/10: tidd.ly quando houver
     if re.match(r"https://(?:www\.)?evas\.com\.br/[a-z0-9-]+/?$", url):  # 15/11: Evas pela Awin (mid 125582)
@@ -7050,6 +7058,12 @@ def fila_posts(n: int = 5, horas: int = 30, so_com_link_curto: bool = True, conf
                canal: str = "grupo") -> list[dict]:
     """10/11: a ordem final passa por mix_da_noite (18h–21h59, config "mix_noite"; sem a chave = ligado)."""
     fila = _fila_posts_base(n, horas, so_com_link_curto, conferir_foto, canal)
+    try:  # 27/11: Doce Beleza fechada na Awin: nem cópia de referência nem oferta velha do estado dela sai (link morto)
+        from vendas import doce_beleza_status
+        if doce_beleza_status.fechada():
+            fila = [o for o in fila if o.get("fonte") != "awin_docebeleza" and not str(o.get("id", "")).startswith("dbz:")]
+    except Exception:  # noqa: BLE001
+        pass
     try:
         cfg = (canais().get("mix_noite") or {})
         if cfg.get("ligado", True):
