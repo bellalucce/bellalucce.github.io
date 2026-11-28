@@ -4068,6 +4068,24 @@ def ganchos_recentes(limite: int = 60) -> list[str]:
     return [black_friday.sem_topo(r["saida"] or "").split("\n", 1)[0].strip("* ") for r in reversed(linhas)]
 
 
+def ganchos_recentes_3d(limite: int = 60, dias: int = 3) -> list[str]:
+    """27/11: a chamada (1ª linha da legenda) igual voltava até 10 vezes em 18 dias, porque `ganchos_recentes` olha só
+    os últimos 60 posts (~1,5 dia). Aqui vêm antes (mais antigas) as chamadas do registro de postados dos últimos
+    `dias` dias e depois as 60 de sempre: o `escolher` pula as usadas e, se todas foram, pega a mais antiga."""
+    base = ganchos_recentes(limite)
+    try:
+        from vendas import black_friday
+        antigas = []
+        for x in _postados_do_registro(dias):
+            g = black_friday.sem_topo(x["legenda"]).split("\n", 1)[0].strip("* ").strip()
+            if g and "🛍️" not in g:
+                antigas.append(g)
+        return antigas + base
+    except Exception as e:  # noqa: BLE001 — sem o registro, vale a lista de sempre
+        print(f"chamadas dos últimos {dias} dias: {type(e).__name__}: {str(e)[:100]}")
+        return base
+
+
 def hora_do_preco(o: dict, agora: datetime | None = None) -> str:
     """Amazon (Associados): preço exibido fora da API precisa da data/hora em que foi conferido. "11h40" se foi hoje,
     "29/09 23h10" se não. Vazio para as outras lojas (a dona não quer rodapé nem carimbo à toa)."""
@@ -5445,10 +5463,80 @@ def _norm_titulo(t: str) -> str:
 MESMO_PRODUTO_DIAS = 3
 
 
+# 27/11 22h (dona: "não admito erro nenhum"; Kit Salon Line 4x, Prohair 4x, máscara 3x, Novex 24/11 e 25/11 com o mesmo
+# link curto — só o Mercado Livre repetia): a trava lia SÓ a coluna publicado_em do banco, e o pedido com "origem"
+# (relâmpago/bomba/referência, _pedidos_da_dona) zera o publicado_em e nem passava pela trava. Agora a trava também
+# lê o REGISTRO de postados (legendas_postadas.jsonl daqui + a cópia do servidor): id, título normalizado e link final
+# do que saiu no grupo, por REPETIR_DIAS — vale mesmo com o banco recomeçando.
+ARQS_REGISTRO_POSTADOS: tuple | None = None   # None = os arquivos de verdade (o teste troca)
+_REGISTRO_CACHE: dict = {}
+
+
+def _norm_link(u: str | None) -> str:
+    u = re.sub(r"[?#].*$", "", (u or "").strip().lower())
+    return u.rstrip("/")
+
+
+def _arqs_registro() -> tuple:
+    return ARQS_REGISTRO_POSTADOS if ARQS_REGISTRO_POSTADOS is not None else (
+        config.DADOS / "achadinhos" / "legendas_postadas.jsonl",
+        config.DADOS / "nuvem" / "legendas_postadas_servidor.jsonl")
+
+
+def _postados_do_registro(dias: int = REPETIR_DIAS, agora: datetime | None = None) -> list[dict]:
+    """[{"hora", "id", "titulo", "link", "chamada"}] do que o registro de legendas postadas mostra no grupo nos
+    últimos `dias` (hora em ISO com "T"; mais antigos primeiro)."""
+    agora = agora or datetime.now()
+    corte = (agora - timedelta(days=dias)).isoformat(timespec="seconds")
+    out = []
+    for arq in _arqs_registro():
+        try:
+            p = Path(arq)
+            if not p.is_file():
+                continue
+            st = p.stat()
+            chave = str(p)
+            ass = (st.st_mtime_ns, st.st_size)
+            achou = _REGISTRO_CACHE.get(chave)
+            if achou is None or achou[0] != ass:
+                linhas = []
+                for ln in p.read_text(encoding="utf-8").splitlines():
+                    try:
+                        d = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if d.get("canal") not in ("grupo", "pedido") or not d.get("legenda"):
+                        continue
+                    leg = d["legenda"]
+                    mt = re.search(r"🛍️\s*(.+)", leg)
+                    ml = re.search(r"https?://\S+", leg.split("Compre aqui:", 1)[1]) if "Compre aqui:" in leg else None
+                    linhas.append({"hora": str(d.get("hora") or "").replace(" ", "T"), "id": d.get("id"),
+                                   "titulo": mt.group(1).strip() if mt else "", "link": ml.group(0) if ml else "",
+                                   "legenda": leg})
+                achou = _REGISTRO_CACHE[chave] = (ass, linhas)
+            out.extend(x for x in achou[1] if x["hora"] >= corte)
+        except OSError:
+            continue
+    return sorted(out, key=lambda x: x["hora"])
+
+
 def publicados_recentes(dias: int = REPETIR_DIAS) -> dict:
-    """{"ids", "chaves", "titulos", "tokens"} do que saiu no grupo nos últimos `dias` (tokens: só MESMO_PRODUTO_DIAS)."""
+    """{"ids", "chaves", "titulos", "tokens", "links"} do que saiu no grupo nos últimos `dias` (tokens: só MESMO_PRODUTO_DIAS).
+    Lê o banco E o registro de legendas postadas (27/11): se o banco recomeçou, o registro ainda segura a repetição."""
     from vendas import revisao_fila
-    ids, chaves, titulos, tokens = set(), set(), set(), []
+    ids, chaves, titulos, tokens, links = set(), set(), set(), [], set()
+    try:
+        for x in _postados_do_registro(dias):
+            if x["id"]:
+                ids.add(x["id"])
+            if c := revisao_fila.chave_item(x["id"] or "", x["link"]):
+                chaves.add(c)
+            if x["titulo"]:
+                titulos.add(_norm_titulo(x["titulo"]))
+            if x["link"]:
+                links.add(_norm_link(x["link"]))
+    except Exception as e:  # noqa: BLE001 — o registro é reforço: sem ele, vale o banco como antes
+        print(f"registro de postados (trava de repetição): {type(e).__name__}: {str(e)[:100]}")
     desde_tk = (datetime.now() - timedelta(days=MESMO_PRODUTO_DIAS)).isoformat(sep=" ", timespec="seconds")
     for r in db.consultar("SELECT id, titulo, link_loja, publicado_em FROM ofertas WHERE publicado_em >= "
                           f"datetime('now','localtime','-{int(dias)} days')") or []:
@@ -5459,13 +5547,14 @@ def publicados_recentes(dias: int = REPETIR_DIAS) -> dict:
             titulos.add(_norm_titulo(r["titulo"]))
             if (dict(r).get("publicado_em") or "").replace("T", " ") >= desde_tk and (tk := _tokens_de_produto(r["titulo"])):
                 tokens.append(tk)
-    return {"ids": ids, "chaves": chaves, "titulos": titulos, "tokens": tokens}
+    return {"ids": ids, "chaves": chaves, "titulos": titulos, "tokens": tokens, "links": links}
 
 
 def ja_saiu(o: dict, pub: dict) -> bool:
     from vendas import revisao_fila
     if (o.get("id") in pub["ids"] or revisao_fila.chave_item(o.get("id") or "", o.get("link_loja")) in pub["chaves"]
-            or _norm_titulo(o.get("titulo") or "") in pub["titulos"]):
+            or _norm_titulo(o.get("titulo") or "") in pub["titulos"]
+            or (o.get("link_loja") and _norm_link(o.get("link_loja")) in pub.get("links", ()))):
         return True
     tk = _tokens_de_produto(o.get("titulo") or "")
     return bool(tk) and any(_mesmo_produto(tk, t2) for t2 in pub.get("tokens", ()))
@@ -5579,8 +5668,11 @@ def _pedidos_da_dona(amazon_ok: str) -> list[dict]:
     chaves_vet = revisao_fila.chaves_vetadas(vet)
     oceane_ok = (datetime.now() - timedelta(hours=OCEANE_VALIDADE_H)).isoformat(sep=" ", timespec="seconds")
     out = []
+    pub = publicados_recentes()  # 27/11: relâmpago/bomba/referência (com "origem") também respeitam os REPETIR_DIAS
     for r in db.consultar(f"SELECT * FROM ofertas WHERE id IN ({','.join('?' * len(ped))})", tuple(ped)):
         o, p = dict(r), ped[r["id"]]
+        if p.get("origem") and not p.get("forcar") and ja_saiu(o, pub):
+            continue  # Novex 24/11 21h40 e 25/11 18h36: o relâmpago voltava com "quando" novo; o link que a DONA colou (sem origem) segue passando
         if p.get("engano"):  # 18/11 21h (Bolo Fake): marcado como engano — nunca sai, nem com "forcar"
             continue
         if o.get("publicado_em") and o["publicado_em"] >= str(p["quando"]).replace("T", " "):
