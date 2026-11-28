@@ -5139,6 +5139,10 @@ def so_feminino_ligado() -> bool:
     return date.today().isoformat() <= str(canais().get("so_feminino_ate") or SO_FEMININO_ATE)
 
 
+CALCADO_ROUPA_RX = re.compile(r"(?i)\bt[êe]nis\b|\blegging|\bchuteira|\bcal[çc]ados?\b|\bsand[áa]lias?\b|\bsapat|"
+                              r"\bbotas?\b|camiseta|regata|\bshorts?\b|\bcal[çc]as?\b|\bjaqueta")
+
+
 def no_perfil_feminino(o: dict) -> bool:
     """Beleza, cabelo e perfume femininos + bolsa e bijuteria. Roupa, casa, eletrônico, infantil e masculino ficam fora."""
     t = o.get("titulo") or ""
@@ -5156,6 +5160,10 @@ def no_perfil_feminino(o: dict) -> bool:
     if re.search(r"(?i)piranha|presilha|\btiara\b|scrunchie|xuxinha|prendedor de cabelo|\bhen[êe]\b|alisante", t):
         fora = [x for x in fora if not re.fullmatch(r"pel[úu]cia", x)]
     if fora or fora_do_nicho_grupo(t) or eh_masculino(o):
+        return False
+    # 28/11 02h21 (Caixa HERMES 01h47, inspetor barrou «Tênis de Treino Under Armour Tribase Reps» ESCOLHE): tênis/roupa
+    # de treino caído na categoria "beleza" passava pela linha principal sem a regra de moda (MODA_FORA, 09/10).
+    if o.get("grupo") in LINHA_PRINCIPAL and CALCADO_ROUPA_RX.search(t) and MODA_FORA.search(t):
         return False
     return (o.get("grupo") in LINHA_PRINCIPAL
             or (o.get("grupo") == "moda" and bool(MODA_FEMININA.search(t)) and not MODA_FORA.search(t)
